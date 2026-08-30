@@ -1,0 +1,12 @@
+---
+description: How we work on omaishort — smallest change, verify, no drive-by refactors
+alwaysApply: true
+---
+
+# Working
+
+- Read `docs/REQUIREMENTS.md` before expanding scope. Out-of-scope items stay in that doc until asked.
+- Change one layer at a time: schema → engine → API → UI. Do not retouch all four “while here”.
+- After engine/schema edits: `pytest -q`. After `apps/web`: `npx tsc --noEmit`. After render: dry-run sample.
+- Do not commit `data/`, `.env`, MP4, or venv. Do not add dependencies without a reason in the PR.
+- Vietnamese product language in docs is fine; code, identifiers, and commit subjects stay English.

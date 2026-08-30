@@ -1,0 +1,9 @@
+{
+  "name": "omaishort-remotion",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Scaffold: preview timeline.json. MVP render is FFmpeg, not Remotion.",
+  "scripts": {
+    "dev": "echo Remotion preview is Phase 2. Use apps/web and FFmpeg for MVP."
+  }
+}

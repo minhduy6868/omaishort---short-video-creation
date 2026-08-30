@@ -1,0 +1,58 @@
+{
+  "properties": {
+    "hook": {
+      "title": "Hook",
+      "type": "string"
+    },
+    "conflict": {
+      "title": "Conflict",
+      "type": "string"
+    },
+    "rising_action": {
+      "title": "Rising Action",
+      "type": "string"
+    },
+    "twist": {
+      "title": "Twist",
+      "type": "string"
+    },
+    "ending": {
+      "title": "Ending",
+      "type": "string"
+    },
+    "hook_sec": {
+      "default": 6,
+      "title": "Hook Sec",
+      "type": "number"
+    },
+    "conflict_sec": {
+      "default": 12,
+      "title": "Conflict Sec",
+      "type": "number"
+    },
+    "rising_sec": {
+      "default": 20,
+      "title": "Rising Sec",
+      "type": "number"
+    },
+    "twist_sec": {
+      "default": 14,
+      "title": "Twist Sec",
+      "type": "number"
+    },
+    "ending_sec": {
+      "default": 8,
+      "title": "Ending Sec",
+      "type": "number"
+    }
+  },
+  "required": [
+    "hook",
+    "conflict",
+    "rising_action",
+    "twist",
+    "ending"
+  ],
+  "title": "StoryStructure",
+  "type": "object"
+}

@@ -1,0 +1,5 @@
+Portrait / passport still of {id}, {age} year old {gender}.
+Appearance lock: {appearance}
+Clothing lock: {clothing}
+Neutral expression, even studio lighting, face fully visible, shoulders-up, looking at camera.
+Photoreal cinematic, 9:16 vertical, no text, no watermark, no extra people.

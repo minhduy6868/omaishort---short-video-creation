@@ -1,0 +1,15 @@
+---
+description: CI/CD expectations for omaishort GitHub Actions
+globs: .github/**/*
+alwaysApply: false
+---
+
+# CI
+
+Workflow: `.github/workflows/ci.yml`.
+
+- `api` job: Python 3.11, `pip install -r apps/api/requirements.txt -r apps/api/requirements-dev.txt`, `pytest -q`. No API keys.
+- `web` job: Node 22, `npm ci`, `npx tsc --noEmit` in `apps/web`.
+- Keep CI green before merge. Do not add a required cloud GPU/ComfyUI step.
+- New test deps go in `requirements-dev.txt`, not `requirements.txt`.
+- FFmpeg dry-run is local-only; do not add it to CI unless a runner has ffmpeg and a short fixture that skips TTS network.

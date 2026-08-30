@@ -1,0 +1,2 @@
+# Optional. Captions fall back to duration-based word split if this is not installed.
+faster-whisper>=1.0.3

@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "Camera": {
+      "enum": [
+        "wide",
+        "medium",
+        "close_up"
+      ],
+      "title": "Camera",
+      "type": "string"
+    },
+    "Motion": {
+      "enum": [
+        "hold",
+        "zoom_in",
+        "zoom_out",
+        "pan_left",
+        "pan_right"
+      ],
+      "title": "Motion",
+      "type": "string"
+    },
+    "Scene": {
+      "properties": {
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "duration_sec": {
+          "exclusiveMinimum": 0,
+          "title": "Duration Sec",
+          "type": "number"
+        },
+        "location": {
+          "title": "Location",
+          "type": "string"
+        },
+        "characters": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Characters",
+          "type": "array"
+        },
+        "emotion": {
+          "title": "Emotion",
+          "type": "string"
+        },
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "dialogue_or_vo": {
+          "title": "Dialogue Or Vo",
+          "type": "string"
+        },
+        "lighting": {
+          "title": "Lighting",
+          "type": "string"
+        },
+        "mood": {
+          "title": "Mood",
+          "type": "string"
+        },
+        "consistency_notes": {
+          "default": "",
+          "title": "Consistency Notes",
+          "type": "string"
+        },
+        "still_id": {
+          "title": "Still Id",
+          "type": "string"
+        },
+        "shots": {
+          "items": {
+            "$ref": "#/$defs/Shot"
+          },
+          "minItems": 1,
+          "title": "Shots",
+          "type": "array"
+        },
+        "image_prompt": {
+          "default": "",
+          "title": "Image Prompt",
+          "type": "string"
+        },
+        "use_face_ref": {
+          "default": true,
+          "title": "Use Face Ref",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "index",
+        "duration_sec",
+        "location",
+        "characters",
+        "emotion",
+        "action",
+        "dialogue_or_vo",
+        "lighting",
+        "mood",
+        "still_id",
+        "shots"
+      ],
+      "title": "Scene",
+      "type": "object"
+    },
+    "Shot": {
+      "properties": {
+        "camera": {
+          "$ref": "#/$defs/Camera"
+        },
+        "motion": {
+          "$ref": "#/$defs/Motion"
+        },
+        "t_start": {
+          "title": "T Start",
+          "type": "number"
+        },
+        "t_end": {
+          "title": "T End",
+          "type": "number"
+        },
+        "still_id": {
+          "title": "Still Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "camera",
+        "motion",
+        "t_start",
+        "t_end",
+        "still_id"
+      ],
+      "title": "Shot",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "target_seconds": {
+      "title": "Target Seconds",
+      "type": "number"
+    },
+    "language": {
+      "default": "en",
+      "title": "Language",
+      "type": "string"
+    },
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/Scene"
+      },
+      "minItems": 1,
+      "title": "Scenes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "title",
+    "target_seconds",
+    "scenes"
+  ],
+  "title": "Storyboard",
+  "type": "object"
+}

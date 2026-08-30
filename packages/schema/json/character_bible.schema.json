@@ -1,0 +1,95 @@
+{
+  "$defs": {
+    "Character": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "age": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Age"
+        },
+        "gender": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gender"
+        },
+        "appearance": {
+          "title": "Appearance",
+          "type": "string"
+        },
+        "clothing": {
+          "title": "Clothing",
+          "type": "string"
+        },
+        "personality": {
+          "default": "",
+          "title": "Personality",
+          "type": "string"
+        },
+        "voice_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voice Id"
+        },
+        "reference_image": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Image"
+        }
+      },
+      "required": [
+        "id",
+        "appearance",
+        "clothing"
+      ],
+      "title": "Character",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "characters": {
+      "items": {
+        "$ref": "#/$defs/Character"
+      },
+      "minItems": 1,
+      "title": "Characters",
+      "type": "array"
+    }
+  },
+  "required": [
+    "characters"
+  ],
+  "title": "CharacterBible",
+  "type": "object"
+}

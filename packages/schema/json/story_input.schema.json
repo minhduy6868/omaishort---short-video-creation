@@ -1,0 +1,56 @@
+{
+  "$defs": {
+    "Genre": {
+      "enum": [
+        "drama",
+        "confession",
+        "family",
+        "cheating",
+        "revenge",
+        "twist"
+      ],
+      "title": "Genre",
+      "type": "string"
+    },
+    "StoryMode": {
+      "enum": [
+        "idea",
+        "script"
+      ],
+      "title": "StoryMode",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "mode": {
+      "$ref": "#/$defs/StoryMode",
+      "default": "script"
+    },
+    "text": {
+      "minLength": 8,
+      "title": "Text",
+      "type": "string"
+    },
+    "target_seconds": {
+      "default": 60,
+      "maximum": 180,
+      "minimum": 15,
+      "title": "Target Seconds",
+      "type": "integer"
+    },
+    "genre": {
+      "$ref": "#/$defs/Genre",
+      "default": "confession"
+    },
+    "language": {
+      "default": "en",
+      "title": "Language",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "title": "StoryInput",
+  "type": "object"
+}

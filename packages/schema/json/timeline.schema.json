@@ -1,0 +1,149 @@
+{
+  "$defs": {
+    "TimelineAudio": {
+      "properties": {
+        "src": {
+          "title": "Src",
+          "type": "string"
+        },
+        "from_sec": {
+          "default": 0,
+          "title": "From Sec",
+          "type": "number"
+        },
+        "duration_sec": {
+          "title": "Duration Sec",
+          "type": "number"
+        }
+      },
+      "required": [
+        "src",
+        "duration_sec"
+      ],
+      "title": "TimelineAudio",
+      "type": "object"
+    },
+    "TimelineElement": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "const": "image",
+          "default": "image",
+          "title": "Type",
+          "type": "string"
+        },
+        "src": {
+          "title": "Src",
+          "type": "string"
+        },
+        "from_sec": {
+          "title": "From Sec",
+          "type": "number"
+        },
+        "duration_sec": {
+          "title": "Duration Sec",
+          "type": "number"
+        },
+        "animation": {
+          "title": "Animation",
+          "type": "string"
+        },
+        "camera": {
+          "default": "medium",
+          "title": "Camera",
+          "type": "string"
+        },
+        "enter": {
+          "default": "fade",
+          "title": "Enter",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "src",
+        "from_sec",
+        "duration_sec",
+        "animation"
+      ],
+      "title": "TimelineElement",
+      "type": "object"
+    },
+    "TimelineText": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "from_sec": {
+          "title": "From Sec",
+          "type": "number"
+        },
+        "duration_sec": {
+          "title": "Duration Sec",
+          "type": "number"
+        }
+      },
+      "required": [
+        "text",
+        "from_sec",
+        "duration_sec"
+      ],
+      "title": "TimelineText",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "shortTitle": {
+      "title": "Shorttitle",
+      "type": "string"
+    },
+    "width": {
+      "default": 1080,
+      "title": "Width",
+      "type": "integer"
+    },
+    "height": {
+      "default": 1920,
+      "title": "Height",
+      "type": "integer"
+    },
+    "fps": {
+      "default": 30,
+      "title": "Fps",
+      "type": "integer"
+    },
+    "elements": {
+      "items": {
+        "$ref": "#/$defs/TimelineElement"
+      },
+      "title": "Elements",
+      "type": "array"
+    },
+    "text": {
+      "items": {
+        "$ref": "#/$defs/TimelineText"
+      },
+      "title": "Text",
+      "type": "array"
+    },
+    "audio": {
+      "items": {
+        "$ref": "#/$defs/TimelineAudio"
+      },
+      "title": "Audio",
+      "type": "array"
+    }
+  },
+  "required": [
+    "shortTitle",
+    "elements",
+    "text",
+    "audio"
+  ],
+  "title": "Timeline",
+  "type": "object"
+}

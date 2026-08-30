@@ -1,0 +1,12 @@
+Cinematic still, 9:16 vertical, photoreal short-drama frame.
+Location: {location}
+Action: {action}
+Emotion: {emotion}
+Mood: {mood}
+Lighting: {lighting}
+Camera: {camera}
+Characters in frame (use bible locks, do not invent faces):
+{character_blocks}
+{ref_note}
+ continuity: {consistency_notes}
+No text, no subtitles, no watermark, no logo.

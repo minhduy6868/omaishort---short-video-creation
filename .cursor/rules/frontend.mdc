@@ -1,0 +1,13 @@
+---
+description: Vite React studio UI conventions
+globs: apps/web/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# Frontend
+
+- One studio page. Types in `src/types.ts`, HTTP in `src/api.ts`, view in `src/App.tsx`.
+- Fonts: Fraunces (display) + Public Sans (UI). Colors from CSS variables in `index.css` (`--bg`, `--accent`). No Inter, no purple AI gradient.
+- Poll `/jobs/{id}` every 1.5s until `done` or `failed`. Stills use `dataFileUrl()` → `/files/...`.
+- Vite proxy: `/jobs`, `/health`, `/files` → `http://127.0.0.1:8765`. Bind `server.host` to `127.0.0.1`.
+- Do not add a UI library unless the page truly needs it.

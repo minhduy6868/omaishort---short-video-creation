@@ -1,19 +1,29 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 import httpx
 
 from omaishort.config import ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID
+from omaishort.engine.captions import WordStamp, edge_ticks_to_seconds
+from omaishort.engine.kenburns import probe_duration as probe_duration
 
 
 class TTSProvider(Protocol):
     name: str
 
-    async def synthesize(self, text: str, dest: Path, language: str = "en") -> Path | None:
+    async def synthesize(self, text: str, dest: Path, language: str = "en") -> TTSResult | None:
         ...
+
+
+@dataclass
+class TTSResult:
+    path: Path
+    provider: str
+    words: list[WordStamp] | None = None
 
 
 EDGE_VOICES = {
@@ -25,18 +35,38 @@ EDGE_VOICES = {
 class EdgeTTSProvider:
     name = "edge-tts"
 
-    async def synthesize(self, text: str, dest: Path, language: str = "en") -> Path | None:
+    async def synthesize(self, text: str, dest: Path, language: str = "en") -> TTSResult | None:
         try:
             import edge_tts
         except ImportError:
             return None
         dest.parent.mkdir(parents=True, exist_ok=True)
         voice = EDGE_VOICES.get(language[:2], EDGE_VOICES["en"])
+        words: list[WordStamp] = []
+        try:
+            communicate = edge_tts.Communicate(text, voice, boundary="WordBoundary")
+            audio = bytearray()
+            async for chunk in communicate.stream():
+                kind = chunk.get("type")
+                if kind == "audio":
+                    audio.extend(chunk["data"])
+                elif kind == "WordBoundary":
+                    start = edge_ticks_to_seconds(chunk["offset"])
+                    end = start + edge_ticks_to_seconds(chunk["duration"])
+                    token = (chunk.get("text") or "").strip()
+                    if token:
+                        words.append(WordStamp(word=token, start=start, end=end))
+            if audio:
+                dest.write_bytes(bytes(audio))
+                if dest.exists() and dest.stat().st_size > 0:
+                    return TTSResult(path=dest, provider=self.name, words=words or None)
+        except Exception:
+            words = []
         try:
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(str(dest))
             if dest.exists() and dest.stat().st_size > 0:
-                return dest
+                return TTSResult(path=dest, provider=self.name, words=None)
         except Exception:
             return None
         return None
@@ -45,7 +75,7 @@ class EdgeTTSProvider:
 class ElevenLabsTTSProvider:
     name = "elevenlabs"
 
-    async def synthesize(self, text: str, dest: Path, language: str = "en") -> Path | None:
+    async def synthesize(self, text: str, dest: Path, language: str = "en") -> TTSResult | None:
         if not ELEVENLABS_API_KEY or not ELEVENLABS_VOICE_ID:
             return None
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -65,12 +95,12 @@ class ElevenLabsTTSProvider:
                 response = await client.post(url, headers=headers, json=payload)
                 response.raise_for_status()
                 dest.write_bytes(response.content)
-                return dest
+                return TTSResult(path=dest, provider=self.name, words=None)
         except Exception:
             return None
 
 
-async def synthesize_speech(text: str, dest: Path, language: str = "en") -> tuple[Path, str]:
+async def synthesize_speech(text: str, dest: Path, language: str = "en") -> TTSResult:
     providers: list[TTSProvider] = []
     if ELEVENLABS_API_KEY:
         providers.append(ElevenLabsTTSProvider())
@@ -78,23 +108,8 @@ async def synthesize_speech(text: str, dest: Path, language: str = "en") -> tupl
     for provider in providers:
         result = await provider.synthesize(text, dest, language)
         if result is not None:
-            return result, provider.name
+            return result
     raise RuntimeError("no TTS provider produced audio")
-
-
-def probe_duration(path: Path) -> float:
-    import re
-    import subprocess
-
-    from omaishort.engine.kenburns import ffmpeg_path
-
-    cmd = [ffmpeg_path(), "-i", str(path)]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    match = re.search(r"Duration: (\d+):(\d+):(\d+\.\d+)", result.stderr or "")
-    if not match:
-        return 0.0
-    hours, minutes, seconds = match.groups()
-    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
 
 
 async def silence_audio(dest: Path, seconds: float) -> Path:

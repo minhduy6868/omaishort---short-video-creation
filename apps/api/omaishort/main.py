@@ -80,4 +80,9 @@ def download_mp4(job_id: str) -> FileResponse:
     mp4 = db.artifacts_of(row).get("mp4")
     if not mp4 or not Path(str(mp4)).exists():
         raise HTTPException(404, "mp4 not ready")
-    return FileResponse(str(mp4), media_type="video/mp4", filename=f"omaishort-{job_id}.mp4")
+    return FileResponse(
+        str(mp4),
+        media_type="video/mp4",
+        filename=f"omaishort-{job_id}.mp4",
+        content_disposition_type="inline",
+    )

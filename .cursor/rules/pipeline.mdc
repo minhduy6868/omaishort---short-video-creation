@@ -5,14 +5,14 @@ alwaysApply: true
 
 # omaishort
 
-This is a Story → short-drama engine, not a TikTok clone.
+Story → short-drama engine, not a TikTok clone. Quality bar: `.cursor/rules/quality.mdc`.
 
-- Do not emit one image per sentence. A scene has `duration_sec` plus 1–3 `shots` that share one `still_id`. Camera/motion (wide, zoom_in, pan) happens on that still.
-- Characters exist only in the Character Bible. Scenes reference `character_ids`. Image prompts are composed from bible appearance/clothing plus scene fields.
-- Drama beats are hook / conflict / rising_action / twist / ending. Never a fun-fact or explainer arc.
-- Providers are protocols: LLM (OpenAI-compatible), image (ComfyUI → API → placeholder), TTS (ElevenLabs optional, edge-tts default). Do not hardcode a vendor in the planner.
-- MVP render is FFmpeg Ken Burns 1080×1920. Remotion only consumes `timeline.json` (`elements`, `text`, `audio`).
-- Job stages: analyze → plan → refs → stills → tts → captions → render.
-- After TTS, rescale scene/shot times to the real audio duration.
+- Do not emit one image per sentence. A scene has `duration_sec` plus 1–3 `shots` on one `still_id`.
+- Characters exist only in the Character Bible. Scene `characters` = people **on camera**. Prompts = bible appearance/clothing + scene fields.
+- Beats: hook / conflict / rising_action / twist / ending. `normalize_storyboard` applies beat lenses (do not leave random hold/zoom cycles).
+- Providers are protocols. Planner never imports a vendor SDK. Image: Comfy stub → Pollinations (turbo/kontext) → OpenAI → placeholder. Video: HF Spaces (needs `HF_TOKEN`) → Pollinations Wan (pollen) → Comfy stub → Ken Burns.
+- Ken Burns: 2160×3840 working frame, cosine ease, 1080×1920 out. I2V: one clip per scene; motion prompt is camera + action only.
+- Stages: analyze → plan → refs → stills → tts → captions → render. After TTS, rescale times to real audio.
+- Remotion only reads `timeline.json`. `elements[].type` is `video` only for real I2V clips.
 
 Schema: `packages/schema/omaishort_schema/models.py`. Product: `docs/REQUIREMENTS.md`. Sources: `docs/RESEARCH.md`.

@@ -10,9 +10,13 @@ HARD RULES:
 - Do NOT create one scene per sentence. Merge consecutive lines that share location + emotion into one scene.
 - Each scene has exactly ONE still_id (format still_01, still_02, ...) and 1–3 shots that SHARE that still.
 - Shots are camera moves on the same image: wide/medium/close_up + hold/zoom_in/zoom_out/pan_left/pan_right.
-- Scene.characters is a list of bible ids only. Never invent new character ids.
+- Match motion to the drama beat, not a random cycle: hook → zoom_in (push-in); conflict → hold then zoom_in; rising_action → pan then zoom_in; twist → close_up zoom_in; ending → zoom_out (pull-out).
+- Scene.characters is a list of bible ids who are ON CAMERA in that still. Do not list someone who is only mentioned (he said, he typed, he called, her name was). Husband appears only when the action shows him (kiss, stand beside, walk).
+- location_id must be a bible location id. Reuse the same location_id whenever the place is the same (kitchen stays kitchen).
+- prop_ids lists bible prop ids present in the frame (phone, keys). Empty if none.
 - use_face_ref is false when the action is back-turned, far away, or face is hidden.
-- dialogue_or_vo is the spoken narration for that scene (the TTS line). Keep it short; total VO should fit ~target_seconds.
+- use_location_ref is false for inserts: phone screen, lock screen, hands-only, extreme object close-up.
+- dialogue_or_vo is the spoken LINE for that scene (what the character says), not a narrator recap. If the script is dialogue (Name: line), one scene per spoken beat; on-camera characters = speaker plus anyone sharing the frame. Do not rewrite speech into "she said / he told". Total spoken time should fit ~target_seconds.
 - consistency_notes mention wardrobe/location continuity from the previous scene.
 
 JSON shape:
@@ -25,7 +29,10 @@ JSON shape:
       "index": 1,
       "duration_sec": 5.5,
       "location": "kitchen at night",
+      "location_id": "kitchen",
       "characters": ["wife"],
+      "prop_ids": ["phone"],
+      "use_location_ref": true,
       "emotion": "suspicious",
       "action": "wife unlocks the husband's phone",
       "dialogue_or_vo": "...",

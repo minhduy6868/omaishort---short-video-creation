@@ -19,8 +19,17 @@ async def analyze_story(story: StoryInput) -> tuple[CharacterBible, StoryStructu
         try:
             bible = CharacterBible.model_validate(raw.get("bible") or raw.get("characters") or raw)
             structure = StoryStructure.model_validate(raw["structure"] if "structure" in raw else raw)
-            return bible, structure, "llm"
+            return _ensure_assets(bible, story), structure, "llm"
         except Exception:
             pass
     bible, structure = fallback_analyze(story)
     return bible, structure, "fallback"
+
+
+def _ensure_assets(bible: CharacterBible, story: StoryInput) -> CharacterBible:
+    guessed, _ = fallback_analyze(story)
+    if not bible.locations:
+        bible.locations = guessed.locations
+    if not bible.props:
+        bible.props = guessed.props
+    return bible

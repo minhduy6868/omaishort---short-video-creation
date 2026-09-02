@@ -7,7 +7,7 @@ alwaysApply: false
 # Backend
 
 - Pydantic models live in `packages/schema`, not copied into the API.
-- New vendors implement a provider protocol (`ImageProvider`, `TTSProvider`) and join the chain. Planner/analyzer never import SDKs.
+- New vendors implement a provider protocol (`ImageProvider`, `TTSProvider`, `VideoProvider`) and join the chain. Planner/analyzer never import SDKs.
 - Job state: SQLite via `omaishort.db`. Public responses go through `public_job()`.
 - Stages must stay `analyze → plan → refs → stills → tts → captions → render`.
 - Use FastAPI `lifespan`, not deprecated `on_event`.

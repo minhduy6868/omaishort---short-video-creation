@@ -7,9 +7,11 @@ Task: from a story idea OR a pasted script, emit a Character Bible and a five-be
 Rules:
 - Character ids are stable slugs: wife, husband, narrator, mom, lover, daughter.
 - appearance and clothing must be specific enough to lock a face and outfit across scenes (hair, age, skin, build, signature item).
+- Also emit locations[] and props[] with stable ids (kitchen, hallway, phone). Same kitchen across scenes = one location id.
 - Structure MUST contain hook, conflict, rising_action, twist, ending — never a fun-fact or explainer arc.
 - Beat seconds should sum near target_seconds.
 - Keep 2–5 characters. Extra names become unnamed extras, not bible entries.
+- If the paste is character dialogue (Vợ: … / Wife: …), ids follow those speaker labels. Beats summarize the argument, not a narrator recap.
 
 JSON shape:
 {
@@ -23,6 +25,22 @@ JSON shape:
         "clothing": "...",
         "personality": "...",
         "voice_id": null,
+        "reference_image": null
+      }
+    ],
+    "locations": [
+      {
+        "id": "kitchen",
+        "description": "kitchen at night",
+        "appearance": "galley kitchen, white cabinets, under-cabinet lights",
+        "reference_image": null
+      }
+    ],
+    "props": [
+      {
+        "id": "phone",
+        "description": "husband's smartphone",
+        "appearance": "black glass phone, couple lock-screen photo",
         "reference_image": null
       }
     ]

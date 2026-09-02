@@ -17,6 +17,18 @@ def refs_dir(job_id: str) -> Path:
     return path
 
 
+def location_refs_dir(job_id: str) -> Path:
+    path = refs_dir(job_id) / "locations"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def prop_refs_dir(job_id: str) -> Path:
+    path = refs_dir(job_id) / "props"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def stills_dir(job_id: str) -> Path:
     path = job_dir(job_id) / "stills"
     path.mkdir(parents=True, exist_ok=True)

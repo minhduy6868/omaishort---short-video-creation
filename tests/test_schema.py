@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from omaishort.db import artifacts_of, public_job
-from omaishort_schema.models import Character, CharacterBible, StoryInput
+from omaishort_schema.models import AssetRef, Character, CharacterBible, StoryInput
 
 
 def test_story_input_rejects_tiny_text():
@@ -20,10 +20,18 @@ def test_character_bible_roundtrip():
                 appearance="dark hair, tired eyes",
                 clothing="black silk robe",
             )
-        ]
+        ],
+        locations=[
+            AssetRef(id="kitchen", description="kitchen at night", appearance="white cabinets"),
+        ],
+        props=[
+            AssetRef(id="phone", description="smartphone", appearance="black glass"),
+        ],
     )
     again = CharacterBible.model_validate_json(bible.model_dump_json())
     assert again.characters[0].id == "wife"
+    assert again.locations[0].id == "kitchen"
+    assert again.props[0].id == "phone"
 
 
 def test_public_job_parses_nested_json():

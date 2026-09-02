@@ -29,6 +29,7 @@ export type ScenePreview = {
   index: number;
   duration_sec: number;
   location: string;
+  location_id?: string | null;
   emotion: string;
   still_id: string;
   dialogue_or_vo: string;

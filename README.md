@@ -3,18 +3,20 @@
 Story Video Engine for vertical short-drama. Paste a script, get a **1080×1920** MP4.
 
 - Requirements: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
-- Research (sources we learned from, not forked): [docs/RESEARCH.md](docs/RESEARCH.md)
+- Research (MoneyPrinter, OpenMontage, ArcReel, FTL…): [docs/RESEARCH.md](docs/RESEARCH.md)
+- Roadmap P1–P6: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Agent entry: [AGENTS.md](AGENTS.md)
 
 ## Pipeline
 
 ```
-StoryInput → Analyzer → CharacterBible + StoryStructure
-         → ScenePlanner → 1 still / scene, 1–3 Ken Burns shots
-         → Image (ComfyUI → OpenAI images → placeholder)
-         → TTS (ElevenLabs → edge-tts → silence)
+StoryInput → Analyzer → CharacterBible (characters + locations + props) + StoryStructure
+         → ScenePlanner → 1 still / scene, 1–3 Ken Burns shots, reused location_id
+         → Image (Pollinations Flux/Kontext free → OpenAI → placeholder)
+         → TTS (ElevenLabs → edge-tts WordBoundary → silence)
          → rescale to audio
-         → captions → FFmpeg → 1080×1920
+         → captions (edge-tts timestamps → Whisper → even-split) + BGM duck
+         → FFmpeg I2V (Wan if POLLINATIONS_KEY) or Ken Burns → 1080×1920
 ```
 
 ## Layout

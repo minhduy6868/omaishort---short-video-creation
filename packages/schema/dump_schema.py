@@ -12,6 +12,7 @@ from omaishort_schema.models import (
     Storyboard,
     StoryInput,
     StoryStructure,
+    SubtitleStyle,
     Timeline,
 )
 
@@ -25,6 +26,7 @@ models = {
     "scene": Scene,
     "storyboard": Storyboard,
     "timeline": Timeline,
+    "subtitle_style": SubtitleStyle,
 }
 
 for name, model in models.items():

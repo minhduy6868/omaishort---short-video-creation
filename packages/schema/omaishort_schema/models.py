@@ -6,6 +6,29 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 
+class SubtitleStyle(BaseModel):
+    font: str = "Arial"
+    font_size: int = Field(default=64, ge=24, le=120)
+    primary_hex: str = "#FFFFFF"
+    highlight_hex: str = "#FFE000"
+    outline_hex: str = "#101010"
+    outline: int = Field(default=5, ge=0, le=12)
+    margin_v: int = Field(default=120, ge=20, le=400)
+
+
+class MixSettings(BaseModel):
+    bgm_enabled: bool = True
+    bgm_volume: float = Field(default=0.14, ge=0, le=1)
+    duck: bool = True
+
+
+class AssetRef(BaseModel):
+    id: str
+    description: str
+    appearance: str = ""
+    reference_image: str | None = None
+
+
 class StoryMode(str, Enum):
     idea = "idea"
     script = "script"
@@ -60,6 +83,8 @@ class StoryInput(BaseModel):
     target_seconds: int = Field(default=60, ge=15, le=180)
     genre: Genre = Genre.confession
     language: str = "en"
+    subtitle: SubtitleStyle | None = None
+    mix: MixSettings | None = None
 
 
 class Character(BaseModel):
@@ -75,6 +100,8 @@ class Character(BaseModel):
 
 class CharacterBible(BaseModel):
     characters: list[Character] = Field(min_length=1)
+    locations: list[AssetRef] = Field(default_factory=list)
+    props: list[AssetRef] = Field(default_factory=list)
 
 
 class StoryStructure(BaseModel):
@@ -108,7 +135,9 @@ class Scene(BaseModel):
     index: int
     duration_sec: float = Field(gt=0)
     location: str
+    location_id: str | None = None
     characters: list[str]
+    prop_ids: list[str] = Field(default_factory=list)
     emotion: str
     action: str
     dialogue_or_vo: str
@@ -119,6 +148,8 @@ class Scene(BaseModel):
     shots: list[Shot] = Field(min_length=1)
     image_prompt: str = ""
     use_face_ref: bool = True
+    use_location_ref: bool = True
+    speaker_id: str | None = None
 
     @model_validator(mode="after")
     def shots_share_still(self) -> Scene:
@@ -144,7 +175,7 @@ class Storyboard(BaseModel):
 
 class TimelineElement(BaseModel):
     id: str
-    type: Literal["image"] = "image"
+    type: Literal["image", "video"] = "image"
     src: str
     from_sec: float
     duration_sec: float

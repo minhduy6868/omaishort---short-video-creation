@@ -1,5 +1,40 @@
 {
   "$defs": {
+    "AssetRef": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "appearance": {
+          "default": "",
+          "title": "Appearance",
+          "type": "string"
+        },
+        "reference_image": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Image"
+        }
+      },
+      "required": [
+        "id",
+        "description"
+      ],
+      "title": "AssetRef",
+      "type": "object"
+    },
     "Character": {
       "properties": {
         "id": {
@@ -84,6 +119,20 @@
       },
       "minItems": 1,
       "title": "Characters",
+      "type": "array"
+    },
+    "locations": {
+      "items": {
+        "$ref": "#/$defs/AssetRef"
+      },
+      "title": "Locations",
+      "type": "array"
+    },
+    "props": {
+      "items": {
+        "$ref": "#/$defs/AssetRef"
+      },
+      "title": "Props",
       "type": "array"
     }
   },

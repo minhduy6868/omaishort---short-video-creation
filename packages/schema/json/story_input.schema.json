@@ -12,6 +12,29 @@
       "title": "Genre",
       "type": "string"
     },
+    "MixSettings": {
+      "properties": {
+        "bgm_enabled": {
+          "default": true,
+          "title": "Bgm Enabled",
+          "type": "boolean"
+        },
+        "bgm_volume": {
+          "default": 0.14,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Bgm Volume",
+          "type": "number"
+        },
+        "duck": {
+          "default": true,
+          "title": "Duck",
+          "type": "boolean"
+        }
+      },
+      "title": "MixSettings",
+      "type": "object"
+    },
     "StoryMode": {
       "enum": [
         "idea",
@@ -19,6 +42,53 @@
       ],
       "title": "StoryMode",
       "type": "string"
+    },
+    "SubtitleStyle": {
+      "properties": {
+        "font": {
+          "default": "Arial",
+          "title": "Font",
+          "type": "string"
+        },
+        "font_size": {
+          "default": 64,
+          "maximum": 120,
+          "minimum": 24,
+          "title": "Font Size",
+          "type": "integer"
+        },
+        "primary_hex": {
+          "default": "#FFFFFF",
+          "title": "Primary Hex",
+          "type": "string"
+        },
+        "highlight_hex": {
+          "default": "#FFE000",
+          "title": "Highlight Hex",
+          "type": "string"
+        },
+        "outline_hex": {
+          "default": "#101010",
+          "title": "Outline Hex",
+          "type": "string"
+        },
+        "outline": {
+          "default": 5,
+          "maximum": 12,
+          "minimum": 0,
+          "title": "Outline",
+          "type": "integer"
+        },
+        "margin_v": {
+          "default": 120,
+          "maximum": 400,
+          "minimum": 20,
+          "title": "Margin V",
+          "type": "integer"
+        }
+      },
+      "title": "SubtitleStyle",
+      "type": "object"
     }
   },
   "properties": {
@@ -46,6 +116,28 @@
       "default": "en",
       "title": "Language",
       "type": "string"
+    },
+    "subtitle": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SubtitleStyle"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "mix": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MixSettings"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

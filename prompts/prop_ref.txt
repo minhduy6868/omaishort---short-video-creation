@@ -1,0 +1,5 @@
+Product / prop passport still of {id}.
+Description: {description}
+Appearance lock: {appearance}
+Isolated object on a dark still-life table, studio lighting, 9:16 vertical.
+No people, no hands, no text, no watermark.

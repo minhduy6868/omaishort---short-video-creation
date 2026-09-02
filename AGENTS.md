@@ -1,10 +1,13 @@
 # omaishort agent notes
 
-Read [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) and [docs/RESEARCH.md](docs/RESEARCH.md) before changing the pipeline.
+Read [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md), [docs/RESEARCH.md](docs/RESEARCH.md), and [docs/ROADMAP.md](docs/ROADMAP.md) before changing the pipeline.
 
 Rules live in `.cursor/rules/`. Skills live in `.cursor/skills/`.
 
+When the user asks to learn from MoneyPrinter, OpenMontage, or other video repos, use skill `source-research`. Do not clone those trees into this project.
+
 - Pipeline contract: `.cursor/rules/pipeline.mdc`
+- Quality bar: `.cursor/rules/quality.mdc`
 - How we work: `.cursor/rules/working.mdc`
 - GitHub / PRs: `.cursor/rules/github.mdc`
 - CI: `.cursor/rules/cicd.mdc`

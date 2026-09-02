@@ -1,10 +1,12 @@
 from omaishort_schema.models import (
+    AssetRef,
     Camera,
     Character,
     CharacterBible,
     Genre,
     JobStage,
     JobStatus,
+    MixSettings,
     Motion,
     Scene,
     Shot,
@@ -12,6 +14,7 @@ from omaishort_schema.models import (
     StoryInput,
     StoryMode,
     StoryStructure,
+    SubtitleStyle,
     Timeline,
     TimelineAudio,
     TimelineElement,
@@ -19,12 +22,14 @@ from omaishort_schema.models import (
 )
 
 __all__ = [
+    "AssetRef",
     "Camera",
     "Character",
     "CharacterBible",
     "Genre",
     "JobStage",
     "JobStatus",
+    "MixSettings",
     "Motion",
     "Scene",
     "Shot",
@@ -32,6 +37,7 @@ __all__ = [
     "StoryInput",
     "StoryMode",
     "StoryStructure",
+    "SubtitleStyle",
     "Timeline",
     "TimelineAudio",
     "TimelineElement",

@@ -66,7 +66,11 @@ export default function App() {
     }));
   }, [job]);
 
-  const mp4 = job?.status === "done" ? `/jobs/${jobId}/download` : null;
+  const videoSrc =
+    job?.status === "done"
+      ? dataFileUrl(job.artifacts?.mp4) ?? (jobId ? `/jobs/${jobId}/download` : null)
+      : null;
+  const poster = stills.find((scene) => scene.src)?.src ?? undefined;
 
   return (
     <div className="shell">
@@ -74,7 +78,7 @@ export default function App() {
         <p className="kicker">Story Video Engine</p>
         <h1>omaishort</h1>
         <p className="lede">
-          Paste a confession, not a prompt. One still per scene. Camera moves do the rest.
+          Paste a confession. One still per scene, bible-locked faces, beat cameras. I2V only when keyed — otherwise Ken Burns, never faked as video.
         </p>
       </header>
 
@@ -122,6 +126,22 @@ export default function App() {
             {busy ? "Rendering…" : "Make 60s short"}
           </button>
           {jobId && <span className="jobid">job {jobId}</span>}
+          <label className="load-job">
+            Load job
+            <input
+              value={jobId ?? ""}
+              onChange={(e) => {
+                const id = e.target.value.trim();
+                setJobId(id || null);
+                setJob(null);
+                setBusy(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.preventDefault();
+              }}
+              placeholder="dryrun-…"
+            />
+          </label>
         </div>
       </form>
 
@@ -135,6 +155,20 @@ export default function App() {
             ))}
           </ol>
           {job.error && <pre className="err">{job.error}</pre>}
+        </section>
+      )}
+
+      {videoSrc && (
+        <section className="panel player">
+          <video controls playsInline poster={poster} src={videoSrc} />
+          <p>
+            <a href={videoSrc} download>
+              Download MP4 1080×1920
+            </a>
+            {job?.artifacts?.motion_mode ? (
+              <span className="meta"> · motion {job.artifacts.motion_mode}</span>
+            ) : null}
+          </p>
         </section>
       )}
 
@@ -157,6 +191,7 @@ export default function App() {
               <div>
                 <p className="meta">
                   {scene.still_id} · {scene.duration_sec}s · {scene.location}
+                  {scene.location_id ? ` · ${scene.location_id}` : ""}
                 </p>
                 <p>{scene.dialogue_or_vo}</p>
                 <p className="meta">
@@ -165,17 +200,6 @@ export default function App() {
               </div>
             </article>
           ))}
-        </section>
-      )}
-
-      {mp4 && (
-        <section className="panel">
-          <video controls src={mp4} />
-          <p>
-            <a href={mp4} download>
-              Download MP4 1080×1920
-            </a>
-          </p>
         </section>
       )}
 

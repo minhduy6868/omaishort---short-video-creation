@@ -32,11 +32,15 @@
   margin: 24px 0;
 }
 
-.row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+.logo-opt {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
+}
+
+.logo-opt input {
+  width: auto;
 }
 
 label {

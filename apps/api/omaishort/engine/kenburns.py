@@ -12,10 +12,11 @@ from omaishort_schema.models import Camera, Motion, Shot
 # still-motion: zoompan at 2× output so 1080p steps are sub-pixel, then the filter scales to s=.
 _WORK_W = 2160
 _WORK_H = 3840
+# Keep the working crop inside the still. close_up is drama-only; editorial lenses stay medium/wide.
 _ZOOM = {
-    Camera.wide: 0.12,
-    Camera.medium: 0.18,
-    Camera.close_up: 0.26,
+    Camera.wide: 0.04,
+    Camera.medium: 0.05,
+    Camera.close_up: 0.12,
 }
 
 
@@ -78,15 +79,15 @@ def zoompan_expr(shot: Shot, frames: int) -> str:
         z = f"{1 + amp:.2f}-{amp:.2f}*{ease}"
         x, y = center_x, center_y
     elif shot.motion == Motion.pan_right:
-        z = f"{1 + amp * 0.6:.2f}"
+        z = f"{1 + amp * 0.35:.2f}"
         x = f"(iw-iw/zoom)*{ease}"
         y = center_y
     elif shot.motion == Motion.pan_left:
-        z = f"{1 + amp * 0.6:.2f}"
+        z = f"{1 + amp * 0.35:.2f}"
         x = f"(iw-iw/zoom)*(1-{ease})"
         y = center_y
     else:
-        z = f"1+{amp * 0.35:.2f}*{ease}"
+        z = f"1+{amp * 0.12:.2f}*{ease}"
         x, y = center_x, center_y
     return (
         f"scale={_WORK_W}:{_WORK_H}:force_original_aspect_ratio=increase,"

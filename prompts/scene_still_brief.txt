@@ -1,0 +1,16 @@
+BRIEF: uninhabited 9:16 editorial news still. Zero people, zero faces, zero hands, zero couple, zero presenter.
+Empty of humans. Not a soap opera. Not a portrait. Not a confession still.
+Location: {location} ({location_id})
+Still: {still_id}
+Set lock:
+{location_lock}
+Action: {action}
+Beat: {emotion}
+Mood: {mood}
+Lighting: {lighting}
+Camera: {camera}
+{cast_rule}
+{ref_note}
+{location_ref_note}
+continuity: {consistency_notes}
+No text, no subtitles, no watermark, no logo, no kicker, no headline burned in.

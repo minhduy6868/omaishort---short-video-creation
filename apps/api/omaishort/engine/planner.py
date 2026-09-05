@@ -3,7 +3,7 @@ from __future__ import annotations
 from omaishort.engine.fallback import fallback_plan, is_dialogue_script, normalize_storyboard
 from omaishort.engine.image_prompts import fill_image_prompts
 from omaishort.providers.llm import complete_json, load_prompt
-from omaishort_schema.models import Camera, CharacterBible, Motion, Storyboard, StoryInput, StoryStructure
+from omaishort_schema.models import Camera, CharacterBible, Motion, Storyboard, StoryInput, StoryStructure, is_editorial
 
 
 def _coerce_storyboard(raw: dict, story: StoryInput) -> dict:
@@ -52,12 +52,18 @@ def _coerce_storyboard(raw: dict, story: StoryInput) -> dict:
         scene.setdefault("use_face_ref", True)
         scene.setdefault("use_location_ref", True)
         scene.setdefault("speaker_id", None)
+        if is_editorial(story.kind):
+            scene["use_face_ref"] = False
+            scene["use_location_ref"] = False
+            scene["characters"] = []
+            scene["speaker_id"] = None
         cleaned.append(scene)
-    cleaned = cleaned[:15]
+    cleaned = cleaned[:5] if is_editorial(story.kind) else cleaned[:15]
     raw["scenes"] = cleaned
     raw.setdefault("title", "Untitled short")
     raw["target_seconds"] = float(raw.get("target_seconds") or story.target_seconds)
     raw.setdefault("language", story.language)
+    raw["kind"] = story.kind.value
     return raw
 
 
@@ -66,8 +72,10 @@ async def plan_scenes(
     bible: CharacterBible,
     structure: StoryStructure,
 ) -> tuple[Storyboard, str]:
-    system = load_prompt("planner.txt")
+    prompt_name = "planner_brief.txt" if is_editorial(story.kind) else "planner.txt"
+    system = load_prompt(prompt_name)
     user = (
+        f"kind={story.kind.value}\n"
         f"target_seconds={story.target_seconds}\nlanguage={story.language}\ngenre={story.genre.value}\n\n"
         f"BIBLE:\n{bible.model_dump_json(indent=2)}\n\n"
         f"STRUCTURE:\n{structure.model_dump_json(indent=2)}\n\n"
@@ -77,9 +85,16 @@ async def plan_scenes(
     if raw:
         try:
             board = Storyboard.model_validate(_coerce_storyboard(raw, story))
-            if story.target_seconds >= 45 and len(board.scenes) < 6:
+            min_scenes = 5 if is_editorial(story.kind) else 6
+            if story.target_seconds >= 45 and len(board.scenes) < min_scenes:
                 raise ValueError("llm storyboard too thin")
-            if is_dialogue_script(story.text) and not any(scene.speaker_id for scene in board.scenes):
+            if is_editorial(story.kind) and len(board.scenes) != 5:
+                raise ValueError("llm brief must be five beats")
+            if (
+                not is_editorial(story.kind)
+                and is_dialogue_script(story.text)
+                and not any(scene.speaker_id for scene in board.scenes)
+            ):
                 raise ValueError("llm dropped dialogue speakers")
             normalize_storyboard(board, bible)
             fill_image_prompts(board, bible)

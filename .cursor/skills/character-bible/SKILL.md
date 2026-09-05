@@ -15,7 +15,7 @@ Flow from AI-Story-To-Movie:
 4. Scene planner lists **on-camera** character ids only, plus `location_id` and `prop_ids`.
 5. `engine/image_prompts.py` concatenates appearance + clothing + **On camera ONLY: {ids}**.
 6. `compact_image_prompt` keeps cast + wardrobe; do not dump the full template into the Pollinations URL.
-7. Scene gens with `use_face_ref` call Pollinations Kontext using the passport URL (not a local file).
+7. Scene gens with `use_face_ref` call Pollinations Kontext using the passport URL (not a local file). News/knowledge jobs skip character passports.
 8. Set `use_face_ref=false` when the character is back-turned, distant, or face-hidden. Inserts: no full-body people.
 
 Never describe a new face inside a scene prompt if that person already has a bible row.

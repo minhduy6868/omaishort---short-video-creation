@@ -172,6 +172,16 @@
       ],
       "title": "Shot",
       "type": "object"
+    },
+    "VideoKind": {
+      "enum": [
+        "drama",
+        "news",
+        "knowledge",
+        "brief"
+      ],
+      "title": "VideoKind",
+      "type": "string"
     }
   },
   "properties": {
@@ -187,6 +197,10 @@
       "default": "en",
       "title": "Language",
       "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/VideoKind",
+      "default": "drama"
     },
     "scenes": {
       "items": {

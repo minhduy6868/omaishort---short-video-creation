@@ -20,10 +20,28 @@ def _env_bool(name: str, default: bool = True) -> bool:
     return raw not in ("0", "false", "no", "off")
 
 
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(_env(name, str(default)) or default)
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(_env(name, str(default)) or default)
+    except ValueError:
+        return default
+
+
 OPENAI_API_KEY = _env("OPENAI_API_KEY")
 OPENAI_BASE_URL = _env("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
 OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-4o-mini")
 OPENAI_IMAGE_MODEL = _env("OPENAI_IMAGE_MODEL", "dall-e-3")
+CHATGPT_WEB_ENABLED = _env_bool("CHATGPT_WEB_ENABLED", True)
+CHATGPT_WEB_HEADED = _env_bool("CHATGPT_WEB_HEADED", False)
+CHATGPT_WEB_MODEL = _env("CHATGPT_WEB_MODEL")
+CHATGPT_WEB_TIMEOUT_MIN = _env_int("CHATGPT_WEB_TIMEOUT_MIN", 8)
 COMFYUI_URL = _env("COMFYUI_URL", "http://127.0.0.1:8188").rstrip("/")
 POLLINATIONS_ENABLED = _env_bool("POLLINATIONS_ENABLED", True)
 POLLINATIONS_URL = _env("POLLINATIONS_URL", "https://image.pollinations.ai").rstrip("/")
@@ -41,26 +59,15 @@ ELEVENLABS_VOICE_ID = _env("ELEVENLABS_VOICE_ID")
 WHISPER_MODEL = _env("WHISPER_MODEL", "tiny")
 API_HOST = _env("API_HOST", "127.0.0.1")
 API_PORT = int(_env("API_PORT", "8765") or "8765")
-DATA_DIR = Path(_env("DATA_DIR") or (ROOT / "data"))
+_raw_data = _env("DATA_DIR")
+DATA_DIR = Path(_raw_data) if _raw_data else (ROOT / "data")
+if not DATA_DIR.is_absolute():
+    DATA_DIR = (ROOT / DATA_DIR).resolve()
 PROMPTS_DIR = ROOT / "prompts"
 ASSETS_DIR = ROOT / "assets"
 SAMPLES_DIR = ROOT / "samples"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _env_int(name: str, default: int) -> int:
-    try:
-        return int(_env(name, str(default)) or default)
-    except ValueError:
-        return default
-
-
-def _env_float(name: str, default: float) -> float:
-    try:
-        return float(_env(name, str(default)) or default)
-    except ValueError:
-        return default
 
 
 def default_subtitle_style():
@@ -84,4 +91,5 @@ def default_mix_settings():
         bgm_enabled=_env_bool("BGM_ENABLED", True),
         bgm_volume=min(1.0, max(0.0, _env_float("BGM_VOLUME", 0.14))),
         duck=_env_bool("BGM_DUCK", True),
+        logo_enabled=_env_bool("LOGO_ENABLED", False),
     )

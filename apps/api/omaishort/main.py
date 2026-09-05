@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from omaishort import db
 from omaishort.config import DATA_DIR
-from omaishort.pipeline import run_job
+from omaishort.providers.llm import llm_status
 from omaishort_schema.models import StoryInput
 
 
@@ -41,6 +41,11 @@ def root() -> dict[str, str]:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/providers")
+def providers() -> dict[str, object]:
+    return llm_status()
 
 
 @app.post("/jobs")

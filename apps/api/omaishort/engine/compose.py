@@ -28,6 +28,9 @@ def i2v_ready() -> bool:
     return False
 
 
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+
 def pick_bgm() -> Path | None:
     folder = ASSETS_DIR / "music"
     if not folder.is_dir():
@@ -36,6 +39,24 @@ def pick_bgm() -> Path | None:
         p
         for p in folder.iterdir()
         if p.is_file() and p.suffix.lower() in AUDIO_EXTS and p.stem.lower() != "readme"
+    )
+    return files[0] if files else None
+
+
+def pick_logo(mix: MixSettings) -> Path | None:
+    if not mix.logo_enabled:
+        return None
+    if mix.logo_path:
+        path = Path(mix.logo_path)
+        if path.is_file():
+            return path
+    folder = ASSETS_DIR / "logo"
+    if not folder.is_dir():
+        return None
+    files = sorted(
+        p
+        for p in folder.iterdir()
+        if p.is_file() and p.suffix.lower() in IMAGE_EXTS and p.stem.lower() != "readme"
     )
     return files[0] if files else None
 
@@ -101,23 +122,36 @@ async def compose_short(
 
     mix = mix or MixSettings()
     bgm = pick_bgm() if mix.bgm_enabled else None
+    logo = pick_logo(mix)
     local_ass = work_dir / "captions.ass"
     if ass_path.resolve() != local_ass.resolve():
         local_ass.write_bytes(ass_path.read_bytes())
 
-    attempts: list[tuple[Path | None, bool, bool]] = []
+    attempts: list[tuple[Path | None, bool, bool, Path | None]] = []
     if bgm is not None and mix.duck:
-        attempts.append((bgm, True, True))
+        attempts.append((bgm, True, True, logo))
     if bgm is not None:
-        attempts.append((bgm, False, True))
-    attempts.append((None, False, True))
-    attempts.append((None, False, False))
+        attempts.append((bgm, False, True, logo))
+    attempts.append((None, False, True, logo))
+    attempts.append((None, False, True, None))
+    attempts.append((None, False, False, None))
 
     last_error = RuntimeError("compose mux failed")
-    for mix_bgm, duck, subtitles in attempts:
+    for mix_bgm, duck, subtitles, mix_logo in attempts:
         try:
             dest.unlink(missing_ok=True)
-            await _mux(silent, audio_path, local_ass, dest, work_dir, mix_bgm, mix, duck=duck, subtitles=subtitles)
+            await _mux(
+                silent,
+                audio_path,
+                local_ass,
+                dest,
+                work_dir,
+                mix_bgm,
+                mix,
+                duck=duck,
+                subtitles=subtitles,
+                logo=mix_logo,
+            )
             if dest.exists() and dest.stat().st_size > 0:
                 return dest
         except RuntimeError as exc:
@@ -155,20 +189,31 @@ async def _mux(
     *,
     duck: bool,
     subtitles: bool,
+    logo: Path | None = None,
 ) -> None:
     filter_parts: list[str] = []
+    inputs = ["-i", silent.name, "-i", str(audio_path.resolve())]
+    next_idx = 2
+    v_src = "0:v"
+    if logo is not None:
+        inputs += ["-i", str(logo.resolve())]
+        margin = max(8, min(200, mix.logo_margin))
+        filter_parts.append(f"[{next_idx}:v]scale=160:-1[lg]")
+        filter_parts.append(f"[{v_src}][lg]overlay=W-w-{margin}:{margin}[vlogo]")
+        v_src = "[vlogo]"
+        next_idx += 1
     if subtitles:
-        filter_parts.append(f"[0:v]subtitles={local_ass.name}[v]")
+        src = v_src if v_src.startswith("[") else f"[{v_src}]"
+        filter_parts.append(f"{src}subtitles={local_ass.name}[v]")
         vmap = "[v]"
     else:
-        vmap = "0:v"
-    inputs = ["-i", silent.name, "-i", str(audio_path.resolve())]
+        vmap = v_src if v_src.startswith("[") else "0:v"
     maps = ["-map", vmap, "-map", "1:a:0"]
     if bgm is not None:
         inputs += ["-stream_loop", "-1", "-i", str(bgm.resolve())]
         vol = max(0.0, min(1.0, mix.bgm_volume))
         filter_parts.append("[1:a]aformat=sample_fmts=fltp:channel_layouts=stereo,volume=1.0[vo]")
-        filter_parts.append(f"[2:a]aformat=sample_fmts=fltp:channel_layouts=stereo,volume={vol:.3f}[bg]")
+        filter_parts.append(f"[{next_idx}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,volume={vol:.3f}[bg]")
         if duck:
             filter_parts.append(
                 "[bg][vo]sidechaincompress=threshold=0.05:ratio=8:attack=150:release=600:makeup=1[ducked]"

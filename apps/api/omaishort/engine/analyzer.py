@@ -1,13 +1,71 @@
 from __future__ import annotations
 
+import re
+
+from omaishort.engine.brief_media import knowledge_spoken_from_notes, knowledge_spoken_from_wiki
 from omaishort.engine.fallback import fallback_analyze
-from omaishort.providers.llm import complete_json, load_prompt
-from omaishort_schema.models import CharacterBible, StoryInput, StoryStructure
+from omaishort.providers.llm import complete_json, complete_json_result, load_prompt
+from omaishort_schema.models import CharacterBible, StoryInput, StoryStructure, is_editorial
+
+_SCRIPT_KEYS = ("hook", "conflict", "rising_action", "twist", "ending")
+_FAKE_VIDEO_FACTORY = re.compile(
+    r"stop stitching a script|stock clips|muxes a vertical short|character bible|"
+    r"topic in,? (?:one )?finished short|biến một chủ đề đơn giản thành cả một video ngắn|"
+    r"matches footage, adds a voice|stock stills are the default",
+    re.I,
+)
+_VIDEO_FACTORY_SOURCE = re.compile(
+    r"short video generator|writes a script, matches footage|MoneyPrinter|"
+    r"topic in.*short out|vertical short from a topic",
+    re.I,
+)
+
+
+def _beats_from_script(raw: dict | None) -> list[str] | None:
+    if not isinstance(raw, dict):
+        return None
+    src = raw.get("structure") if isinstance(raw.get("structure"), dict) else raw
+    beats = [re.sub(r"\s+", " ", str(src.get(key) or "")).strip() for key in _SCRIPT_KEYS]
+    if any(len(beat.split()) < 8 for beat in beats):
+        return None
+    if re.search(r"thuyết minh về|[\u2E80-\u9FFF]|là một cơ chế", " ".join(beats), flags=re.I):
+        return None
+    return beats
+
+
+async def write_knowledge_script(
+    title: str,
+    extract: str,
+    language: str,
+    target_seconds: float,
+    topic: str = "",
+) -> tuple[str, str, str]:
+    """ChatGPT (HTTP or chatgpt-pro-web CLI) writes the VO first. Wikipedia template is fallback."""
+    system = load_prompt("knowledge_script.txt")
+    user = (
+        f"title={title}\n"
+        f"topic={topic or title}\n"
+        f"language={language}\n"
+        f"target_seconds={int(target_seconds or 90)}\n\n"
+        f"SOURCE:\n{(extract or '')[:8000]}"
+    )
+    raw, src, err = await complete_json_result(system, user)
+    beats = _beats_from_script(raw)
+    joined = "\n\n".join(beats) if beats else ""
+    if beats and _FAKE_VIDEO_FACTORY.search(joined) and not _VIDEO_FACTORY_SOURCE.search(extract or ""):
+        beats = None
+    if beats:
+        return joined, src or "llm", ""
+    if extract and len(extract.split()) >= 40 and "github.com" in f"{topic} {title}":
+        return knowledge_spoken_from_notes(extract, name=title), "github", err
+    return knowledge_spoken_from_wiki(title, extract, language), "wiki", err
 
 
 async def analyze_story(story: StoryInput) -> tuple[CharacterBible, StoryStructure, str]:
-    system = load_prompt("analyzer.txt")
+    prompt_name = "analyzer_brief.txt" if is_editorial(story.kind) else "analyzer.txt"
+    system = load_prompt(prompt_name)
     user = (
+        f"kind={story.kind.value}\n"
         f"mode={story.mode.value}\n"
         f"genre={story.genre.value}\n"
         f"language={story.language}\n"
@@ -28,6 +86,11 @@ async def analyze_story(story: StoryInput) -> tuple[CharacterBible, StoryStructu
 
 def _ensure_assets(bible: CharacterBible, story: StoryInput) -> CharacterBible:
     guessed, _ = fallback_analyze(story)
+    if is_editorial(story.kind):
+        bible.characters = guessed.characters
+        bible.locations = bible.locations or guessed.locations
+        bible.props = []
+        return bible
     if not bible.locations:
         bible.locations = guessed.locations
     if not bible.props:

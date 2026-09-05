@@ -1,12 +1,19 @@
 from pathlib import Path
 
-from omaishort.engine.captions import clamp_word_stamps, edge_ticks_to_seconds, even_split, hex_to_ass, words_to_ass
+from omaishort.engine.captions import (
+    WordStamp,
+    clamp_word_stamps,
+    edge_ticks_to_seconds,
+    even_split,
+    hex_to_ass,
+    words_to_ass,
+)
 from omaishort.engine.fallback import bind_scene_assets, beat_shots, fallback_analyze, fallback_plan, pick_location
 from omaishort.engine.image_prompts import build_scene_prompt
 from omaishort.engine.kenburns import zoompan_expr
 from omaishort.engine.motion_prompt import motion_prompt
 from omaishort.engine.rescale import rescale_to_audio
-from omaishort_schema.models import Camera, Genre, Motion, Shot, StoryInput, StoryMode, SubtitleStyle
+from omaishort_schema.models import Camera, Genre, Motion, Shot, StoryInput, StoryMode, SubtitleStyle, VideoKind, is_editorial
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,7 +42,12 @@ def _assert_board(board, min_scenes: int = 2) -> None:
         assert len(scene.shots) >= 1
         assert all(shot.still_id == scene.still_id for shot in scene.shots)
         assert scene.duration_sec > 0
-        assert scene.characters
+        if is_editorial(board.kind):
+            assert not scene.characters
+            assert not scene.use_face_ref
+            assert scene.speaker_id is None
+        else:
+            assert scene.characters
         assert scene.location_id
         assert abs(scene.shots[0].t_start) < 1e-6
         assert abs(scene.shots[-1].t_end - scene.duration_sec) < 0.05
@@ -45,7 +57,136 @@ def _assert_board(board, min_scenes: int = 2) -> None:
     assert shot_n >= len(board.scenes)
 
 
-def test_fallback_plan_one_still_many_shots():
+def test_brief_plan_has_no_faces():
+    from omaishort.providers.pollinations import compact_image_prompt
+
+    text = (ROOT / "samples" / "brief-60s.md").read_text(encoding="utf-8")
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.news,
+        text=text,
+        target_seconds=60,
+        genre=Genre.news,
+        language="vi",
+    )
+    bible, structure = fallback_analyze(story)
+    board = fallback_plan(story, bible, structure)
+    _assert_board(board, min_scenes=5)
+    assert board.kind == VideoKind.news
+    assert len(board.scenes) == 5
+    assert {c.id for c in bible.characters} == {"narrator"}
+    assert [s.location_id for s in board.scenes] == ["studio", "graphic", "city", "product", "studio"]
+    assert "Tiêu đề" not in board.title
+    assert all(len(scene.dialogue_or_vo.split()) >= 4 for scene in board.scenes)
+    assert all(shot.camera != Camera.close_up for scene in board.scenes for shot in scene.shots)
+    prompt = build_scene_prompt(board.scenes[0], bible)
+    assert "BRIEF:" in prompt
+    assert "uninhabited" in prompt.lower()
+    assert "cinematic still" not in prompt.lower()
+    assert "photoreal short-drama" not in prompt.lower()
+    assert "Character Bible" not in prompt
+    assert "On camera ONLY:" not in prompt
+    compact = compact_image_prompt(prompt)
+    assert "zero people" in compact
+    assert "photoreal short-drama" not in compact
+
+
+def test_brief_vo_is_a_short_summary_not_the_article():
+    from omaishort.engine.fallback import MAX_SHORT_SEC, brief_word_budget
+
+    junk = (
+        "Cô gái Nga và mối tình với anh thợ điện Vĩnh Long. "
+        "Nguyên Anh quê Vĩnh Long và Nastya nên duyên sau tám tháng. "
+        'localStorage.setItem("ttf","woff"); function loadCSS(){ document.querySelector(".webfont"); } '
+    )
+    body = " ".join(
+        f"Buổi tối thứ {i + 1} họ gọi điện, kể về Vĩnh Long, Moskva, và công trình Nha Trang."
+        for i in range(12)
+    )
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.news,
+        text=junk + body,
+        target_seconds=60,
+        genre=Genre.news,
+        language="vi",
+    )
+    bible, _structure = fallback_analyze(story)
+    board = fallback_plan(story, bible, _structure)
+    spoken = " ".join(scene.dialogue_or_vo for scene in board.scenes)
+    assert "localStorage" not in spoken
+    assert "document.querySelector" not in spoken
+    assert "đó là nội dung chính" not in spoken.lower()
+    assert "that's the story" not in spoken.lower()
+    assert len(spoken.split()) >= 80
+    assert len(spoken.split()) <= brief_word_budget(60, "vi") + 40
+    assert brief_word_budget(9999, "vi") <= int(MAX_SHORT_SEC * 3.15) + 2
+    assert all(len(scene.dialogue_or_vo.split()) >= 4 for scene in board.scenes)
+
+
+def test_news_last_beat_covers_article_ending():
+    body = " ".join(
+        f"Đoạn {i} kể chuyện dài hơn mười chữ về cuộc sống ở Yorkshire."
+        for i in range(1, 18)
+    )
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.news,
+        text=(
+            "Tiêu đề: Trái đắng lấy chồng kém 37 tuổi. "
+            "Ảnh: The Sun UK. "
+            f"{body} "
+            "Chồng bỏ đi Nigeria. Cô mất nhà, phải ly hôn, và giữ lại rất ít tài sản. "
+            "Nhật Minh (Theo Sun, vanguardngr )"
+        ),
+        target_seconds=90,
+        genre=Genre.news,
+        language="vi",
+    )
+    bible, structure = fallback_analyze(story)
+    board = fallback_plan(story, bible, structure)
+    _assert_board(board, min_scenes=5)
+    ending = board.scenes[-1].dialogue_or_vo.lower()
+    assert "ly hôn" in ending or "nigeria" in ending or "tài sản" in ending
+    spoken = " ".join(scene.dialogue_or_vo for scene in board.scenes)
+    assert "Ảnh:" not in spoken
+    assert "The Sun" not in spoken
+    assert "vanguardngr" not in spoken
+    assert "nhật minh" not in spoken.lower()
+    assert "divorce" in board.scenes[-1].action.lower() or "house" in board.scenes[-1].action.lower()
+    assert all(scene.dialogue_or_vo.rstrip()[-1:] in ".!?…" for scene in board.scenes)
+
+
+def test_ensure_spoken_punct_capitalizes_and_stops():
+    from omaishort.engine.fallback import ensure_spoken_punct
+
+    spoken = ensure_spoken_punct(
+        "người phụ nữ 68 tuổi giờ chật vật giữ tài sản vì chồng đột ngột bỏ đi"
+    )
+    assert spoken.endswith(".")
+    assert spoken[0].isupper()
+
+
+def test_knowledge_kind_is_editorial():
+    text = (ROOT / "samples" / "brief-60s.md").read_text(encoding="utf-8")
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.knowledge,
+        text=text,
+        target_seconds=60,
+        genre=Genre.knowledge,
+        language="vi",
+    )
+    bible, structure = fallback_analyze(story)
+    board = fallback_plan(story, bible, structure)
+    _assert_board(board, min_scenes=5)
+    assert board.kind == VideoKind.knowledge
+    assert is_editorial(board.kind)
+
+
+def test_story_input_kind_defaults_to_drama():
+    story = StoryInput(text="hello world this is a long enough paste")
+    assert story.kind == VideoKind.drama
     story = _story()
     bible, structure = fallback_analyze(story)
     board = fallback_plan(story, bible, structure)
@@ -95,6 +236,45 @@ def test_words_to_ass_uses_font_size(tmp_path: Path):
     text = dest.read_text(encoding="utf-8")
     assert "Georgia,72," in text
     assert hex_to_ass("#FFFFFF") in text
+
+
+def test_captions_keep_punct_and_break_on_sentences(tmp_path: Path):
+    from omaishort.engine.captions import caption_groups, restore_script_punct
+
+    script = "Cùng một tờ tiền, mỗi năm mua được ít hơn. Lạm phát là sự tăng mức giá."
+    spoken = [
+        WordStamp("Cùng", 0.0, 0.2),
+        WordStamp("một", 0.2, 0.4),
+        WordStamp("tờ", 0.4, 0.6),
+        WordStamp("tiền", 0.6, 0.9),
+        WordStamp("mỗi", 1.1, 1.3),
+        WordStamp("năm", 1.3, 1.5),
+        WordStamp("mua", 1.5, 1.7),
+        WordStamp("được", 1.7, 1.95),
+        WordStamp("ít", 1.95, 2.15),
+        WordStamp("hơn", 2.15, 2.5),
+        WordStamp("Lạm", 3.4, 3.6),
+        WordStamp("phát", 3.6, 3.9),
+        WordStamp("là", 3.9, 4.1),
+        WordStamp("sự", 4.1, 4.3),
+        WordStamp("tăng", 4.3, 4.5),
+        WordStamp("mức", 4.5, 4.7),
+        WordStamp("giá", 4.7, 5.0),
+    ]
+    restored = restore_script_punct(spoken, script)
+    assert restored[3].word == "tiền,"
+    assert restored[9].word == "hơn."
+    assert restored[-1].word == "giá."
+    groups = caption_groups(restored)
+    texts = [" ".join(item.word for item in group) for group in groups]
+    assert any(text.endswith("hơn.") for text in texts)
+    assert all("hơn. Lạm" not in text for text in texts)
+    assert any(text.startswith("Lạm") for text in texts)
+    dest = tmp_path / "captions.ass"
+    body = words_to_ass(restored, dest).read_text(encoding="utf-8")
+    assert "hơn." in body
+    assert "tiền," in body
+    assert "hơn Lạm phát" not in body
 
 
 def test_fallback_reuses_location_id_for_same_place():
@@ -238,12 +418,83 @@ def test_beat_shots_follow_drama_lenses():
     hook = beat_shots("still_01", 6.0, "hook")
     assert hook[0].motion == Motion.zoom_in
     assert hook[0].camera == Camera.medium
+    assert hook[1].camera == Camera.close_up
     ending = beat_shots("still_10", 6.0, "ending")
     assert ending[-1].motion == Motion.zoom_out
     assert ending[-1].camera == Camera.wide
 
 
-def test_fallback_ends_on_pull_out():
+def test_editorial_beat_shots_stay_in_frame():
+    hook = beat_shots("still_01", 6.0, "hook", editorial=True)
+    twist = beat_shots("still_04", 6.0, "twist", editorial=True)
+    assert hook[0].motion == Motion.hold
+    assert hook[1].motion == Motion.zoom_in
+    assert hook[0].camera == Camera.medium
+    assert all(shot.camera != Camera.close_up for shot in hook + twist)
+
+
+def test_knowledge_plan_keeps_hooky_readme_beats():
+    from omaishort.engine.brief_media import knowledge_spoken_from_readme
+
+    text = knowledge_spoken_from_readme(
+        "# MoneyPrinterTurbo\n\nAn all-in-one AI short video generator.\n\n"
+        "## Features\nProvide a topic and it writes a script, matches footage, and muxes a short.\n",
+        name="MoneyPrinterTurbo",
+        description="Generate a short from a topic",
+    )
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.knowledge,
+        text=text,
+        target_seconds=60,
+        genre=Genre.knowledge,
+        language="en",
+    )
+    bible, structure = fallback_analyze(story)
+    board = fallback_plan(story, bible, structure)
+    _assert_board(board, min_scenes=5)
+    vo = " ".join(scene.dialogue_or_vo for scene in board.scenes)
+    assert "MoneyPrinterTurbo" in vo
+    assert "script" in vo.lower() or "short" in vo.lower()
+    assert "Stop stitching" not in vo
+    assert "Features" not in board.scenes[0].dialogue_or_vo
+    assert all(shot.camera != Camera.close_up for scene in board.scenes for shot in scene.shots)
+
+
+def test_knowledge_topic_plan_does_not_echo_the_request():
+    from omaishort.engine.brief_media import knowledge_spoken_from_wiki
+
+    text = knowledge_spoken_from_wiki(
+        "Lạm phát",
+        "Lạm phát là sự tăng mức giá chung một cách liên tục. "
+        "Sức mua của tiền giảm khi giá tăng kéo dài. "
+        "Cầu vượt cung hoặc chi phí đội lên đều đẩy giá. "
+        "Lượng tiền tăng nhanh hơn hàng hóa cũng là một kênh. "
+        "Ngân hàng trung ương dùng lãi suất để hãm cầu. "
+        "CPI đo mặt bằng giá theo thời gian. "
+        "Một giá xăng nhảy chưa phải là lạm phát. "
+        "Cần cả rổ hàng hóa. "
+        "Nhớ đo theo hệ thống.",
+        "vi",
+    )
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.knowledge,
+        text=text,
+        target_seconds=60,
+        genre=Genre.knowledge,
+        language="vi",
+    )
+    bible, structure = fallback_analyze(story)
+    board = fallback_plan(story, bible, structure)
+    _assert_board(board, min_scenes=5)
+    spoken = " ".join(scene.dialogue_or_vo for scene in board.scenes)
+    assert "thuyết minh về" not in spoken.lower()
+    assert "lạm phát" in spoken.lower()
+    assert "Cùng một tờ tiền" in spoken
+    assert "xăng" in spoken.lower() or "rổ hàng" in spoken.lower()
+    actions = [scene.action for scene in board.scenes]
+    assert len(set(actions)) >= 3
     story = _story()
     bible, structure = fallback_analyze(story)
     board = fallback_plan(story, bible, structure)

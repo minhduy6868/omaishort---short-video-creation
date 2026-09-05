@@ -10,6 +10,7 @@ node_modules/
 dist/
 data/
 *.mp4
+!docs/demo/*.mp4
 *.wav
 *.mp3
 *.ass

@@ -29,6 +29,7 @@ class TTSResult:
 EDGE_VOICES = {
     "en": "en-US-JennyNeural",
     "vi": "vi-VN-HoaiMyNeural",
+    "zh": "zh-CN-XiaoxiaoNeural",
 }
 
 

@@ -7,7 +7,9 @@
         "family",
         "cheating",
         "revenge",
-        "twist"
+        "twist",
+        "news",
+        "knowledge"
       ],
       "title": "Genre",
       "type": "string"
@@ -30,6 +32,30 @@
           "default": true,
           "title": "Duck",
           "type": "boolean"
+        },
+        "logo_enabled": {
+          "default": false,
+          "title": "Logo Enabled",
+          "type": "boolean"
+        },
+        "logo_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logo Path"
+        },
+        "logo_margin": {
+          "default": 48,
+          "maximum": 200,
+          "minimum": 8,
+          "title": "Logo Margin",
+          "type": "integer"
         }
       },
       "title": "MixSettings",
@@ -89,12 +115,26 @@
       },
       "title": "SubtitleStyle",
       "type": "object"
+    },
+    "VideoKind": {
+      "enum": [
+        "drama",
+        "news",
+        "knowledge",
+        "brief"
+      ],
+      "title": "VideoKind",
+      "type": "string"
     }
   },
   "properties": {
     "mode": {
       "$ref": "#/$defs/StoryMode",
       "default": "script"
+    },
+    "kind": {
+      "$ref": "#/$defs/VideoKind",
+      "default": "drama"
     },
     "text": {
       "minLength": 8,
@@ -116,6 +156,18 @@
       "default": "en",
       "title": "Language",
       "type": "string"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
     },
     "subtitle": {
       "anyOf": [

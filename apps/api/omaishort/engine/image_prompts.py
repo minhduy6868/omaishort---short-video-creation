@@ -49,6 +49,10 @@ def visual_action(scene: Scene) -> str:
     """Camera action for stills — never dump voiceover into the image prompt."""
     loc = scene.location or "interior"
     blob = f"{scene.location} {scene.dialogue_or_vo} {scene.action}".lower()
+    if not scene.use_face_ref and not scene.characters:
+        return scene.action or (
+            f"uninhabited editorial still of {loc}, zero people, zero faces"
+        )
     if not scene.use_face_ref:
         if any(token in blob for token in ("phone", "lock screen", "message", "screenshot")):
             return (
@@ -81,29 +85,36 @@ def build_scene_prompt(scene: Scene, bible: CharacterBible) -> str:
         else f"- location: {scene.location}"
     )
     prop_blocks = [asset_block(prop_by_id[pid], "prop") for pid in scene.prop_ids if pid in prop_by_id]
-    template = load_prompt("scene_still.txt")
+    is_brief = not scene.use_face_ref and not scene.characters
+    template = load_prompt("scene_still_brief.txt" if is_brief else "scene_still.txt")
     camera = scene.shots[0].camera.value if scene.shots else "medium"
     on_camera = ", ".join(scene.characters) if scene.characters else "nobody"
-    if not scene.use_face_ref:
+    if is_brief:
+        cast_rule = "BRIEF: uninhabited editorial still. Zero people, zero faces, zero couple."
+        ref_note = "Do not attach a face reference."
+        location_ref_note = "Do not use a character or location passport. Generate a fresh empty set."
+    elif not scene.use_face_ref:
         cast_rule = (
             "INSERT: no full-body people, no crowd. Phone, hands, or object only. "
             f"Do not draw {on_camera} as a standing portrait unless the action is a face in a screen."
+        )
+        ref_note = "Do not attach a face reference (back-turned / distant / obscured)."
+        location_ref_note = (
+            "Use attached location passport as set lock. Same kitchen/hallway must match prior scenes."
+            if scene.use_location_ref and loc
+            else "Hands-only or object close-up: do not use the location passport still."
         )
     else:
         cast_rule = (
             f"On camera ONLY: {on_camera}. Do not depict anyone else. "
             "No extra people, no crowd, no second couple."
         )
-    ref_note = (
-        "Use attached character reference images as identity lock."
-        if scene.use_face_ref
-        else "Do not attach a face reference (back-turned / distant / obscured)."
-    )
-    location_ref_note = (
-        "Use attached location passport as set lock. Same kitchen/hallway must match prior scenes."
-        if scene.use_location_ref and loc
-        else "Hands-only or object close-up: do not use the location passport still."
-    )
+        ref_note = "Use attached character reference images as identity lock."
+        location_ref_note = (
+            "Use attached location passport as set lock. Same kitchen/hallway must match prior scenes."
+            if scene.use_location_ref and loc
+            else "Hands-only or object close-up: do not use the location passport still."
+        )
     return template.format(
         location=scene.location,
         location_id=scene.location_id or "none",

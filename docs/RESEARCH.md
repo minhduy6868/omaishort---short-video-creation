@@ -8,7 +8,8 @@ Positioning:
 | --- | --- | --- | --- |
 | Stock-short factory | MoneyPrinter, MoneyPrinterTurbo, ShortGPT | Pexels / keyword clips | Steal **ops** (TTS timestamps, BGM, LLM gateway). Do **not** steal stock footage as the picture. |
 | Agentic studio | OpenMontage | Remotion / I2V / stock | Steal **gates, skills, render_runtime lock**. Do **not** vendor AGPL code. |
-| Story / short-drama | ArcReel, AIDrama, FTL Studio, AI-Story-To-Movie | Character refs → stills → optional I2V | This is our category. |
+| Story / short-drama | ArcReel, AIDrama, FTL Studio, AI-Story-To-Movie | Character refs → stills → optional I2V | `kind=drama`. |
+| News / knowledge brief | [AI-auto-generate-video](https://github.com/huytranvan2010/AI-auto-generate-video) (HyperFrames templates) | HTML templates → Chromium MP4 | Steal the **5-beat news arc** and per-scene VO. Do **not** fork HyperFrames or use Pexels. |
 
 Canonical product: [REQUIREMENTS.md](REQUIREMENTS.md). Elevation plan: [ROADMAP.md](ROADMAP.md).
 
@@ -58,7 +59,7 @@ https://github.com/harry0703/MoneyPrinterTurbo — MIT, Python 3.11, 9:16 + 16:9
 
 Take:
 
-- **LLM gateway**: one interface, many backends (OpenAI-compatible, Ollama, Azure, Gemini, Qwen, LiteLLM…). omaishort already uses `OPENAI_BASE_URL`; next step is named presets, not a vendor import in the planner.
+- **LLM gateway**: OpenAI-compatible HTTP, or in-process ChatGPT web (`providers/chatgpt_web.py`: Playwright, profile in `data/chatgpt-web`, `--chatgpt-login` once then headless). Knowledge topics write `script.json` before stills. Do not clone ChatGPT-Web2API / chatgpt-pro-web. Wiki is last resort.
 - **Subtitle dual path**: `edge` = timestamps from TTS (fast, no GPU) vs `whisper` = transcribe. We should prefer **edge-tts word boundaries** before even-split.
 - **Subtitle cosmetics**: font, color, outline, position (MoneyPrinter WebUI). Map onto our ASS styles.
 - **BGM**: pick track, volume slider; mix under VO.
@@ -208,11 +209,42 @@ Skip: adding `gradio_client` until a keyed smoke test actually returns an MP4.
 ## F. What omaishort already does differently
 
 1. Ken Burns over stills — not one generate per sentence.
-2. Character Bible is source of truth.
-3. Drama beats are mandatory (hook / conflict / rising / twist / ending).
+2. Character Bible is source of truth **for drama**. News/knowledge have a narrator-only bible and empty `scene.characters`.
+3. Drama beats are mandatory (hook / conflict / rising / twist / ending). News/knowledge reuse the same keys with different meanings.
 4. Provider chain so Windows without GPU still emits MP4.
+5. Three `VideoKind`s (`drama` | `news` | `knowledge`) on one FFmpeg pipeline. Legacy `brief` aliases to `news`. Not three products.
 
-## G. License cheat-sheet
+## G. HyperFrames / AI-auto-generate-video (news / knowledge)
+
+https://github.com/huytranvan2010/AI-auto-generate-video
+
+Input: article URL or txt → `script.json`. Scenes: first `hook`, body, last `outro`. Each scene is `voiceText` + a HyperFrames `templateId` + text inputs (kicker / headline / stat). Chromium renders HTML templates to MP4. TTS per scene, concat, mux 9:16.
+
+Steal:
+
+- **Typed frames, not one still per sentence.** Five beats only: hook (empty desk) → claim/stat graphic → context establishing → implication/product hero → empty outro.
+- Per-scene VO fitted to audio (we already rescale after TTS).
+- Editorial stills. Compact image prompt must lead with **uninhabited / zero people** — “no soap-opera” alone is too weak for turbo.
+
+Skip:
+
+- HyperFrames, Chromium HTML templates, OmniVoice lock-in, emoji kickers, burned-in headline text.
+- One template per sentence.
+- Cloning that tree into omaishort. Pexels / stock B-roll as the picture.
+
+Used in: `StoryInput.kind=news|knowledge` (legacy `brief`→news), `_plan_brief` + `BRIEF_TREATMENTS`, `prompts/scene_still_brief.txt`, `engine/brief_media.py` (`visual_terms_for_beat` → Wikimedia/Openverse, article photos on early beats). Never cycle one mugshot across five beats. Never Pexels.
+
+### Other news/knowledge repos (map, do not vendor)
+
+| Repo | What they do | Take | Skip |
+| --- | --- | --- | --- |
+| [MoneyPrinterTurbo](https://github.com/harry0703/MoneyPrinterTurbo) | Topic → LLM script → **per-scene search terms** → Pexels clips → TTS | Steal `match_materials_to_script`: one English term set **per beat**, in script order | Pexels as the picture; auto social upload; one clip per sentence |
+| [MPVSAP](https://github.com/thienphucnt/MPVSAP) | Wikipedia ingest + proper-noun Wikimedia + Pexels B-roll | Place/occupation Commons search when the article gallery is thin | Pexels; one clip per sentence |
+| [hueanmy/ai-shorts-generator](https://github.com/hueanmy/ai-shorts-generator) | URL → HTML storyboard → Playwright MP4 | News vs promo share one renderer | HTML/Playwright templates |
+| [bonskpy/video-explainer-system](https://github.com/bonskpy/video-explainer-system) | Topic → HTML deck → Kokoro + ffmpeg | Local TTS + captions | HTML animation engine |
+| [yudduy/chatgpt-pro-web](https://github.com/yudduy/chatgpt-pro-web) | Playwright CLI for chatgpt.com quota | Persistent profile + headed login + composer/stop-button wait | Do not vendor the Node CLI; omaishort has `providers/chatgpt_web.py` |
+
+## H. License cheat-sheet
 
 | Repo | License | Copy code? |
 | --- | --- | --- |
@@ -224,3 +256,4 @@ Skip: adding `gradio_client` until a keyed smoke test actually returns an MP4.
 | FramePack | Apache-2.0 | Comfy adapter later; do not vendor the desktop app |
 | DramaDirector | MIT | Planner/I2V order only; no training stack |
 | still-motion | check repo | zoompan-upscale idea only |
+| AI-auto-generate-video / HyperFrames | check repo | **No.** News-arc mapping only |

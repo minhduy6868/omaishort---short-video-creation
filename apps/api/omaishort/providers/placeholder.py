@@ -17,6 +17,11 @@ LOCATION_PALETTES: dict[str, tuple[tuple[int, int, int], tuple[int, int, int], t
     "living_room": ((22, 18, 16), (8, 7, 6), (200, 140, 70)),
     "street": ((10, 14, 28), (4, 6, 10), (240, 170, 60)),
     "door": ((20, 16, 14), (6, 5, 4), (190, 120, 50)),
+    "studio": ((8, 12, 22), (4, 6, 10), (80, 160, 220)),
+    "graphic": ((12, 10, 16), (6, 6, 8), (232, 200, 70)),
+    "product": ((18, 18, 20), (8, 8, 10), (200, 200, 210)),
+    "newsroom": ((10, 16, 20), (4, 8, 12), (70, 180, 190)),
+    "city": ((8, 10, 24), (4, 6, 12), (240, 170, 60)),
 }
 
 
@@ -71,6 +76,9 @@ def _parse_hint(prompt: str) -> dict:
         kind = "prop"
     elif "insert / phone" in lowered or "phone screen close" in lowered or "lock screen" in lowered:
         kind = "insert"
+    elif lowered.lstrip().startswith("brief:") or "uninhabited" in lowered or "editorial news" in lowered:
+        kind = "brief"
+        chars = []
     return {"location_id": location_id, "camera": camera, "chars": chars[:3], "kind": kind}
 
 
@@ -131,6 +139,24 @@ def _draw_set(draw: ImageDraw.ImageDraw, location_id: str, accent: tuple[int, in
     elif location_id == "door":
         draw.rounded_rectangle((280, 360, 800, 1500), radius=12, fill=(48, 32, 22), outline=(90, 60, 36), width=8)
         _blob(draw, (620, 880, 700, 960), (180, 160, 120))
+    elif location_id == "studio":
+        draw.rectangle((0, 420, WIDTH, 980), fill=(16, 28, 48))
+        draw.rectangle((80, 1100, 1000, 1480), fill=(12, 16, 24))
+        draw.rectangle((0, 980, WIDTH, 1020), fill=accent)
+    elif location_id == "graphic":
+        draw.rounded_rectangle((160, 520, 920, 1180), radius=24, fill=(22, 18, 28), outline=accent, width=8)
+        draw.rectangle((220, 640, 860, 900), fill=accent)
+    elif location_id == "product":
+        draw.rounded_rectangle((330, 480, 750, 1280), radius=48, fill=(28, 28, 32), outline=accent, width=6)
+    elif location_id == "newsroom":
+        for x in (80, 400, 720):
+            draw.rectangle((x, 360, x + 280, 620), fill=(18, 28, 36), outline=accent, width=4)
+        draw.rectangle((0, 1100, WIDTH, HEIGHT), fill=(8, 12, 16))
+    elif location_id == "city":
+        draw.rectangle((0, 900, WIDTH, HEIGHT), fill=(6, 8, 16))
+        for x, h in ((80, 700), (260, 980), (480, 820), (700, 1100), (900, 640)):
+            draw.rectangle((x, HEIGHT - h, x + 140, HEIGHT), fill=(18, 22, 36))
+        _blob(draw, (720, 200, 880, 360), accent)
     else:
         draw.rectangle((80, 700, 1000, 1100), fill=(30, 24, 20))
 
@@ -186,6 +212,8 @@ def paint_placeholder_still(prompt: str, refs: list[Path] | None = None) -> Imag
     elif hint["kind"] == "portrait":
         female = "female" in prompt.lower() or "wife" in prompt.lower()
         _figure(draw, WIDTH // 2, 1500, 2.15, female=female, hue=seed % 360)
+    elif hint["kind"] == "brief":
+        _draw_set(draw, hint["location_id"], accent)
     else:
         _draw_set(draw, hint["location_id"], accent)
         scale = {"close_up": 1.55, "wide": 0.85}.get(hint["camera"], 1.12)

@@ -19,6 +19,8 @@ from omaishort_schema.models import (
     TimelineAudio,
     TimelineElement,
     TimelineText,
+    VideoKind,
+    is_editorial,
 )
 
 __all__ = [
@@ -42,4 +44,6 @@ __all__ = [
     "TimelineAudio",
     "TimelineElement",
     "TimelineText",
+    "VideoKind",
+    "is_editorial",
 ]

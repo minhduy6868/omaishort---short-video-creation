@@ -118,6 +118,52 @@ def test_compose_writes_1080x1920_with_audio(tmp_path: Path):
     assert motion["i2v_still_ids"] == []
 
 
+def test_compose_overlays_logo_when_enabled(tmp_path: Path):
+    still = _still(tmp_path / "still.png")
+    logo = tmp_path / "mark.png"
+    Image.new("RGBA", (64, 64), (220, 90, 40, 255)).save(logo)
+    board = Storyboard(
+        title="logo smoke",
+        target_seconds=1.0,
+        language="en",
+        scenes=[
+            Scene(
+                index=1,
+                duration_sec=1.0,
+                location="kitchen at night",
+                location_id="kitchen",
+                characters=["wife"],
+                emotion="tense",
+                action="stands still",
+                dialogue_or_vo="one two three four.",
+                lighting="warm",
+                mood="tense",
+                still_id="still_01",
+                shots=[
+                    Shot(camera=Camera.wide, motion=Motion.hold, t_start=0, t_end=1.0, still_id="still_01"),
+                ],
+            )
+        ],
+    )
+    work = tmp_path / "render"
+    audio = asyncio.run(silence_audio(tmp_path / "vo.wav", 1.0))
+    ass = words_to_ass(even_split("one two three four.", 1.0), work / "captions.ass")
+    dest = work / "short.mp4"
+    asyncio.run(
+        compose_short(
+            board,
+            {"still_01": still},
+            audio,
+            ass,
+            dest,
+            work,
+            mix=MixSettings(bgm_enabled=False, logo_enabled=True, logo_path=str(logo)),
+        )
+    )
+    assert dest.exists() and dest.stat().st_size > 0
+    assert probe_video_size(dest) == (1080, 1920)
+
+
 def test_placeholder_still_is_pictorial_not_prompt_dump():
     from omaishort.providers.placeholder import paint_placeholder_still
 

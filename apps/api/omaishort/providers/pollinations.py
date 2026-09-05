@@ -58,7 +58,23 @@ def compact_image_prompt(prompt: str, limit: int = 420) -> str:
         if clothing:
             bit += f", wearing {clothing[:80]}"
         people.append(bit)
-    if insert:
+    brief = bool(re.search(r"(?m)^BRIEF:", prompt)) or prompt.lstrip().startswith("BRIEF:")
+    if brief:
+        parts = [
+            "uninhabited 9:16 editorial still",
+            "zero people",
+            "zero faces",
+            "zero hands",
+            "no couple",
+            "no presenter",
+            "no crowd",
+            "no on-image text",
+        ]
+        if action:
+            parts.append(action)
+        if loc:
+            parts.append(loc)
+    elif insert:
         parts = ["photoreal 9:16 insert", "extreme close-up", "no standing people", "no crowd", "no full-body"]
         blob = f"{action} {loc}".lower()
         if any(token in blob for token in ("phone", "lock screen", "message", "screenshot")):

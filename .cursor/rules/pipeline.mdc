@@ -5,13 +5,16 @@ alwaysApply: true
 
 # omaishort
 
-Story → short-drama engine, not a TikTok clone. Quality bar: `.cursor/rules/quality.mdc`.
+Story → short-video engine, not a TikTok clone. Quality bar: `.cursor/rules/quality.mdc`.
+
+Three kinds, one pipeline: `kind=drama` (bible faces, dialogue), `kind=news` (human story / event, editorial stills, narrator VO), `kind=knowledge` (one claim / explainer, same editorial path). Legacy `brief` aliases to `news`.
 
 - Do not emit one image per sentence. A scene has `duration_sec` plus 1–3 `shots` on one `still_id`.
-- Characters exist only in the Character Bible. Scene `characters` = people **on camera**. Prompts = bible appearance/clothing + scene fields.
-- Beats: hook / conflict / rising_action / twist / ending. `normalize_storyboard` applies beat lenses (do not leave random hold/zoom cycles).
+- Drama: characters exist only in the Character Bible. Scene `characters` = people **on camera**. Prompts = bible appearance/clothing + scene fields.
+- News/knowledge: bible is narrator-only. Scene `characters` is empty. `use_face_ref=false`. Stills prefer **article photos** (`source_url` src) on early beats, then **per-beat** Wikimedia/Openverse terms (MoneyPrinter-style), then generated editorial. Knowledge **topic** pastes write VO first (`script.json`): in-process ChatGPT web (`providers/chatgpt_web.py`, profile in `DATA_DIR/chatgpt-web`, headed login once then headless) then OpenAI-compatible HTTP, else wiki. Do not clone ChatGPT-Web2API, chatgpt-pro-web, or HyperFrames. Do not use Pexels.
+- Beats: hook / conflict / rising_action / twist / ending. News maps those keys to headline / obstacle / unfold / turn / outcome. Knowledge maps them to claim / proof / context / misconception / remember. `normalize_storyboard` applies beat lenses (do not leave random hold/zoom cycles).
 - Providers are protocols. Planner never imports a vendor SDK. Image: Comfy stub → Pollinations (turbo/kontext) → OpenAI → placeholder. Video: HF Spaces (needs `HF_TOKEN`) → Pollinations Wan (pollen) → Comfy stub → Ken Burns.
-- Ken Burns: 2160×3840 working frame, cosine ease, 1080×1920 out. I2V: one clip per scene; motion prompt is camera + action only.
+- Ken Burns: 2160×3840 working frame, cosine ease, 1080×1920 out. Editorial stills letterbox wide photos and skip close_up punch-ins. I2V: one clip per scene; motion prompt is camera + action only.
 - Stages: analyze → plan → refs → stills → tts → captions → render. After TTS, rescale times to real audio.
 - Remotion only reads `timeline.json`. `elements[].type` is `video` only for real I2V clips.
 

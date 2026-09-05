@@ -4,12 +4,56 @@ import pytest
 from pydantic import ValidationError
 
 from omaishort.db import artifacts_of, public_job
-from omaishort_schema.models import AssetRef, Character, CharacterBible, StoryInput
+from omaishort_schema.models import AssetRef, Character, CharacterBible, StoryInput, VideoKind
 
 
 def test_story_input_rejects_tiny_text():
     with pytest.raises(ValidationError):
         StoryInput(text="hi")
+
+
+def test_story_input_accepts_news_kind():
+    story = StoryInput(text="hello world this is a news brief", kind=VideoKind.news)
+    assert story.kind == VideoKind.news
+    legacy = StoryInput(text="hello world this is a news brief", kind=VideoKind.brief)
+    assert legacy.kind == VideoKind.news
+    knowledge = StoryInput(text="hello world this is a knowledge brief", kind=VideoKind.knowledge)
+    assert knowledge.kind == VideoKind.knowledge
+    assert knowledge.genre.value == "knowledge"
+
+
+def test_storyboard_legacy_brief_kind_becomes_news():
+    from omaishort_schema.models import Scene, Shot, Storyboard
+
+    board = Storyboard(
+        title="A news short title here",
+        target_seconds=60,
+        language="vi",
+        kind="brief",
+        scenes=[
+            Scene(
+                index=1,
+                duration_sec=8,
+                location="studio",
+                location_id="studio",
+                characters=[],
+                emotion="hook",
+                action="uninhabited desk",
+                dialogue_or_vo="Một bản tin ngắn về hạ tầng năm G.",
+                lighting="broadcast",
+                mood="hook",
+                still_id="still_01",
+                use_face_ref=False,
+                shots=[Shot(camera="medium", motion="zoom_in", t_start=0, t_end=8, still_id="still_01")],
+            )
+        ],
+    )
+    assert board.kind == VideoKind.news
+
+
+def test_story_input_blank_source_url_becomes_none():
+    story = StoryInput(text="hello world this is a news brief", source_url="  ")
+    assert story.source_url is None
 
 
 def test_character_bible_roundtrip():

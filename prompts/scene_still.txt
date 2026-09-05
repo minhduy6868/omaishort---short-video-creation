@@ -1,12 +1,20 @@
 Cinematic still, 9:16 vertical, photoreal short-drama frame.
-Location: {location}
+{cast_rule}
+The people in frame must match the Character Bible locks exactly — same face, same hair, same clothes. Do not invent a new person.
+Location: {location} ({location_id})
+Still: {still_id}
+Location lock:
+{location_lock}
 Action: {action}
 Emotion: {emotion}
 Mood: {mood}
 Lighting: {lighting}
 Camera: {camera}
-Characters in frame (use bible locks, do not invent faces):
+Characters in frame (bible ids only):
 {character_blocks}
+Props in frame:
+{prop_blocks}
 {ref_note}
+{location_ref_note}
  continuity: {consistency_notes}
 No text, no subtitles, no watermark, no logo.

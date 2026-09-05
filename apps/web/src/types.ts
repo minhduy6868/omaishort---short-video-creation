@@ -29,6 +29,7 @@ export type ScenePreview = {
   index: number;
   duration_sec: number;
   location: string;
+  location_id?: string | null;
   emotion: string;
   still_id: string;
   dialogue_or_vo: string;
@@ -50,15 +51,24 @@ export type Job = {
   };
   storyboard?: {
     title: string;
+    kind?: string;
     scenes: ScenePreview[];
   };
   artifacts?: Record<string, string>;
 };
 
+export type VideoKind = "drama" | "news" | "knowledge";
+
 export type StoryDraft = {
   mode: "script" | "idea";
+  kind: VideoKind;
   text: string;
   target_seconds: number;
   genre: string;
   language: string;
+  source_url?: string | null;
+  mix?: {
+    bgm_enabled?: boolean;
+    logo_enabled?: boolean;
+  };
 };

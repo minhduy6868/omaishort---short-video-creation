@@ -5,9 +5,13 @@ description: Analyzes a pasted script or story idea into a Character Bible and f
 
 # Story Analyzer
 
-Read `prompts/analyzer.txt` and `apps/api/omaishort/engine/analyzer.py`.
+Read `prompts/analyzer.txt` (drama) or `prompts/analyzer_brief.txt` (news/knowledge) and `apps/api/omaishort/engine/analyzer.py`.
 
-Output JSON with `bible` and `structure` only. Genre is confession/family/cheating/revenge/twist — not explainer.
+Output JSON with `bible` and `structure` only.
+
+Drama: genre is confession/family/cheating/revenge/twist — not explainer.
+
+News/knowledge: `kind=news` or `kind=knowledge` (legacy `brief` → news). Bible is narrator-only. Knowledge **topics** call `write_knowledge_script` first so ChatGPT writes VO into `script.json` before stills. ChatGPT web is in-process Playwright (`providers/chatgpt_web.py`, `python -m omaishort --chatgpt-login` once). Wiki is fallback; `script.json.note` says why.
 
 If the LLM is missing or JSON fails Pydantic, use `engine/fallback.py`. Do not invent a different beat model.
 

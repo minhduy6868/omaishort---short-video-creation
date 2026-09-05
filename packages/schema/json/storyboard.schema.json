@@ -35,11 +35,30 @@
           "title": "Location",
           "type": "string"
         },
+        "location_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location Id"
+        },
         "characters": {
           "items": {
             "type": "string"
           },
           "title": "Characters",
+          "type": "array"
+        },
+        "prop_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Prop Ids",
           "type": "array"
         },
         "emotion": {
@@ -88,6 +107,23 @@
           "default": true,
           "title": "Use Face Ref",
           "type": "boolean"
+        },
+        "use_location_ref": {
+          "default": true,
+          "title": "Use Location Ref",
+          "type": "boolean"
+        },
+        "speaker_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speaker Id"
         }
       },
       "required": [
@@ -136,6 +172,16 @@
       ],
       "title": "Shot",
       "type": "object"
+    },
+    "VideoKind": {
+      "enum": [
+        "drama",
+        "news",
+        "knowledge",
+        "brief"
+      ],
+      "title": "VideoKind",
+      "type": "string"
     }
   },
   "properties": {
@@ -151,6 +197,10 @@
       "default": "en",
       "title": "Language",
       "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/VideoKind",
+      "default": "drama"
     },
     "scenes": {
       "items": {

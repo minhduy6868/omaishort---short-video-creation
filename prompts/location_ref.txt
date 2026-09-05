@@ -1,0 +1,6 @@
+Portrait / passport still of a location set, empty of people.
+Id: {id}
+Description: {description}
+Appearance lock: {appearance}
+Wide establishing frame, photoreal cinematic, 9:16 vertical, even lighting.
+No characters, no faces, no text, no watermark, no logo.

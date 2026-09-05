@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from omaishort import db
 from omaishort.config import DATA_DIR
-from omaishort.pipeline import run_job
+from omaishort.providers.llm import llm_status
 from omaishort_schema.models import StoryInput
 
 
@@ -41,6 +41,11 @@ def root() -> dict[str, str]:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/providers")
+def providers() -> dict[str, object]:
+    return llm_status()
 
 
 @app.post("/jobs")
@@ -80,4 +85,9 @@ def download_mp4(job_id: str) -> FileResponse:
     mp4 = db.artifacts_of(row).get("mp4")
     if not mp4 or not Path(str(mp4)).exists():
         raise HTTPException(404, "mp4 not ready")
-    return FileResponse(str(mp4), media_type="video/mp4", filename=f"omaishort-{job_id}.mp4")
+    return FileResponse(
+        str(mp4),
+        media_type="video/mp4",
+        filename=f"omaishort-{job_id}.mp4",
+        content_disposition_type="inline",
+    )

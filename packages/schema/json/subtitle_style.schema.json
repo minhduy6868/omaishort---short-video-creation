@@ -1,0 +1,47 @@
+{
+  "properties": {
+    "font": {
+      "default": "Arial",
+      "title": "Font",
+      "type": "string"
+    },
+    "font_size": {
+      "default": 64,
+      "maximum": 120,
+      "minimum": 24,
+      "title": "Font Size",
+      "type": "integer"
+    },
+    "primary_hex": {
+      "default": "#FFFFFF",
+      "title": "Primary Hex",
+      "type": "string"
+    },
+    "highlight_hex": {
+      "default": "#FFE000",
+      "title": "Highlight Hex",
+      "type": "string"
+    },
+    "outline_hex": {
+      "default": "#101010",
+      "title": "Outline Hex",
+      "type": "string"
+    },
+    "outline": {
+      "default": 5,
+      "maximum": 12,
+      "minimum": 0,
+      "title": "Outline",
+      "type": "integer"
+    },
+    "margin_v": {
+      "default": 120,
+      "maximum": 400,
+      "minimum": 20,
+      "title": "Margin V",
+      "type": "integer"
+    }
+  },
+  "title": "SubtitleStyle",
+  "type": "object"
+}

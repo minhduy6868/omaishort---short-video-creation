@@ -30,8 +30,11 @@
           "type": "string"
         },
         "type": {
-          "const": "image",
           "default": "image",
+          "enum": [
+            "image",
+            "video"
+          ],
           "title": "Type",
           "type": "string"
         },

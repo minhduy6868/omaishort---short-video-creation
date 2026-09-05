@@ -32,11 +32,15 @@
   margin: 24px 0;
 }
 
-.row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+.logo-opt {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
+}
+
+.logo-opt input {
+  width: auto;
 }
 
 label {
@@ -139,7 +143,7 @@ button:disabled {
 
 .card {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: 180px 1fr;
   gap: 16px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 16px;
@@ -147,10 +151,24 @@ button:disabled {
 
 .card img,
 .ph {
-  width: 140px;
-  height: 248px;
+  width: 180px;
+  height: 320px;
   object-fit: cover;
   background: #0c0a08;
+  border: 1px solid var(--line);
+}
+
+.player video {
+  width: 270px;
+  height: 480px;
+  background: #000;
+  display: block;
+  object-fit: cover;
+}
+
+.load-job {
+  margin-left: auto;
+  max-width: 200px;
 }
 
 .meta {
@@ -168,6 +186,7 @@ video {
   height: 480px;
   background: #000;
   display: block;
+  object-fit: cover;
 }
 
 a {

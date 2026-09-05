@@ -1,14 +1,34 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { createJob, dataFileUrl, readJob } from "./api";
 import "./App.css";
-import { PIPELINE_STAGES, type Job, type Stage } from "./types";
+import { PIPELINE_STAGES, type Job, type Stage, type VideoKind } from "./types";
 
-const SAMPLE = `I found his phone on the counter at 2:17 a.m. He said he was sleeping. The lock screen was a photo of us. The messages were not.
+const DRAMA_SAMPLE = `I found his phone on the counter at 2:17 a.m. He said he was sleeping. The lock screen was a photo of us. The messages were not.
 
 Her name was Mara. She asked if I would be home this weekend. He typed, Don't worry. She never checks.`;
 
+const NEWS_SAMPLE = `Tiêu đề: Trái đắng của người phụ nữ lấy chồng kém 37 tuổi.
+
+Sharon, 61 tuổi ở Yorkshire, kết hôn với sinh viên Nigeria kém mình 37 tuổi sau khi quen trên ứng dụng hẹn hò.
+
+Gia đình phản đối. Anh xin thị thực, hứa xây tương lai ở Anh.
+
+Sau đăng ký kết hôn, mâu thuẫn về tiền bạc và chỗ ở bắt đầu.
+
+Anh bỏ đi Nigeria. Cô mất nhà, phải ly hôn, và giữ lại rất ít tài sản.`;
+
+const KNOWLEDGE_SAMPLE = `Thuyết minh về lạm phát và cách nó vận hành.`;
+
+const DRAMA_GENRES = ["confession", "cheating", "revenge", "twist", "family", "drama"] as const;
+const EDITORIAL_GENRES = ["news", "knowledge"] as const;
+
+function isEditorial(kind: VideoKind): boolean {
+  return kind === "news" || kind === "knowledge";
+}
+
 export default function App() {
-  const [text, setText] = useState(SAMPLE);
+  const [kind, setKind] = useState<VideoKind>("drama");
+  const [text, setText] = useState(DRAMA_SAMPLE);
   const [mode, setMode] = useState<"script" | "idea">("script");
   const [genre, setGenre] = useState("confession");
   const [language, setLanguage] = useState("en");
@@ -17,6 +37,8 @@ export default function App() {
   const [job, setJob] = useState<Job | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [logoEnabled, setLogoEnabled] = useState(false);
 
   useEffect(() => {
     if (!jobId) return;
@@ -38,6 +60,25 @@ export default function App() {
     };
   }, [jobId]);
 
+  function onKindChange(next: VideoKind) {
+    const samples: Record<VideoKind, string> = {
+      drama: DRAMA_SAMPLE,
+      news: NEWS_SAMPLE,
+      knowledge: KNOWLEDGE_SAMPLE,
+    };
+    if (Object.values(samples).includes(text)) setText(samples[next]);
+    setKind(next);
+    if (next === "drama") {
+      setGenre("confession");
+      setLanguage("en");
+      setSeconds(60);
+    } else {
+      setGenre(next === "knowledge" ? "knowledge" : "news");
+      setLanguage("vi");
+      setSeconds(90);
+    }
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -46,10 +87,13 @@ export default function App() {
     try {
       const data = await createJob({
         mode,
-        text,
+        kind,
+        text: text.trim().length >= 8 ? text : `News from ${sourceUrl.trim()}`,
         target_seconds: seconds,
         genre,
         language,
+        source_url: isEditorial(kind) ? sourceUrl.trim() || null : null,
+        mix: { logo_enabled: logoEnabled },
       });
       setJobId(data.id);
     } catch (err) {
@@ -66,7 +110,20 @@ export default function App() {
     }));
   }, [job]);
 
-  const mp4 = job?.status === "done" ? `/jobs/${jobId}/download` : null;
+  const videoSrc =
+    job?.status === "done"
+      ? dataFileUrl(job.artifacts?.mp4) ?? (jobId ? `/jobs/${jobId}/download` : null)
+      : null;
+  const poster = stills.find((scene) => scene.src)?.src ?? undefined;
+  const genres = isEditorial(kind) ? EDITORIAL_GENRES : DRAMA_GENRES;
+  const submitLabel =
+    kind === "news" ? "Make news short" : kind === "knowledge" ? "Make knowledge short" : "Make drama short";
+  const lede =
+    kind === "news"
+      ? "Paste a news URL or notes. Five beats cover the full article, including the ending. Stills match each beat — article photos first, then CC search, never Pexels."
+      : kind === "knowledge"
+        ? "Paste a topic (thuyết minh về lạm phát…), one claim, or a GitHub URL. The engine writes the explainer — it does not echo the request or dump a README."
+        : "Paste a confession. One still per scene, bible-locked faces, beat cameras. I2V only when keyed — otherwise Ken Burns, never faked as video.";
 
   return (
     <div className="shell">
@@ -74,12 +131,20 @@ export default function App() {
         <p className="kicker">Story Video Engine</p>
         <h1>omaishort</h1>
         <p className="lede">
-          Paste a confession, not a prompt. One still per scene. Camera moves do the rest.
+          {lede}
         </p>
       </header>
 
       <form className="panel" onSubmit={onSubmit}>
         <div className="row">
+          <label>
+            Kind
+            <select value={kind} onChange={(e) => onKindChange(e.target.value as VideoKind)}>
+              <option value="drama">Drama story</option>
+              <option value="news">News</option>
+              <option value="knowledge">Kiến thức</option>
+            </select>
+          </label>
           <label>
             Mode
             <select value={mode} onChange={(e) => setMode(e.target.value as "script" | "idea")}>
@@ -90,12 +155,9 @@ export default function App() {
           <label>
             Genre
             <select value={genre} onChange={(e) => setGenre(e.target.value)}>
-              <option>confession</option>
-              <option>cheating</option>
-              <option>revenge</option>
-              <option>twist</option>
-              <option>family</option>
-              <option>drama</option>
+              {genres.map((item) => (
+                <option key={item}>{item}</option>
+              ))}
             </select>
           </label>
           <label>
@@ -116,12 +178,47 @@ export default function App() {
             />
           </label>
         </div>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} />
+        {isEditorial(kind) ? (
+          <label className="source-url">
+            {kind === "knowledge" ? "GitHub URL (optional)" : "Article URL"}
+            <input
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder={kind === "knowledge" ? "https://github.com/owner/repo — or leave empty" : "https://vnexpress.net/…"}
+            />
+          </label>
+        ) : null}
+        <label className="logo-opt">
+          <input type="checkbox" checked={logoEnabled} onChange={(e) => setLogoEnabled(e.target.checked)} />
+          Overlay logo (assets/logo)
+        </label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={10}
+          placeholder={kind === "knowledge" ? "Thuyết minh về lạm phát và cách nó vận hành" : undefined}
+        />
         <div className="actions">
-          <button type="submit" disabled={busy || text.trim().length < 8}>
-            {busy ? "Rendering…" : "Make 60s short"}
+          <button type="submit" disabled={busy || (text.trim().length < 8 && sourceUrl.trim().length < 12)}>
+            {busy ? "Rendering…" : submitLabel}
           </button>
           {jobId && <span className="jobid">job {jobId}</span>}
+          <label className="load-job">
+            Load job
+            <input
+              value={jobId ?? ""}
+              onChange={(e) => {
+                const id = e.target.value.trim();
+                setJobId(id || null);
+                setJob(null);
+                setBusy(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.preventDefault();
+              }}
+              placeholder="dryrun-…"
+            />
+          </label>
         </div>
       </form>
 
@@ -135,6 +232,20 @@ export default function App() {
             ))}
           </ol>
           {job.error && <pre className="err">{job.error}</pre>}
+        </section>
+      )}
+
+      {videoSrc && (
+        <section className="panel player">
+          <video controls playsInline poster={poster} src={videoSrc} />
+          <p>
+            <a href={videoSrc} download>
+              Download MP4 1080×1920
+            </a>
+            {job?.artifacts?.motion_mode ? (
+              <span className="meta"> · motion {job.artifacts.motion_mode}</span>
+            ) : null}
+          </p>
         </section>
       )}
 
@@ -157,6 +268,7 @@ export default function App() {
               <div>
                 <p className="meta">
                   {scene.still_id} · {scene.duration_sec}s · {scene.location}
+                  {scene.location_id ? ` · ${scene.location_id}` : ""}
                 </p>
                 <p>{scene.dialogue_or_vo}</p>
                 <p className="meta">
@@ -165,17 +277,6 @@ export default function App() {
               </div>
             </article>
           ))}
-        </section>
-      )}
-
-      {mp4 && (
-        <section className="panel">
-          <video controls src={mp4} />
-          <p>
-            <a href={mp4} download>
-              Download MP4 1080×1920
-            </a>
-          </p>
         </section>
       )}
 

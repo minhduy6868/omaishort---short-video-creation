@@ -7,10 +7,59 @@
         "family",
         "cheating",
         "revenge",
-        "twist"
+        "twist",
+        "news",
+        "knowledge"
       ],
       "title": "Genre",
       "type": "string"
+    },
+    "MixSettings": {
+      "properties": {
+        "bgm_enabled": {
+          "default": true,
+          "title": "Bgm Enabled",
+          "type": "boolean"
+        },
+        "bgm_volume": {
+          "default": 0.14,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Bgm Volume",
+          "type": "number"
+        },
+        "duck": {
+          "default": true,
+          "title": "Duck",
+          "type": "boolean"
+        },
+        "logo_enabled": {
+          "default": false,
+          "title": "Logo Enabled",
+          "type": "boolean"
+        },
+        "logo_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logo Path"
+        },
+        "logo_margin": {
+          "default": 48,
+          "maximum": 200,
+          "minimum": 8,
+          "title": "Logo Margin",
+          "type": "integer"
+        }
+      },
+      "title": "MixSettings",
+      "type": "object"
     },
     "StoryMode": {
       "enum": [
@@ -19,12 +68,73 @@
       ],
       "title": "StoryMode",
       "type": "string"
+    },
+    "SubtitleStyle": {
+      "properties": {
+        "font": {
+          "default": "Arial",
+          "title": "Font",
+          "type": "string"
+        },
+        "font_size": {
+          "default": 64,
+          "maximum": 120,
+          "minimum": 24,
+          "title": "Font Size",
+          "type": "integer"
+        },
+        "primary_hex": {
+          "default": "#FFFFFF",
+          "title": "Primary Hex",
+          "type": "string"
+        },
+        "highlight_hex": {
+          "default": "#FFE000",
+          "title": "Highlight Hex",
+          "type": "string"
+        },
+        "outline_hex": {
+          "default": "#101010",
+          "title": "Outline Hex",
+          "type": "string"
+        },
+        "outline": {
+          "default": 5,
+          "maximum": 12,
+          "minimum": 0,
+          "title": "Outline",
+          "type": "integer"
+        },
+        "margin_v": {
+          "default": 120,
+          "maximum": 400,
+          "minimum": 20,
+          "title": "Margin V",
+          "type": "integer"
+        }
+      },
+      "title": "SubtitleStyle",
+      "type": "object"
+    },
+    "VideoKind": {
+      "enum": [
+        "drama",
+        "news",
+        "knowledge",
+        "brief"
+      ],
+      "title": "VideoKind",
+      "type": "string"
     }
   },
   "properties": {
     "mode": {
       "$ref": "#/$defs/StoryMode",
       "default": "script"
+    },
+    "kind": {
+      "$ref": "#/$defs/VideoKind",
+      "default": "drama"
     },
     "text": {
       "minLength": 8,
@@ -46,6 +156,40 @@
       "default": "en",
       "title": "Language",
       "type": "string"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
+    },
+    "subtitle": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SubtitleStyle"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "mix": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MixSettings"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

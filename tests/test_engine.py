@@ -536,3 +536,66 @@ def test_zoompan_works_at_2x_with_easing():
     assert "cos(PI*on" in expr
     assert "s=1080x1920" in expr
     assert "1350:2400" not in expr
+
+
+def test_analyze_stamps_relationship_locks():
+    bible, _structure = fallback_analyze(_story())
+    by_id = {char.id: char for char in bible.characters}
+    assert "wife" in by_id
+    assert "husband" in by_id
+    assert "married to husband" in by_id["wife"].personality
+    assert "married to wife" in by_id["husband"].personality
+
+
+def test_plan_fills_continuity_and_look():
+    from omaishort.engine.fallback import fill_scene_context
+    from omaishort_schema.models import Scene, Shot, Storyboard
+
+    bible, _structure = fallback_analyze(_story())
+    scene = Scene(
+        index=2,
+        duration_sec=4.0,
+        location="kitchen at night",
+        location_id="kitchen",
+        characters=["wife"],
+        emotion="conflict",
+        action="reads the thread",
+        dialogue_or_vo="The messages were not ours",
+        lighting="",
+        mood="",
+        still_id="still_02",
+        shots=[Shot(camera=Camera.medium, motion=Motion.hold, t_start=0, t_end=4.0, still_id="still_02")],
+    )
+    board = Storyboard(title="t", target_seconds=4, language="en", scenes=[scene])
+    fill_scene_context(board, bible)
+    assert board.scenes[0].lighting
+    assert board.scenes[0].mood
+    assert "wardrobe" in board.scenes[0].consistency_notes
+
+
+def test_resolve_edge_voice_picks_male_and_locale():
+    from omaishort.providers.tts import list_voices, resolve_edge_voice
+
+    assert resolve_edge_voice("vi", "vi-male") == "vi-VN-NamMinhNeural"
+    assert resolve_edge_voice("en", "en-male-uk") == "en-GB-RyanNeural"
+    assert resolve_edge_voice("vi", None) == "vi-VN-HoaiMyNeural"
+    assert {row["id"] for row in list_voices("vi")} == {"vi-female", "vi-male"}
+
+
+def test_join_scene_narration_adds_stops():
+    from omaishort.providers.tts import join_scene_narration, split_tts_chunks
+
+    spoken = join_scene_narration(["I found his phone", "The messages were not ours."])
+    assert spoken == "I found his phone. The messages were not ours."
+    chunks = split_tts_chunks("A. " * 400, limit=80)
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 90 for chunk in chunks)
+
+
+def test_still_prompt_keeps_personality_lock():
+    story = _story()
+    bible, structure = fallback_analyze(story)
+    board = fallback_plan(story, bible, structure)
+    prompt = build_scene_prompt(board.scenes[0], bible)
+    assert "Personality lock" in prompt
+    assert "Appearance lock" in prompt

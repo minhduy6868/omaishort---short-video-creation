@@ -27,7 +27,7 @@ from omaishort.engine.rescale import rescale_to_audio
 from omaishort.engine.timeline import build_timeline
 from omaishort.paths import audio_dir, job_dir, location_refs_dir, prop_refs_dir, refs_dir, render_dir, stills_dir
 from omaishort.providers.image import generate_image
-from omaishort.providers.tts import silence_audio, synthesize_speech
+from omaishort.providers.tts import join_scene_narration, silence_audio, synthesize_speech
 from omaishort.engine.kenburns import has_audio_stream, probe_duration, probe_video_size
 from omaishort_schema.models import Genre, JobStage, JobStatus, StoryInput, VideoKind, is_editorial
 
@@ -241,11 +241,11 @@ async def run_job(job_id: str) -> None:
             db.update_job(job_id, artifacts_json=json.dumps(artifacts), progress=f"stills:{scene.still_id}")
 
         db.update_job(job_id, stage=JobStage.tts.value, progress="tts")
-        vo = " ".join(scene.dialogue_or_vo.strip() for scene in board.scenes)
+        vo = join_scene_narration([scene.dialogue_or_vo for scene in board.scenes])
         voice_path = audio_dir(job_id) / "voiceover.mp3"
         edge_words = None
         try:
-            tts = await synthesize_speech(vo, voice_path, story.language)
+            tts = await synthesize_speech(vo, voice_path, story.language, story.voice_id)
             voice_path = tts.path
             providers["tts"] = tts.provider
             edge_words = tts.words

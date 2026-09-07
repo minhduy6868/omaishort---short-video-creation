@@ -56,6 +56,13 @@ def test_story_input_blank_source_url_becomes_none():
     assert story.source_url is None
 
 
+def test_story_input_blank_voice_id_becomes_none():
+    story = StoryInput(text="hello world this is a news brief", voice_id="  ")
+    assert story.voice_id is None
+    picked = StoryInput(text="hello world this is a news brief", language="vi", voice_id="vi-male")
+    assert picked.voice_id == "vi-male"
+
+
 def test_character_bible_roundtrip():
     bible = CharacterBible(
         characters=[

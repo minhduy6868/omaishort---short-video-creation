@@ -1,6 +1,7 @@
 Portrait / passport still of {id}, {age} year old {gender}.
 Appearance lock: {appearance}
 Clothing lock: {clothing}
+Personality lock: {personality}
 Follow appearance lock exactly: same hair style (knot/bun stays tied, not worn loose), same earrings (studs are studs, not dangling bars).
 Wearing the clothing lock so the garment is visible on the shoulders. Not strapless. Not a different outfit.
 Neutral expression, even studio lighting, face fully visible, shoulders-up, looking at camera.

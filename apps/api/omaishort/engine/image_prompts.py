@@ -5,9 +5,11 @@ from omaishort_schema.models import AssetRef, Character, CharacterBible, Scene, 
 
 
 def character_block(char: Character) -> str:
+    personality = (char.personality or "").strip()
+    extra = f" Personality lock: {personality}." if personality else ""
     return (
         f"- {char.id}: {char.age or ''} {char.gender or ''}. "
-        f"Appearance lock: {char.appearance}. Clothing lock: {char.clothing}."
+        f"Appearance lock: {char.appearance}. Clothing lock: {char.clothing}.{extra}"
     )
 
 
@@ -24,6 +26,7 @@ def build_ref_prompt(char: Character) -> str:
         gender=char.gender or "person",
         appearance=char.appearance,
         clothing=char.clothing,
+        personality=char.personality or "neutral, in-character",
     )
 
 
@@ -62,9 +65,12 @@ def visual_action(scene: Scene) -> str:
         return "extreme close-up of hands and the object only, no standing portraits"
     who = " and ".join(scene.characters) if scene.characters else "nobody"
     beat = scene.emotion or "drama"
+    light = (scene.lighting or "").strip()
+    mood = (scene.mood or beat).strip()
+    look = f", {light}" if light else ""
     return (
-        f"only {who} in {loc}, {beat} beat, silent photographic moment, "
-        "do not illustrate spoken dialogue or off-screen people"
+        f"only {who} in {loc}, {beat} beat, {mood} mood{look}, "
+        "silent photographic moment, do not illustrate spoken dialogue or off-screen people"
     )
 
 

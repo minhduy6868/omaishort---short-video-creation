@@ -22,8 +22,10 @@ def motion_prompt(scene: Scene) -> str:
     move = _MOTION.get(shot.motion, _MOTION[Motion.hold])
     # Wind Comic: never put VO/dialogue in the I2V prompt (garbled on-screen text).
     action = (scene.action or scene.emotion or "").strip()[:180]
+    feel = (scene.emotion or scene.mood or "").strip()[:40]
+    intensity = f" Emotion: {feel}." if feel else ""
     return (
-        f"{camera}, {move}. Action: {action}. "
+        f"{camera}, {move}. Action: {action}.{intensity} "
         "Keep the exact person, face, hair, and clothes from the start frame. "
         "Photoreal short-drama, 9:16 vertical, no text, no subtitles, no watermark."
     )

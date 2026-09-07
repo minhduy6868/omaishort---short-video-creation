@@ -7,7 +7,9 @@ later replies headless. Not a fork of chatgpt-pro-web.
 from __future__ import annotations
 
 import asyncio
+import os
 import time
+from pathlib import Path
 
 from omaishort.config import (
     CHATGPT_WEB_ENABLED,
@@ -52,32 +54,57 @@ def is_authed() -> bool:
     return False
 
 
+def system_chrome_exe() -> Path | None:
+    """Installed Google Chrome — skip Playwright's 190MB CDN download when that host times out."""
+    roots = [
+        os.environ.get("PROGRAMFILES") or r"C:\Program Files",
+        os.environ.get("PROGRAMFILES(X86)") or r"C:\Program Files (x86)",
+        os.environ.get("LOCALAPPDATA") or "",
+    ]
+    for root in roots:
+        if not root:
+            continue
+        exe = Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe"
+        if exe.is_file():
+            return exe
+    return None
+
+
 def _launch_args(*, headed: bool) -> dict:
     args = list(_STEALTH)
     if not headed:
         args.append("--start-minimized")
-    return {
+    opts: dict = {
         "user_data_dir": str(profile_dir()),
         "headless": (not headed) and (not CHATGPT_WEB_HEADED),
         "viewport": {"width": 1280, "height": 900},
         "args": args,
     }
+    if system_chrome_exe() is not None:
+        opts["channel"] = "chrome"
+    return opts
 
 
 async def _has_session(ctx, page) -> bool:
-    cookies = await ctx.cookies(_CHAT)
-    if any(c.get("name") in _AUTH_COOKIES and len(c.get("value") or "") > 20 for c in cookies):
-        return True
-    me = await page.evaluate(
-        """async () => {
-            try {
-                const r = await fetch('/backend-api/me', {credentials:'include'});
-                if (!r.ok) return null;
-                const j = await r.json();
-                return {id: j.id || '', email: j.email || '', name: j.name || ''};
-            } catch { return null; }
-        }"""
-    )
+    try:
+        cookies = await ctx.cookies(_CHAT)
+        if any(c.get("name") in _AUTH_COOKIES and len(c.get("value") or "") > 20 for c in cookies):
+            return True
+        if page.is_closed():
+            return False
+        me = await page.evaluate(
+            """async () => {
+                try {
+                    const r = await fetch('/backend-api/me', {credentials:'include'});
+                    if (!r.ok) return null;
+                    const j = await r.json();
+                    return {id: j.id || '', email: j.email || '', name: j.name || ''};
+                } catch { return null; }
+            }"""
+        )
+    except Exception:
+        # Login redirects destroy the JS world mid-evaluate — poll again.
+        return False
     if not isinstance(me, dict):
         return False
     ident = str(me.get("id") or "")
@@ -93,9 +120,10 @@ async def login() -> bool:
 
     profile_dir().mkdir(parents=True, exist_ok=True)
     async with async_playwright() as pw:
-        ctx = await pw.chromium.launch_persistent_context(
-            **{**_launch_args(headed=True), "headless": False}
-        )
+        launch = {**_launch_args(headed=True), "headless": False}
+        if launch.get("channel") == "chrome":
+            print(f"Using installed Chrome at {system_chrome_exe()}")
+        ctx = await pw.chromium.launch_persistent_context(**launch)
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
         print("Log in to ChatGPT in the window. It closes when the session is saved.")
         await page.goto(f"{_CHAT}/auth/login", wait_until="domcontentloaded")

@@ -7,6 +7,7 @@ Task: from a story idea OR a pasted script, emit a Character Bible and a five-be
 Rules:
 - Character ids are stable slugs: wife, husband, narrator, mom, lover, daughter.
 - appearance and clothing must be specific enough to lock a face and outfit across scenes (hair, age, skin, build, signature item).
+- personality MUST name the relationship to other bible ids AND the emotional state (example: "married to husband; controlled, then cracking"). Later stills reuse this lock — do not invent a new relationship mid-story.
 - Also emit locations[] and props[] with stable ids (kitchen, hallway, phone). Same kitchen across scenes = one location id.
 - Structure MUST contain hook, conflict, rising_action, twist, ending — never a fun-fact or explainer arc.
 - Beat seconds should sum near target_seconds.

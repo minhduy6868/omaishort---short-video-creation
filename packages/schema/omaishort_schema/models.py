@@ -114,6 +114,7 @@ class StoryInput(BaseModel):
     target_seconds: int = Field(default=60, ge=15, le=180)
     genre: Genre = Genre.confession
     language: str = "en"
+    voice_id: str | None = None
     source_url: str | None = None
     subtitle: SubtitleStyle | None = None
     mix: MixSettings | None = None
@@ -127,6 +128,8 @@ class StoryInput(BaseModel):
     def blank_source_url(self) -> StoryInput:
         if self.source_url is not None and not self.source_url.strip():
             self.source_url = None
+        if self.voice_id is not None and not self.voice_id.strip():
+            self.voice_id = None
         if self.kind == VideoKind.news and self.genre in {
             Genre.confession,
             Genre.cheating,

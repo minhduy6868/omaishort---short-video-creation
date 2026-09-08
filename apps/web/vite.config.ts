@@ -10,6 +10,7 @@ export default defineConfig({
       "/jobs": "http://127.0.0.1:8765",
       "/health": "http://127.0.0.1:8765",
       "/files": "http://127.0.0.1:8765",
+      "/voices": "http://127.0.0.1:8765",
     },
   },
 });

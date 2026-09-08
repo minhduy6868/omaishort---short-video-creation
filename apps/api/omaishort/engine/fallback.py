@@ -173,7 +173,7 @@ def _character_stub(cid: str, label: str) -> Character:
             gender="male",
             appearance="early-thirties man, short black hair, faint stubble, sharp jaw",
             clothing="charcoal office shirt, sleeves rolled, watch on left wrist",
-            personality="smooth, then cornered",
+            personality="married to wife; smooth, then cornered",
         )
     if cid == "other_woman":
         return Character(
@@ -182,7 +182,7 @@ def _character_stub(cid: str, label: str) -> Character:
             gender="female",
             appearance="mid-twenties woman, long straight black hair, red lip",
             clothing="red coat, gold hoop earrings",
-            personality="unapologetic",
+            personality="affair with husband; unapologetic",
         )
     return Character(
         id=cid if cid != "narrator" else "wife",
@@ -190,7 +190,7 @@ def _character_stub(cid: str, label: str) -> Character:
         gender="female",
         appearance="late-twenties woman, dark brown hair in a low knot, tired eyes, small gold stud earrings",
         clothing="black silk robe over a white tank, no jewelry except a thin wedding band",
-        personality=f"speaking as {label}",
+        personality=f"speaking as {label}; emotional, then firm",
     )
 
 
@@ -608,7 +608,7 @@ def _guess_characters(text: str, kind: VideoKind = VideoKind.drama) -> Character
             gender="female",
             appearance="late-twenties woman, dark brown hair in a low knot, tired eyes, small gold stud earrings",
             clothing="black silk robe over a white tank, no jewelry except a thin wedding band",
-            personality="controlled, then cracking",
+            personality="married to husband; controlled, then cracking",
         )
     ]
     if any(w in lowered for w in husband_cues):
@@ -619,7 +619,7 @@ def _guess_characters(text: str, kind: VideoKind = VideoKind.drama) -> Character
                 gender="male",
                 appearance="early-thirties man, short black hair, faint stubble, sharp jaw",
                 clothing="charcoal office shirt, sleeves rolled, watch on left wrist",
-                personality="smooth, then cornered",
+                personality="married to wife; smooth, then cornered",
             )
         )
     if any(w in lowered for w in ("her name", "the other woman", "her lipstick", "mistress", "mara")):
@@ -630,7 +630,7 @@ def _guess_characters(text: str, kind: VideoKind = VideoKind.drama) -> Character
                 gender="female",
                 appearance="mid-twenties woman, long straight black hair, red lip",
                 clothing="red coat, gold hoop earrings",
-                personality="unapologetic",
+                personality="affair with husband; unapologetic",
             )
         )
     return CharacterBible(characters=chars, locations=_guess_locations(), props=_guess_props(text))
@@ -871,11 +871,76 @@ def normalize_storyboard(board: Storyboard, bible: CharacterBible) -> Storyboard
     bind_scene_assets(board, bible)
     if is_editorial(board.kind):
         clamp_brief_storyboard(board)
+    fill_scene_context(board, bible)
     return board
 
 
+_BEAT_LOOK: dict[str, tuple[str, str]] = {
+    "hook": ("practical night lights on faces", "tense"),
+    "conflict": ("hard side light, tight shadows", "confrontational"),
+    "rising_action": ("mixed practicals, moving shadows", "escalating"),
+    "twist": ("harsh close key, crushed blacks", "shocked"),
+    "ending": ("cooler wider light, pull-back", "resolved"),
+}
+
+
+def fill_scene_context(board: Storyboard, bible: CharacterBible) -> Storyboard:
+    """Stage [2]: lighting, mood, and wardrobe continuity when the planner left them blank."""
+    editorial = is_editorial(board.kind)
+    by_id = {char.id: char for char in bible.characters}
+    prev_loc = ""
+    prev_wardrobe = ""
+    total = max(1, len(board.scenes))
+    for i, scene in enumerate(board.scenes):
+        beat = infer_beat(scene, max(0, scene.index - 1), total)
+        light, mood = _BEAT_LOOK.get(beat, _BEAT_LOOK["hook"])
+        if not (scene.lighting or "").strip():
+            scene.lighting = light
+        if not (scene.mood or "").strip():
+            scene.mood = scene.emotion or mood
+        if not editorial and not (scene.consistency_notes or "").strip():
+            bits: list[str] = []
+            if prev_loc and scene.location_id == prev_loc:
+                bits.append(f"same {scene.location_id} lock")
+            for cid in scene.characters:
+                char = by_id.get(cid)
+                if char and char.clothing:
+                    bits.append(f"{cid} wardrobe: {char.clothing}")
+            if prev_wardrobe:
+                bits.append(f"continuity: {prev_wardrobe}")
+            scene.consistency_notes = "; ".join(bits) or f"{beat} beat lock"
+        if scene.characters:
+            lead = by_id.get(scene.characters[0])
+            if lead and lead.clothing:
+                prev_wardrobe = f"{lead.id} in {lead.clothing}"
+        prev_loc = scene.location_id or prev_loc
+    return board
+
+
+def stamp_identity_locks(bible: CharacterBible) -> CharacterBible:
+    """Stage [1]: relationship + emotion stay on personality for refs/stills."""
+    ids = {char.id for char in bible.characters}
+    for char in bible.characters:
+        blob = (char.personality or "").lower()
+        if any(token in blob for token in ("relationship:", "married to", "affair with", "off-camera")):
+            continue
+        relation = ""
+        if char.id == "wife" and "husband" in ids:
+            relation = "relationship: married to husband"
+        elif char.id == "husband" and "wife" in ids:
+            relation = "relationship: married to wife"
+        elif char.id == "other_woman" and "husband" in ids:
+            relation = "relationship: affair with husband"
+        elif char.id == "narrator":
+            relation = "relationship: off-camera narrator"
+        if relation:
+            prior = (char.personality or "").strip()
+            char.personality = f"{relation}; {prior}" if prior else relation
+    return bible
+
+
 def fallback_analyze(story: StoryInput) -> tuple[CharacterBible, StoryStructure]:
-    bible = _guess_characters(story.text, story.kind)
+    bible = stamp_identity_locks(_guess_characters(story.text, story.kind))
     if is_editorial(story.kind):
         return bible, _guess_structure_brief(story.text, story.target_seconds, story.language)
     return bible, _guess_structure(story.text, story.target_seconds)

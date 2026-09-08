@@ -11,7 +11,9 @@ from fastapi.staticfiles import StaticFiles
 
 from omaishort import db
 from omaishort.config import DATA_DIR
+from omaishort.pipeline import run_job
 from omaishort.providers.llm import llm_status
+from omaishort.providers.tts import list_voices
 from omaishort_schema.models import StoryInput
 
 
@@ -46,6 +48,11 @@ def health() -> dict[str, str]:
 @app.get("/providers")
 def providers() -> dict[str, object]:
     return llm_status()
+
+
+@app.get("/voices")
+def voices(language: str | None = None) -> dict[str, object]:
+    return {"voices": list_voices(language)}
 
 
 @app.post("/jobs")

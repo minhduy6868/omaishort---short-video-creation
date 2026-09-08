@@ -21,6 +21,20 @@ const KNOWLEDGE_SAMPLE = `Thuyết minh về lạm phát và cách nó vận hà
 
 const DRAMA_GENRES = ["confession", "cheating", "revenge", "twist", "family", "drama"] as const;
 const EDITORIAL_GENRES = ["news", "knowledge"] as const;
+const VOICES: { id: string; language: string; label: string }[] = [
+  { id: "vi-female", language: "vi", label: "Nữ — Việt Nam" },
+  { id: "vi-male", language: "vi", label: "Nam — Việt Nam" },
+  { id: "en-female-us", language: "en", label: "Female — US" },
+  { id: "en-male-us", language: "en", label: "Male — US" },
+  { id: "en-female-uk", language: "en", label: "Female — UK" },
+  { id: "en-male-uk", language: "en", label: "Male — UK" },
+  { id: "en-female-au", language: "en", label: "Female — Australia" },
+  { id: "en-male-au", language: "en", label: "Male — Australia" },
+];
+
+function defaultVoice(language: string): string {
+  return language === "vi" ? "vi-female" : "en-female-us";
+}
 
 function isEditorial(kind: VideoKind): boolean {
   return kind === "news" || kind === "knowledge";
@@ -32,6 +46,7 @@ export default function App() {
   const [mode, setMode] = useState<"script" | "idea">("script");
   const [genre, setGenre] = useState("confession");
   const [language, setLanguage] = useState("en");
+  const [voiceId, setVoiceId] = useState(defaultVoice("en"));
   const [seconds, setSeconds] = useState(60);
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
@@ -71,10 +86,12 @@ export default function App() {
     if (next === "drama") {
       setGenre("confession");
       setLanguage("en");
+      setVoiceId(defaultVoice("en"));
       setSeconds(60);
     } else {
       setGenre(next === "knowledge" ? "knowledge" : "news");
       setLanguage("vi");
+      setVoiceId(defaultVoice("vi"));
       setSeconds(90);
     }
   }
@@ -92,6 +109,7 @@ export default function App() {
         target_seconds: seconds,
         genre,
         language,
+        voice_id: voiceId,
         source_url: isEditorial(kind) ? sourceUrl.trim() || null : null,
         mix: { logo_enabled: logoEnabled },
       });
@@ -162,9 +180,26 @@ export default function App() {
           </label>
           <label>
             Language
-            <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+            <select
+              value={language}
+              onChange={(e) => {
+                const next = e.target.value;
+                setLanguage(next);
+                setVoiceId(defaultVoice(next));
+              }}
+            >
               <option value="en">en</option>
               <option value="vi">vi</option>
+            </select>
+          </label>
+          <label>
+            Voice
+            <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
+              {VOICES.filter((voice) => voice.language === language).map((voice) => (
+                <option key={voice.id} value={voice.id}>
+                  {voice.label}
+                </option>
+              ))}
             </select>
           </label>
           <label>

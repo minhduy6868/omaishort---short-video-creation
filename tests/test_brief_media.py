@@ -462,6 +462,22 @@ def test_chatgpt_web_profile_is_under_data_dir(tmp_path, monkeypatch):
     assert chatgpt_web.is_authed()
 
 
+def test_chatgpt_launch_can_use_system_chrome(tmp_path, monkeypatch):
+    from omaishort.providers import chatgpt_web
+
+    monkeypatch.setattr(chatgpt_web, "DATA_DIR", tmp_path)
+    exe = tmp_path / "Google" / "Chrome" / "Application" / "chrome.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"mz")
+    monkeypatch.setenv("PROGRAMFILES", str(tmp_path))
+    monkeypatch.setenv("PROGRAMFILES(X86)", str(tmp_path / "x86"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "roaming"))
+    assert chatgpt_web.system_chrome_exe() == exe
+    opts = chatgpt_web._launch_args(headed=True)
+    assert opts["channel"] == "chrome"
+    assert opts["headless"] is False
+
+
 def test_llm_status_reports_chatgpt_web_slot():
     from omaishort.providers.llm import llm_status
 

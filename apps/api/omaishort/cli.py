@@ -17,6 +17,7 @@ from omaishort.engine.brief_media import (
 )
 from omaishort.engine.kenburns import has_audio_stream, probe_duration, probe_video_size
 from omaishort.pipeline import run_job
+from omaishort.providers.tts import VOICE_CATALOG
 from omaishort_schema.models import Genre, MixSettings, StoryInput, StoryMode, VideoKind, is_editorial
 
 
@@ -39,6 +40,7 @@ async def _run(
     kind: str,
     source_url: str | None,
     logo: bool = False,
+    voice: str | None = None,
 ) -> str:
     db.init_db()
     url = (source_url or "").strip() or None
@@ -72,6 +74,7 @@ async def _run(
         genre=_genre_for(kind_enum, genre),
         language=language,
         source_url=url,
+        voice_id=voice,
         mix=MixSettings(logo_enabled=logo),
     )
     job_id = "dryrun-" + uuid.uuid4().hex[:8]
@@ -103,6 +106,11 @@ def main() -> None:
     parser.add_argument("--seconds", type=int, default=0, help="Target length. 0 = 90s for news/knowledge, 60s for drama")
     parser.add_argument("--source-url", default="", help="News article or GitHub repo URL")
     parser.add_argument("--logo", action="store_true", help="Overlay assets/logo on the MP4")
+    parser.add_argument(
+        "--voice",
+        default="",
+        help="Narrator voice id: " + ", ".join(row["id"] for row in VOICE_CATALOG),
+    )
     parser.add_argument("--chatgpt-login", action="store_true", help="Open Chrome once to save a ChatGPT session")
     args = parser.parse_args()
     if args.chatgpt_login:
@@ -113,7 +121,18 @@ def main() -> None:
     if looks_like_url(args.story) and kind == "drama":
         kind = "knowledge" if looks_like_github(args.story) else "news"
     seconds = args.seconds if args.seconds else (90 if kind in {"news", "knowledge", "brief"} else 60)
-    asyncio.run(_run(args.story, args.genre, args.language, seconds, kind, args.source_url or None, logo=args.logo))
+    asyncio.run(
+        _run(
+            args.story,
+            args.genre,
+            args.language,
+            seconds,
+            kind,
+            args.source_url or None,
+            logo=args.logo,
+            voice=args.voice or None,
+        )
+    )
 
 
 if __name__ == "__main__":

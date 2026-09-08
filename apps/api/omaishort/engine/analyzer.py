@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from omaishort.engine.brief_media import knowledge_spoken_from_notes, knowledge_spoken_from_wiki
-from omaishort.engine.fallback import fallback_analyze
+from omaishort.engine.fallback import fallback_analyze, stamp_identity_locks
 from omaishort.providers.llm import complete_json, complete_json_result, load_prompt
 from omaishort_schema.models import CharacterBible, StoryInput, StoryStructure, is_editorial
 
@@ -55,10 +55,24 @@ async def write_knowledge_script(
     if beats and _FAKE_VIDEO_FACTORY.search(joined) and not _VIDEO_FACTORY_SOURCE.search(extract or ""):
         beats = None
     if beats:
-        return joined, src or "llm", ""
+        return _ensure_spoken_stops(joined), src or "llm", ""
     if extract and len(extract.split()) >= 40 and "github.com" in f"{topic} {title}":
-        return knowledge_spoken_from_notes(extract, name=title), "github", err
-    return knowledge_spoken_from_wiki(title, extract, language), "wiki", err
+        return _ensure_spoken_stops(knowledge_spoken_from_notes(extract, name=title)), "github", err
+    return _ensure_spoken_stops(knowledge_spoken_from_wiki(title, extract, language)), "wiki", err
+
+
+_SPOKEN_STOP = re.compile(r"[.!?…][\"'»”’]*$")
+
+
+def _ensure_spoken_stops(text: str) -> str:
+    """Stage [0]: each spoken block ends on a sentence stop so TTS does not run on."""
+    parts = [block.strip() for block in (text or "").split("\n\n") if block.strip()]
+    cleaned: list[str] = []
+    for block in parts:
+        if not _SPOKEN_STOP.search(block):
+            block = block.rstrip() + "."
+        cleaned.append(block)
+    return "\n\n".join(cleaned) if cleaned else (text or "").strip()
 
 
 async def analyze_story(story: StoryInput) -> tuple[CharacterBible, StoryStructure, str]:
@@ -90,9 +104,9 @@ def _ensure_assets(bible: CharacterBible, story: StoryInput) -> CharacterBible:
         bible.characters = guessed.characters
         bible.locations = bible.locations or guessed.locations
         bible.props = []
-        return bible
+        return stamp_identity_locks(bible)
     if not bible.locations:
         bible.locations = guessed.locations
     if not bible.props:
         bible.props = guessed.props
-    return bible
+    return stamp_identity_locks(bible)

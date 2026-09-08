@@ -15,7 +15,9 @@ from omaishort.engine.kenburns import probe_duration as probe_duration
 class TTSProvider(Protocol):
     name: str
 
-    async def synthesize(self, text: str, dest: Path, language: str = "en") -> TTSResult | None:
+    async def synthesize(
+        self, text: str, dest: Path, language: str = "en", voice: str | None = None
+    ) -> TTSResult | None:
         ...
 
 
@@ -32,17 +34,45 @@ EDGE_VOICES = {
     "zh": "zh-CN-XiaoxiaoNeural",
 }
 
+VOICE_CATALOG: list[dict[str, str]] = [
+    {"id": "vi-female", "language": "vi", "gender": "female", "region": "VN", "edge": "vi-VN-HoaiMyNeural", "label": "Nữ — Việt Nam"},
+    {"id": "vi-male", "language": "vi", "gender": "male", "region": "VN", "edge": "vi-VN-NamMinhNeural", "label": "Nam — Việt Nam"},
+    {"id": "en-female-us", "language": "en", "gender": "female", "region": "US", "edge": "en-US-JennyNeural", "label": "Female — US"},
+    {"id": "en-male-us", "language": "en", "gender": "male", "region": "US", "edge": "en-US-GuyNeural", "label": "Male — US"},
+    {"id": "en-female-uk", "language": "en", "gender": "female", "region": "UK", "edge": "en-GB-SoniaNeural", "label": "Female — UK"},
+    {"id": "en-male-uk", "language": "en", "gender": "male", "region": "UK", "edge": "en-GB-RyanNeural", "label": "Male — UK"},
+    {"id": "en-female-au", "language": "en", "gender": "female", "region": "AU", "edge": "en-AU-NatashaNeural", "label": "Female — Australia"},
+    {"id": "en-male-au", "language": "en", "gender": "male", "region": "AU", "edge": "en-AU-WilliamNeural", "label": "Male — Australia"},
+]
+
+
+def list_voices(language: str | None = None) -> list[dict[str, str]]:
+    lang = (language or "").strip().lower()[:2]
+    if not lang:
+        return list(VOICE_CATALOG)
+    return [row for row in VOICE_CATALOG if row["language"] == lang]
+
+
+def resolve_edge_voice(language: str = "en", voice_id: str | None = None) -> str:
+    if voice_id:
+        for row in VOICE_CATALOG:
+            if row["id"] == voice_id or row["edge"] == voice_id:
+                return row["edge"]
+    return EDGE_VOICES.get((language or "en")[:2], EDGE_VOICES["en"])
+
 
 class EdgeTTSProvider:
     name = "edge-tts"
 
-    async def synthesize(self, text: str, dest: Path, language: str = "en") -> TTSResult | None:
+    async def synthesize(
+        self, text: str, dest: Path, language: str = "en", voice: str | None = None
+    ) -> TTSResult | None:
         try:
             import edge_tts
         except ImportError:
             return None
         dest.parent.mkdir(parents=True, exist_ok=True)
-        voice = EDGE_VOICES.get(language[:2], EDGE_VOICES["en"])
+        voice = voice or EDGE_VOICES.get(language[:2], EDGE_VOICES["en"])
         words: list[WordStamp] = []
         try:
             communicate = edge_tts.Communicate(text, voice, boundary="WordBoundary")
@@ -76,7 +106,9 @@ class EdgeTTSProvider:
 class ElevenLabsTTSProvider:
     name = "elevenlabs"
 
-    async def synthesize(self, text: str, dest: Path, language: str = "en") -> TTSResult | None:
+    async def synthesize(
+        self, text: str, dest: Path, language: str = "en", voice: str | None = None
+    ) -> TTSResult | None:
         if not ELEVENLABS_API_KEY or not ELEVENLABS_VOICE_ID:
             return None
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -101,13 +133,16 @@ class ElevenLabsTTSProvider:
             return None
 
 
-async def synthesize_speech(text: str, dest: Path, language: str = "en") -> TTSResult:
+async def synthesize_speech(
+    text: str, dest: Path, language: str = "en", voice_id: str | None = None
+) -> TTSResult:
+    edge_voice = resolve_edge_voice(language, voice_id)
     providers: list[TTSProvider] = []
-    if ELEVENLABS_API_KEY:
+    if ELEVENLABS_API_KEY and not voice_id:
         providers.append(ElevenLabsTTSProvider())
     providers.append(EdgeTTSProvider())
     for provider in providers:
-        result = await provider.synthesize(text, dest, language)
+        result = await provider.synthesize(text, dest, language, voice=edge_voice)
         if result is not None:
             return result
     raise RuntimeError("no TTS provider produced audio")

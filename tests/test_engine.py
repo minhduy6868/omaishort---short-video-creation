@@ -536,3 +536,12 @@ def test_zoompan_works_at_2x_with_easing():
     assert "cos(PI*on" in expr
     assert "s=1080x1920" in expr
     assert "1350:2400" not in expr
+
+
+def test_resolve_edge_voice_picks_male_and_locale():
+    from omaishort.providers.tts import list_voices, resolve_edge_voice
+
+    assert resolve_edge_voice("vi", "vi-male") == "vi-VN-NamMinhNeural"
+    assert resolve_edge_voice("en", "en-male-uk") == "en-GB-RyanNeural"
+    assert resolve_edge_voice("vi", None) == "vi-VN-HoaiMyNeural"
+    assert {row["id"] for row in list_voices("vi")} == {"vi-female", "vi-male"}

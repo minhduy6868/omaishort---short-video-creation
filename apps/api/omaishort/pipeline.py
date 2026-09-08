@@ -245,7 +245,7 @@ async def run_job(job_id: str) -> None:
         voice_path = audio_dir(job_id) / "voiceover.mp3"
         edge_words = None
         try:
-            tts = await synthesize_speech(vo, voice_path, story.language)
+            tts = await synthesize_speech(vo, voice_path, story.language, story.voice_id)
             voice_path = tts.path
             providers["tts"] = tts.provider
             edge_words = tts.words

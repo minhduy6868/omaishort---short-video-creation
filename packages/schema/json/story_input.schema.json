@@ -157,6 +157,18 @@
       "title": "Language",
       "type": "string"
     },
+    "voice_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Voice Id"
+    },
     "source_url": {
       "anyOf": [
         {

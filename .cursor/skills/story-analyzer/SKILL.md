@@ -9,7 +9,7 @@ Read `prompts/analyzer.txt` (drama) or `prompts/analyzer_brief.txt` (news/knowle
 
 Output JSON with `bible` and `structure` only.
 
-Drama: genre is confession/family/cheating/revenge/twist — not explainer.
+Drama: bible faces. **Default** = user names people/events, told in humiliation→reveal→karma shape. **Custom** = prompt is a different story from scratch. News/knowledge are still collages.
 
 News/knowledge: `kind=news` or `kind=knowledge` (legacy `brief` → news). Bible is narrator-only. Knowledge **topics** call `write_knowledge_script` first so ChatGPT writes VO into `script.json` before stills. Optional `StoryInput.script_brief` is extra writing notes (tone, emphasis) sent as `USER_BRIEF`. ChatGPT web is in-process Playwright (`providers/chatgpt_web.py`, `python -m omaishort --chatgpt-login` once, then headless, one chat per day). Wiki is fallback; `script.json.note` says why.
 

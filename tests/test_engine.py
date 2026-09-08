@@ -599,3 +599,52 @@ def test_still_prompt_keeps_personality_lock():
     prompt = build_scene_prompt(board.scenes[0], bible)
     assert "Personality lock" in prompt
     assert "Appearance lock" in prompt
+
+
+def test_editorial_beat_lenses_skip_close_up():
+    from omaishort.engine.fallback import apply_beat_lenses
+    from omaishort_schema.models import Scene, Storyboard
+
+    scene = Scene(
+        index=1,
+        duration_sec=6.0,
+        location="news desk",
+        characters=[],
+        emotion="hook",
+        action="uninhabited still",
+        dialogue_or_vo="The headline broke at dawn.",
+        lighting="cool",
+        mood="urgent",
+        still_id="still_01",
+        use_face_ref=False,
+        shots=[Shot(camera=Camera.wide, motion=Motion.hold, t_start=0, t_end=6.0, still_id="still_01")],
+    )
+    board = Storyboard(title="n", target_seconds=6, language="vi", kind=VideoKind.news, scenes=[scene])
+    apply_beat_lenses(board)
+    assert all(shot.camera != Camera.close_up for shot in board.scenes[0].shots)
+
+
+def test_i2v_wanted_skips_editorial_collage(monkeypatch):
+    from omaishort.engine import compose
+    from omaishort_schema.models import Scene, Storyboard
+
+    monkeypatch.setattr(compose, "i2v_ready", lambda: True)
+    shot = Shot(camera=Camera.medium, motion=Motion.hold, t_start=0, t_end=4.0, still_id="still_01")
+    scene = Scene(
+        index=1,
+        duration_sec=4.0,
+        location="kitchen",
+        characters=["wife"],
+        emotion="hook",
+        action="stands",
+        dialogue_or_vo="I found his phone.",
+        lighting="warm",
+        mood="tense",
+        still_id="still_01",
+        shots=[shot],
+    )
+    drama = Storyboard(title="d", target_seconds=4, language="en", kind=VideoKind.drama, scenes=[scene])
+    news = Storyboard(title="n", target_seconds=4, language="vi", kind=VideoKind.news, scenes=[scene])
+    assert compose.i2v_wanted(drama) is True
+    assert compose.i2v_wanted(news) is False
+    assert compose.i2v_wanted(news.model_copy(update={"kind": VideoKind.knowledge})) is False

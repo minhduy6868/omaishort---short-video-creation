@@ -15,7 +15,7 @@ from omaishort.engine.fallback import apply_beat_lenses
 from omaishort.engine.kenburns import conform_clip, ffmpeg_path, render_shot_clip
 from omaishort.engine.motion_prompt import motion_prompt
 from omaishort.providers.video import generate_clip
-from omaishort_schema.models import MixSettings, Storyboard
+from omaishort_schema.models import MixSettings, Storyboard, is_editorial
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"}
 
@@ -26,6 +26,11 @@ def i2v_ready() -> bool:
     if HF_I2V_ENABLED and HF_TOKEN:
         return True
     return False
+
+
+def i2v_wanted(board: Storyboard) -> bool:
+    """Drama may I2V. News/knowledge are still collages (Ken Burns only)."""
+    return i2v_ready() and not is_editorial(board.kind)
 
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
@@ -79,7 +84,7 @@ async def compose_short(
     clip_paths: list[Path] = []
     i2v_ids: list[str] = []
     n = 0
-    want_i2v = i2v_ready()
+    want_i2v = i2v_wanted(board)
     for scene in board.scenes:
         still = stills[scene.still_id]
         i2v_used = False

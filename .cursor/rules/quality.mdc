@@ -5,21 +5,21 @@ alwaysApply: true
 
 # Quality bar
 
-A short is a **vertical 1080×1920 drama, news, or knowledge** piece, not a slideshow of prompts.
+A short is a **vertical 1080×1920** piece. `kind=drama` is a **short story** (bible faces, motion). `kind=news` and `kind=knowledge` are **ảnh ghép** (editorial stills + Ken Burns), not character cinema.
 
 **Must**
 
 - 1080×1920 @ 30fps, VO + karaoke ASS, duration = probed audio.
-- One still per scene; 1–3 shots share `still_id`. Drama faces come from the Character Bible passport, not a new description. News/knowledge stills are editorial and **match that beat's VO**; no on-camera bible faces.
-- Shots follow beat lenses: hook zoom_in → conflict tight → rising pan → twist punch-in → ending zoom_out. News/knowledge keep that order on **medium/wide** with a small zoom so screenshots stay in frame.
+- One still per scene; 1–3 shots share `still_id`. Drama faces come from the Character Bible passport, not a new description. Drama uses close-up beat lenses and I2V when keyed. News/knowledge stills are editorial and **match that beat's VO**; no on-camera bible faces; Ken Burns on medium/wide so screenshots stay in frame.
+- Shots follow beat lenses (exact pairs in `docs/REQUIREMENTS.md` §6). Drama: hook push-in → conflict tight → rising pan → twist punch-in → ending pull-out.
 - Image: photographic stills when Pollinations is on. Drama compact prompt leads with **ONLY on-camera ids**. News/knowledge compact prompt leads with editorial still, no soap-opera couple. Kontext from the passport **URL** on drama only. Fail the still rather than mix stick figures. Inserts: no full-body crowd.
-- Motion: I2V when `HF_TOKEN` or Pollinations pollen exists. Else Ken Burns at 2× canvas + cosine ease. Never call that I2V.
+- Motion: drama prefers I2V when `HF_TOKEN` or Pollinations pollen exists. Editorial collage stays Ken Burns. Never call Ken Burns I2V.
 - Motion prompt = camera + action only. No VO text in image/video prompts.
 
 **Must not**
 
-- One image per sentence. Pexels as the picture. Fun-fact / explainer beats **in drama**. Knowledge may narrate a single claim, never a random trivia listicle. News must cover the article ending, not stop at the first conflict.
+- One image per sentence. Pexels as the picture. Fun-fact / explainer beats **in drama**. Bending a **custom** prompt into the default humiliation shape, or ignoring the user's characters in **default** mode. Knowledge may narrate a single claim, never a random trivia listicle. News must cover the article ending, not stop at the first conflict.
 - HyperFrames HTML templates. Hardcoding Kling/Veo/OpenMontage in the planner. Forking those repos.
 - Shipping a still as if people were animated. Write `render/motion.json` (`kenburns` | `i2v` | `mixed`).
 
-When quality is “not OK”, fix identity (bible → kontext) or motion (I2V keys / Ken Burns lenses). Do not add a new product surface.
+When quality is “not OK”, fix identity (bible → kontext) or motion (I2V keys / Ken Burns lenses). Do not add a new product surface. Do not turn news/knowledge into drama.

@@ -2,13 +2,13 @@
 
 Paste a story, a news URL, a topic, or a GitHub README. omaishort writes voiceover, stills, karaoke captions, and a **1080×1920 @ 30fps** short.
 
-Not a TikTok clone. One pipeline, three kinds:
+**Drama** is the short-story video (locked faces, motion). **News** and **knowledge** are editorial still collages (ảnh ghép) — not character cinema.
 
-| Kind | Paste | Picture | Voice |
+| Kind | Paste | Picture | Voice / motion |
 | --- | --- | --- | --- |
-| `drama` | confession / family script | Character Bible faces | dialogue or narrator |
-| `news` | article URL or brief | editorial photos from the article, then Wikimedia | narrator |
-| `knowledge` | “thuyết minh về …”, wiki topic, or GitHub URL | editorial stills that match each beat | narrator (ChatGPT writes the script first) |
+| `drama` | **default:** user names people/events, told in viral humiliation→reveal→karma shape; **custom:** prompt is a different story from scratch | Character Bible faces | dialogue or narrator; I2V when keyed, else punch-in Ken Burns |
+| `news` | article URL or brief | article photos, then Wikimedia — **ảnh ghép** | narrator + Ken Burns |
+| `knowledge` | “thuyết minh về …”, wiki topic, or GitHub URL | editorial stills per beat — **ảnh ghép** | narrator (script first) + Ken Burns |
 
 Legacy `kind=brief` aliases to `news`.
 
@@ -63,7 +63,7 @@ kind=drama|news|knowledge
 
 Beats are always `hook → conflict → rising_action → twist → ending`. News maps those to headline / obstacle / unfold / turn / outcome. Knowledge maps them to claim / proof / context / misconception / remember.
 
-A scene is **one still**, not one image per sentence. Ken Burns is never labeled as I2V.
+A scene is **one still**, not one image per sentence. Drama may I2V that still. News/knowledge Ken Burns only — never labeled as I2V.
 
 ## Layout
 

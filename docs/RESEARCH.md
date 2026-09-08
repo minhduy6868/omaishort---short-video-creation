@@ -8,10 +8,10 @@ Positioning:
 | --- | --- | --- | --- |
 | Stock-short factory | MoneyPrinter, MoneyPrinterTurbo, ShortGPT | Pexels / keyword clips | Steal **ops** (TTS timestamps, BGM, LLM gateway). Do **not** steal stock footage as the picture. |
 | Agentic studio | OpenMontage | Remotion / I2V / stock | Steal **gates, skills, render_runtime lock**. Do **not** vendor AGPL code. |
-| Story / short-drama | ArcReel, AIDrama, FTL Studio, AI-Story-To-Movie | Character refs → stills → optional I2V | `kind=drama`. |
-| News / knowledge brief | [AI-auto-generate-video](https://github.com/huytranvan2010/AI-auto-generate-video) (HyperFrames templates) | HTML templates → Chromium MP4 | Steal the **5-beat news arc** and per-scene VO. Do **not** fork HyperFrames or use Pexels. |
+| Story / short-drama | ArcReel, AIDrama, FTL Studio, AI-Story-To-Movie | Character refs → stills → optional I2V | `kind=drama` — **default** (user facts in viral shape) or **custom** (prompt from scratch). |
+| News / knowledge collage | MoneyPrinter ops + news 5-beat, not HyperFrames | Editorial stills + Ken Burns (ảnh ghép) | `kind=news` / `kind=knowledge`. Steal the **5-beat editorial arc** and per-scene VO. Do **not** fork HyperFrames, use Pexels, or put bible faces on editorial stills. |
 
-Canonical product: [REQUIREMENTS.md](REQUIREMENTS.md). Elevation plan: [ROADMAP.md](ROADMAP.md).
+Canonical product: [REQUIREMENTS.md](REQUIREMENTS.md) (numeric contract + routing). Elevation plan: [ROADMAP.md](ROADMAP.md).
 
 ---
 

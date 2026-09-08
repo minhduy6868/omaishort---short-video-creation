@@ -181,6 +181,20 @@
       "default": null,
       "title": "Source Url"
     },
+    "script_brief": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional extra writing notes for ChatGPT (tone, emphasis, audience).",
+      "title": "Script Brief"
+    },
     "subtitle": {
       "anyOf": [
         {

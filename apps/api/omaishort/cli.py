@@ -41,6 +41,7 @@ async def _run(
     source_url: str | None,
     logo: bool = False,
     voice: str | None = None,
+    script_brief: str | None = None,
 ) -> str:
     db.init_db()
     url = (source_url or "").strip() or None
@@ -75,6 +76,7 @@ async def _run(
         language=language,
         source_url=url,
         voice_id=voice,
+        script_brief=script_brief,
         mix=MixSettings(logo_enabled=logo),
     )
     job_id = "dryrun-" + uuid.uuid4().hex[:8]
@@ -111,6 +113,11 @@ def main() -> None:
         default="",
         help="Narrator voice id: " + ", ".join(row["id"] for row in VOICE_CATALOG),
     )
+    parser.add_argument(
+        "--script-brief",
+        default="",
+        help="Extra writing notes for ChatGPT (tone, emphasis, audience). Empty = engine default",
+    )
     parser.add_argument("--chatgpt-login", action="store_true", help="Open Chrome once to save a ChatGPT session")
     args = parser.parse_args()
     if args.chatgpt_login:
@@ -131,6 +138,7 @@ def main() -> None:
             args.source_url or None,
             logo=args.logo,
             voice=args.voice or None,
+            script_brief=args.script_brief or None,
         )
     )
 

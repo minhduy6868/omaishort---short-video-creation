@@ -63,6 +63,19 @@ def test_story_input_blank_voice_id_becomes_none():
     assert picked.voice_id == "vi-male"
 
 
+def test_story_input_script_brief_optional():
+    story = StoryInput(text="hello world this is a knowledge brief", kind=VideoKind.knowledge, script_brief="  ")
+    assert story.script_brief is None
+    noted = StoryInput(
+        text="hello world this is a knowledge brief",
+        kind=VideoKind.knowledge,
+        script_brief="  giọng tài liệu, nhấn trận  ",
+    )
+    assert noted.script_brief == "giọng tài liệu, nhấn trận"
+    with pytest.raises(ValidationError):
+        StoryInput(text="hello world this is a knowledge brief", script_brief="x" * 2001)
+
+
 def test_character_bible_roundtrip():
     bible = CharacterBible(
         characters=[

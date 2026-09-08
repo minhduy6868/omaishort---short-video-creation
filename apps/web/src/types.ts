@@ -68,6 +68,7 @@ export type StoryDraft = {
   language: string;
   voice_id?: string | null;
   source_url?: string | null;
+  script_brief?: string | null;
   mix?: {
     bgm_enabled?: boolean;
     logo_enabled?: boolean;

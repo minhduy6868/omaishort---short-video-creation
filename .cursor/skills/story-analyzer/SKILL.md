@@ -11,7 +11,7 @@ Output JSON with `bible` and `structure` only.
 
 Drama: genre is confession/family/cheating/revenge/twist — not explainer.
 
-News/knowledge: `kind=news` or `kind=knowledge` (legacy `brief` → news). Bible is narrator-only. Knowledge **topics** call `write_knowledge_script` first so ChatGPT writes VO into `script.json` before stills. ChatGPT web is in-process Playwright (`providers/chatgpt_web.py`, `python -m omaishort --chatgpt-login` once). Wiki is fallback; `script.json.note` says why.
+News/knowledge: `kind=news` or `kind=knowledge` (legacy `brief` → news). Bible is narrator-only. Knowledge **topics** call `write_knowledge_script` first so ChatGPT writes VO into `script.json` before stills. Optional `StoryInput.script_brief` is extra writing notes (tone, emphasis) sent as `USER_BRIEF`. ChatGPT web is in-process Playwright (`providers/chatgpt_web.py`, `python -m omaishort --chatgpt-login` once, then headless, one chat per day). Wiki is fallback; `script.json.note` says why.
 
 If the LLM is missing or JSON fails Pydantic, use `engine/fallback.py`. Do not invent a different beat model.
 

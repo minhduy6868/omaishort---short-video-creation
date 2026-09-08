@@ -421,6 +421,24 @@ def test_write_knowledge_script_prefers_llm():
     assert text.count("\n\n") == 4
 
 
+def test_knowledge_script_user_includes_brief():
+    from omaishort.engine.analyzer import knowledge_script_user
+
+    user = knowledge_script_user(
+        "Lý Thường Kiệt",
+        "SOURCE notes about Khâm Ung Liêm",
+        "vi",
+        90,
+        topic="thuyết minh về Lý Thường Kiệt",
+        script_brief="  giọng tài liệu, nhấn trận, đừng kể gia phả  ",
+    )
+    assert "USER_BRIEF=giọng tài liệu, nhấn trận, đừng kể gia phả" in user
+    assert "language=vi" in user
+    assert "SOURCE notes about Khâm Ung Liêm" in user
+    bare = knowledge_script_user("Lý Thường Kiệt", "notes", "vi", 90)
+    assert "USER_BRIEF" not in bare
+
+
 def test_write_knowledge_script_falls_back_to_wiki():
     from unittest.mock import AsyncMock, patch
 
@@ -486,3 +504,42 @@ def test_llm_status_reports_chatgpt_web_slot():
     assert "chatgpt_web_authed" in status
     assert "http" in status
     assert "chatgpt_web_profile" in status
+    assert "chatgpt_web_chat" in status
+
+
+def test_chatgpt_web_reuses_one_chat_url_per_day(tmp_path, monkeypatch):
+    from omaishort.providers import chatgpt_web
+
+    monkeypatch.setattr(chatgpt_web, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(chatgpt_web, "today_key", lambda: "2026-09-06")
+    url = "https://chatgpt.com/c/abc-123?foo=1"
+    assert chatgpt_web.conversation_url(url) == "https://chatgpt.com/c/abc-123"
+    chatgpt_web.save_daily_chat(url)
+    daily = chatgpt_web.load_daily_chat()
+    assert daily["url"] == "https://chatgpt.com/c/abc-123"
+    assert "temporary-chat" not in chatgpt_web.chat_open_url("gpt-4o", daily)
+    assert chatgpt_web.chat_open_url("gpt-4o", daily) == "https://chatgpt.com/c/abc-123"
+    monkeypatch.setattr(chatgpt_web, "today_key", lambda: "2026-09-07")
+    assert chatgpt_web.load_daily_chat() == {}
+    fresh = chatgpt_web.chat_open_url("gpt-4o", {})
+    assert "temporary-chat" not in fresh
+    assert fresh.startswith("https://chatgpt.com/")
+
+
+def test_gemini_image_parses_inline_bytes():
+    from omaishort.providers.gemini_image import _inline_image
+
+    raw = b"hello-image-bytes-xxxxxxxx"
+    import base64
+
+    body = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [{"inlineData": {"mimeType": "image/png", "data": base64.b64encode(raw).decode()}}]
+                }
+            }
+        ]
+    }
+    assert _inline_image(body) == raw
+    assert _inline_image({}) == b""

@@ -34,21 +34,44 @@ def _beats_from_script(raw: dict | None) -> list[str] | None:
     return beats
 
 
+def clip_script_brief(text: str | None, limit: int = 2000) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip())[:limit].strip()
+
+
+def knowledge_script_user(
+    title: str,
+    extract: str,
+    language: str,
+    target_seconds: float,
+    topic: str = "",
+    script_brief: str = "",
+) -> str:
+    parts = [
+        f"title={title}",
+        f"topic={topic or title}",
+        f"language={language}",
+        f"target_seconds={int(target_seconds or 90)}",
+    ]
+    brief = clip_script_brief(script_brief)
+    if brief:
+        parts.append(f"USER_BRIEF={brief}")
+    parts.append("")
+    parts.append(f"SOURCE:\n{(extract or '')[:8000]}")
+    return "\n".join(parts)
+
+
 async def write_knowledge_script(
     title: str,
     extract: str,
     language: str,
     target_seconds: float,
     topic: str = "",
+    script_brief: str = "",
 ) -> tuple[str, str, str]:
-    """ChatGPT (HTTP or chatgpt-pro-web CLI) writes the VO first. Wikipedia template is fallback."""
+    """ChatGPT writes the VO first. Wikipedia / README notes are fallback."""
     system = load_prompt("knowledge_script.txt")
-    user = (
-        f"title={title}\n"
-        f"topic={topic or title}\n"
-        f"language={language}\n"
-        f"target_seconds={int(target_seconds or 90)}\n\n"
-        f"SOURCE:\n{(extract or '')[:8000]}"
+    user = knowledge_script_user(
+        title, extract, language, target_seconds, topic=topic, script_brief=script_brief
     )
     raw, src, err = await complete_json_result(system, user)
     beats = _beats_from_script(raw)
@@ -65,12 +88,15 @@ async def write_knowledge_script(
 async def analyze_story(story: StoryInput) -> tuple[CharacterBible, StoryStructure, str]:
     prompt_name = "analyzer_brief.txt" if is_editorial(story.kind) else "analyzer.txt"
     system = load_prompt(prompt_name)
+    brief = clip_script_brief(story.script_brief)
+    extra = f"USER_BRIEF={brief}\n" if brief else ""
     user = (
         f"kind={story.kind.value}\n"
         f"mode={story.mode.value}\n"
         f"genre={story.genre.value}\n"
         f"language={story.language}\n"
-        f"target_seconds={story.target_seconds}\n\n"
+        f"target_seconds={story.target_seconds}\n"
+        f"{extra}\n"
         f"STORY:\n{story.text}"
     )
     raw = await complete_json(system, user)

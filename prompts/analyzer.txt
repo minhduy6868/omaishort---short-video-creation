@@ -4,6 +4,8 @@ Return ONLY valid JSON. No markdown.
 
 Task: from a story idea OR a pasted script, emit a Character Bible and a five-beat Story Structure.
 
+If USER_BRIEF is set, follow it for tone, emphasis, and what to play up. Do not invent characters or drop the five-beat drama shape.
+
 Rules:
 - Character ids are stable slugs: wife, husband, narrator, mom, lover, daughter.
 - appearance and clothing must be specific enough to lock a face and outfit across scenes (hair, age, skin, build, signature item).

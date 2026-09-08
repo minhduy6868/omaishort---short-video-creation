@@ -59,7 +59,7 @@ https://github.com/harry0703/MoneyPrinterTurbo — MIT, Python 3.11, 9:16 + 16:9
 
 Take:
 
-- **LLM gateway**: OpenAI-compatible HTTP, or in-process ChatGPT web (`providers/chatgpt_web.py`: Playwright, profile in `data/chatgpt-web`, `--chatgpt-login` once then headless). Knowledge topics write `script.json` before stills. Do not clone ChatGPT-Web2API / chatgpt-pro-web. Wiki is last resort.
+- **LLM gateway**: OpenAI-compatible HTTP, or in-process ChatGPT web (`providers/chatgpt_web.py`: Playwright, profile in `data/chatgpt-web`, `--chatgpt-login` once then headless, one `/c/` thread per day). Knowledge topics write `script.json` before stills. Do not clone ChatGPT-Web2API / chatgpt-pro-web. Wiki is last resort. Gemini/Ideogram/Midjourney **web UIs** are the same login idea but too brittle for stills — use HTTP adapters (`GEMINI_API_KEY`, Pollinations, OpenAI images).
 - **Subtitle dual path**: `edge` = timestamps from TTS (fast, no GPU) vs `whisper` = transcribe. We should prefer **edge-tts word boundaries** before even-split.
 - **Subtitle cosmetics**: font, color, outline, position (MoneyPrinter WebUI). Map onto our ASS styles.
 - **BGM**: pick track, volume slider; mix under VO.

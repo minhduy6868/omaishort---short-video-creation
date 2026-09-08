@@ -116,6 +116,11 @@ class StoryInput(BaseModel):
     language: str = "en"
     voice_id: str | None = None
     source_url: str | None = None
+    script_brief: str | None = Field(
+        default=None,
+        max_length=2000,
+        description="Optional extra writing notes for ChatGPT (tone, emphasis, audience).",
+    )
     subtitle: SubtitleStyle | None = None
     mix: MixSettings | None = None
 
@@ -123,6 +128,15 @@ class StoryInput(BaseModel):
     @classmethod
     def legacy_brief_kind(cls, value: object) -> object:
         return coerce_video_kind(value)
+
+    @field_validator("script_brief", mode="before")
+    @classmethod
+    def blank_script_brief(cls, value: object) -> object:
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+        return value
 
     @model_validator(mode="after")
     def blank_source_url(self) -> StoryInput:

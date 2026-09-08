@@ -11,11 +11,13 @@ from PIL import Image
 
 from omaishort.config import (
     COMFYUI_URL,
+    GEMINI_API_KEY,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     OPENAI_IMAGE_MODEL,
     POLLINATIONS_ENABLED,
 )
+from omaishort.providers.gemini_image import GeminiImageProvider
 from omaishort.providers.placeholder import HEIGHT, WIDTH, paint_placeholder_still
 from omaishort.providers.pollinations import PollinationsImageProvider, looks_like_photo
 
@@ -103,7 +105,7 @@ async def generate_image(
         img.save(dest, "PNG")
         return dest, "placeholder"
 
-    require_photo = photo and (POLLINATIONS_ENABLED or bool(OPENAI_API_KEY))
+    require_photo = photo and (POLLINATIONS_ENABLED or bool(OPENAI_API_KEY) or bool(GEMINI_API_KEY))
     poll = PollinationsImageProvider()
     attempts = 2 if require_photo else 1
     for attempt in range(attempts):
@@ -112,6 +114,10 @@ async def generate_image(
             return result, poll.name
         if require_photo and attempt < attempts - 1:
             await asyncio.sleep(16)
+
+    gemini = await GeminiImageProvider().generate(prompt, dest, refs)
+    if gemini is not None and (not require_photo or looks_like_photo(gemini)):
+        return gemini, GeminiImageProvider.name
 
     if not require_photo:
         comfy = await ComfyUIImageProvider().generate(prompt, dest, refs)

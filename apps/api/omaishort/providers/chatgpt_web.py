@@ -1,14 +1,18 @@
 """ChatGPT web session for omaishort (Playwright).
 
-Mechanism only: persistent Chromium profile under DATA_DIR, first login headed,
-later replies headless. Not a fork of chatgpt-pro-web.
+Mechanism only: persistent Chromium profile under DATA_DIR.
+Headed Chrome only for `--chatgpt-login`. Later jobs are headless and
+reuse one conversation per calendar day — no temporary/new chat per job.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
+import re
 import time
+from datetime import date
 from pathlib import Path
 
 from omaishort.config import (
@@ -20,7 +24,13 @@ from omaishort.config import (
 )
 
 _CHAT = "https://chatgpt.com"
-_COMPOSER = "#prompt-textarea"
+_COMPOSER = (
+    "#prompt-textarea, "
+    '[data-testid="prompt-textarea"], '
+    'div.ProseMirror[contenteditable="true"], '
+    '[contenteditable="true"][data-placeholder], '
+    'textarea[name="prompt-textarea"]'
+)
 _STOP = '[data-testid="stop-button"], button[aria-label="Stop streaming"], button[aria-label="Stop generating"]'
 _TURN = '[data-message-author-role="assistant"]'
 _AUTH_COOKIES = (
@@ -29,11 +39,16 @@ _AUTH_COOKIES = (
     "__Secure-authjs.session-token",
 )
 _STEALTH = ["--disable-blink-features=AutomationControlled"]
+_CONV = re.compile(r"https://chatgpt\.com/c/([a-zA-Z0-9-]+)", re.I)
 _LOCK = asyncio.Lock()
 
 
 def profile_dir() -> Path:
     return DATA_DIR / "chatgpt-web" / "profile"
+
+
+def daily_path() -> Path:
+    return DATA_DIR / "chatgpt-web" / "daily.json"
 
 
 def playwright_ok() -> bool:
@@ -68,6 +83,53 @@ def system_chrome_exe() -> Path | None:
         if exe.is_file():
             return exe
     return None
+
+
+def today_key() -> str:
+    return date.today().isoformat()
+
+
+def conversation_url(raw: str) -> str:
+    match = _CONV.search(raw or "")
+    if not match:
+        return ""
+    return f"{_CHAT}/c/{match.group(1)}"
+
+
+def load_daily_chat() -> dict:
+    path = daily_path()
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(data, dict) or data.get("date") != today_key():
+        return {}
+    url = conversation_url(str(data.get("url") or ""))
+    return {"date": data["date"], "url": url} if url else {}
+
+
+def save_daily_chat(url: str) -> None:
+    conv = conversation_url(url)
+    if not conv:
+        return
+    daily_path().parent.mkdir(parents=True, exist_ok=True)
+    daily_path().write_text(
+        json.dumps({"date": today_key(), "url": conv}, indent=2),
+        encoding="utf-8",
+    )
+
+
+def chat_open_url(model: str = "", daily: dict | None = None) -> str:
+    """Reuse today's /c/ uuid. Never temporary-chat."""
+    conv = conversation_url(str((daily or {}).get("url") or ""))
+    if conv:
+        return conv
+    name = (model or CHATGPT_WEB_MODEL or "").strip()
+    if name:
+        return f"{_CHAT}/?model={name}"
+    return f"{_CHAT}/"
 
 
 def _launch_args(*, headed: bool) -> dict:
@@ -140,11 +202,15 @@ async def login() -> bool:
         return False
 
 
+async def _wait_composer(page, timeout_ms: int = 45_000):
+    loc = page.locator(_COMPOSER).first
+    await loc.wait_for(state="visible", timeout=timeout_ms)
+    return loc
+
+
 async def _fill_and_wait(page, prompt: str, timeout_ms: int) -> str:
-    if not await page.query_selector(_COMPOSER):
-        await page.wait_for_selector(_COMPOSER, timeout=30_000)
+    box = await _wait_composer(page)
     before = await page.locator(_TURN).count()
-    box = page.locator(_COMPOSER)
     await box.click()
     await page.keyboard.insert_text(prompt)
     await page.wait_for_timeout(200)
@@ -191,11 +257,8 @@ async def _complete_once(prompt: str, *, headed: bool, timeout_ms: int) -> str:
     from playwright.async_api import async_playwright
 
     profile_dir().mkdir(parents=True, exist_ok=True)
-    model = (CHATGPT_WEB_MODEL or "").strip()
-    query = ["temporary-chat=true"]
-    if model:
-        query.append(f"model={model}")
-    url = f"{_CHAT}/?{'&'.join(query)}"
+    daily = load_daily_chat()
+    url = chat_open_url(CHATGPT_WEB_MODEL, daily)
     async with async_playwright() as pw:
         ctx = await pw.chromium.launch_persistent_context(**_launch_args(headed=headed))
         try:
@@ -204,13 +267,24 @@ async def _complete_once(prompt: str, *, headed: bool, timeout_ms: int) -> str:
             await page.goto(url, wait_until="domcontentloaded")
             if not await _has_session(ctx, page):
                 raise RuntimeError("not logged in")
-            return await _fill_and_wait(page, prompt, timeout_ms)
+            try:
+                await _wait_composer(page)
+            except Exception:
+                await page.goto(f"{_CHAT}/", wait_until="domcontentloaded")
+                await _wait_composer(page)
+            text = await _fill_and_wait(page, prompt, timeout_ms)
+            try:
+                await page.wait_for_url("**/c/**", timeout=8_000)
+            except Exception:
+                pass
+            save_daily_chat(page.url or "")
+            return text
         finally:
             await ctx.close()
 
 
 async def complete(prompt: str) -> str:
-    """Send a prompt; headless after login, visible Chrome only if stealth fails."""
+    """Send a prompt on today's thread. Headless after login; no extra Chrome window."""
     if not CHATGPT_WEB_ENABLED:
         raise RuntimeError("ChatGPT web is disabled")
     if not playwright_ok():
@@ -221,18 +295,19 @@ async def complete(prompt: str) -> str:
     timeout_ms = minutes * 60 * 1000
     text = prompt.strip()[:12000]
     async with _LOCK:
-        try:
-            if CHATGPT_WEB_HEADED:
-                return await _complete_once(text, headed=True, timeout_ms=timeout_ms)
-            return await _complete_once(text, headed=False, timeout_ms=timeout_ms)
-        except Exception:
-            if CHATGPT_WEB_HEADED:
-                raise
-            return await _complete_once(text, headed=True, timeout_ms=timeout_ms)
+        return await _complete_once(
+            text,
+            headed=bool(CHATGPT_WEB_HEADED),
+            timeout_ms=timeout_ms,
+        )
 
 
 async def complete_json_prompt(system: str, user: str) -> str:
-    blob = f"{system.strip()}\n\n{user.strip()}\n\nReturn ONLY valid JSON. No markdown."
+    blob = (
+        "Independent JSON job. Ignore earlier topics in this chat.\n"
+        "Return ONLY valid JSON. No markdown.\n\n"
+        f"{system.strip()}\n\n{user.strip()}"
+    )
     return await complete(blob)
 
 

@@ -75,6 +75,7 @@ def llm_status() -> dict[str, object]:
         "chatgpt_web": bool(CHATGPT_WEB_ENABLED and chatgpt_web.playwright_ok()),
         "chatgpt_web_authed": chatgpt_web.is_authed(),
         "chatgpt_web_profile": str(chatgpt_web.profile_dir()),
+        "chatgpt_web_chat": (chatgpt_web.load_daily_chat() or {}).get("url") or "",
     }
 
 

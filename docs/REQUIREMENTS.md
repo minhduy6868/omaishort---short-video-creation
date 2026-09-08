@@ -24,10 +24,10 @@ Creators paste a story, idea, or news brief and need a **1080×1920 short** with
 
 ## 3. In scope (MVP)
 
-- Input: `kind` (`drama` | `news` | `knowledge`; `brief` → news), `idea` or `script`, genre, language (`en`/`vi`), target 15–180s (drama default 60, editorial default 90)
+- Input: `kind` (`drama` | `news` | `knowledge`; `brief` → news), `idea` or `script`, optional `script_brief` (extra ChatGPT writing notes), genre, language (`en`/`vi`), target 15–180s (drama default 60, editorial default 90)
 - Story Analyzer → Character Bible + five-beat structure (drama: faces; news/knowledge: narrator-only bible)
 - Scene Planner → drama 8–15 scenes / news+knowledge **exactly 5 scenes** (one still per beat), **one still per scene**, 1–3 Ken Burns shots sharing that still
-- Image chain: Pollinations Flux/Kontext (free, no key) → OpenAI images (if keyed) → placeholder. Character passports and scene stills must be photographs when Pollinations is on; location/prop passports may stay geometric to save quota.
+- Image chain: Pollinations Flux/Kontext (free, no key) → Gemini API (if `GEMINI_API_KEY`) → OpenAI images (if keyed) → placeholder. Character passports and scene stills must be photographs when a photo provider is on; location/prop passports may stay geometric to save quota.
 - TTS: ElevenLabs if keyed, else edge-tts, else silence
 - Rescale scene/shot times to probed audio duration
 - Captions: edge-tts WordBoundary timestamps, else faster-whisper, else even word-split → ASS (`SubtitleStyle`)

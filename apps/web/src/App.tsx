@@ -54,6 +54,7 @@ export default function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [logoEnabled, setLogoEnabled] = useState(false);
+  const [scriptBrief, setScriptBrief] = useState("");
   const [voices, setVoices] = useState<VoiceOption[]>(FALLBACK_VOICES);
 
   useEffect(() => {
@@ -122,6 +123,7 @@ export default function App() {
         language,
         voice_id: voiceId,
         source_url: isEditorial(kind) ? sourceUrl.trim() || null : null,
+        script_brief: scriptBrief.trim() || null,
         mix: { logo_enabled: logoEnabled },
       });
       setJobId(data.id);
@@ -151,7 +153,7 @@ export default function App() {
     kind === "news"
       ? "Paste a news URL or notes. Five beats cover the full article, including the ending. Stills match each beat — article photos first, then CC search, never Pexels."
       : kind === "knowledge"
-        ? "Paste a topic (thuyết minh về lạm phát…), one claim, or a GitHub URL. The engine writes the explainer — it does not echo the request or dump a README."
+        ? "Paste a topic (thuyết minh về lạm phát…), one claim, or a GitHub URL. Optional script notes steer ChatGPT. The engine writes the explainer — it does not echo the request or dump a README."
         : "Paste a confession. One still per scene, bible-locked faces, beat cameras. I2V only when keyed — otherwise Ken Burns, never faked as video.";
 
   return (
@@ -244,6 +246,22 @@ export default function App() {
           rows={10}
           placeholder={kind === "knowledge" ? "Thuyết minh về lạm phát và cách nó vận hành" : undefined}
         />
+        <label className="script-brief">
+          Extra script notes
+          <textarea
+            value={scriptBrief}
+            onChange={(e) => setScriptBrief(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder={
+              kind === "knowledge"
+                ? "Optional. Example: giọng tài liệu, nhấn trận Khâm Ung Liêm, đừng kể gia phả"
+                : kind === "news"
+                  ? "Optional. Example: giọng lạnh, giữ số liệu, đừng đạo đức giảng"
+                  : "Optional. Example: colder tone, stay on the kitchen, no flashback"
+            }
+          />
+        </label>
         <div className="actions">
           <button type="submit" disabled={busy || (text.trim().length < 8 && sourceUrl.trim().length < 12)}>
             {busy ? "Rendering…" : submitLabel}

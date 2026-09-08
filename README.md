@@ -114,7 +114,9 @@ cd D:\tool\lonton\omaishort\apps\api
 .\.venv\Scripts\python.exe -m omaishort --chatgpt-login
 ```
 
-Session is stored under `data/chatgpt-web/profile` (gitignored). Later jobs run headless. Wiki / README notes are the fallback if ChatGPT is off.
+Session is stored under `data/chatgpt-web/profile` (gitignored). Later jobs stay **headless** and reuse **one ChatGPT thread per day** (`data/chatgpt-web/daily.json`). Wiki / README notes are the fallback if ChatGPT is off.
+
+Gemini / similar image sites: do not scrape the Gemini UI the same way. Still images use HTTP adapters — Pollinations (no key), then Gemini API if `GEMINI_API_KEY` is set, then OpenAI images. The login-once Playwright pattern is for ChatGPT **text**, not image carousels.
 
 Optional: set `OPENAI_BASE_URL` + `OPENAI_API_KEY` for an OpenAI-compatible HTTP model (used after ChatGPT web).
 
@@ -130,6 +132,9 @@ cd D:\tool\lonton\omaishort\apps\api
 
 # Knowledge — topic
 .\.venv\Scripts\python.exe -m omaishort "thuyết minh về Lý Thường Kiệt" --kind knowledge --language vi
+
+# Extra writing notes for ChatGPT (tone / emphasis)
+.\.venv\Scripts\python.exe -m omaishort "thuyết minh về Lý Thường Kiệt" --kind knowledge --language vi --script-brief "giọng tài liệu, nhấn trận Khâm Ung Liêm, đừng kể gia phả"
 
 # Knowledge — GitHub README
 .\.venv\Scripts\python.exe -m omaishort "https://github.com/mattpocock/skills" --kind knowledge --language vi
@@ -162,7 +167,7 @@ Stages: `analyze → plan → refs → stills → tts → captions → render`
 | Stage | Order |
 | --- | --- |
 | Script (knowledge) | ChatGPT web → OpenAI-compatible HTTP → wiki / README notes |
-| Image | Comfy stub → Pollinations → OpenAI images → placeholder |
+| Image | Pollinations → Gemini API (if `GEMINI_API_KEY`) → OpenAI images → placeholder |
 | Motion | HF Spaces (needs `HF_TOKEN`) → Pollinations Wan (`POLLINATIONS_KEY`) → Ken Burns |
 | TTS | ElevenLabs → edge-tts → silence |
 

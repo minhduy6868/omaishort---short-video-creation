@@ -68,6 +68,7 @@ async def run_job(job_id: str) -> None:
                         lang,
                         story.target_seconds,
                         topic=f"thuyết minh {story.source_url}",
+                        script_brief=story.script_brief or "",
                     )
                     if script_src == "wiki":
                         from omaishort.engine.brief_media import knowledge_spoken_from_notes
@@ -78,7 +79,13 @@ async def run_job(job_id: str) -> None:
                     _dump(
                         job_id,
                         "script.json",
-                        {"text": script, "provider": script_src, "note": script_note, "source": story.source_url},
+                        {
+                            "text": script,
+                            "provider": script_src,
+                            "note": script_note,
+                            "source": story.source_url,
+                            "script_brief": story.script_brief,
+                        },
                     )
                     providers["script"] = script_src
                     story = story.model_copy(
@@ -120,6 +127,7 @@ async def run_job(job_id: str) -> None:
                 story.language,
                 story.target_seconds,
                 topic=topic,
+                script_brief=story.script_brief or "",
             )
             providers["script"] = script_src
             story = story.model_copy(
@@ -131,7 +139,13 @@ async def run_job(job_id: str) -> None:
             script_path = _dump(
                 job_id,
                 "script.json",
-                {"title": title, "provider": script_src, "note": script_note, "text": story.text},
+                {
+                    "title": title,
+                    "provider": script_src,
+                    "note": script_note,
+                    "text": story.text,
+                    "script_brief": story.script_brief,
+                },
             )
             artifacts["script"] = script_path.as_posix()
             db.update_job(job_id, artifacts_json=json.dumps(artifacts), progress="script")

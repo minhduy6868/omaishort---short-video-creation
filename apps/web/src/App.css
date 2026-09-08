@@ -50,6 +50,14 @@
   width: auto;
 }
 
+.script-brief {
+  margin: 0 0 12px;
+}
+
+.script-brief textarea {
+  min-height: 4.5em;
+}
+
 label {
   display: flex;
   flex-direction: column;

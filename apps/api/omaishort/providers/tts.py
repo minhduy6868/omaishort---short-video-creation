@@ -138,17 +138,22 @@ class ElevenLabsTTSProvider:
             return None
 
 
+def ensure_sentence_stop(text: str) -> str:
+    blob = (text or "").strip()
+    if blob and not re.search(r"[.!?…][\"'»”’]*$", blob):
+        return blob + "."
+    return blob
+
+
+def ensure_spoken_stops(text: str) -> str:
+    """Each blank-line block ends on a sentence stop so TTS does not run on."""
+    parts = [ensure_sentence_stop(block) for block in (text or "").split("\n\n") if block.strip()]
+    return "\n\n".join(parts) if parts else (text or "").strip()
+
+
 def join_scene_narration(lines: list[str]) -> str:
-    """Stage [5]: join scene VO with sentence stops so edge-tts pauses between scenes."""
-    parts: list[str] = []
-    for raw in lines:
-        text = (raw or "").strip()
-        if not text:
-            continue
-        if not re.search(r"[.!?…][\"'»”’]*$", text):
-            text = text.rstrip() + "."
-        parts.append(text)
-    return " ".join(parts)
+    """Join scene VO with sentence stops so edge-tts pauses between scenes."""
+    return " ".join(ensure_sentence_stop(raw) for raw in lines if (raw or "").strip())
 
 
 def split_tts_chunks(text: str, limit: int = 900) -> list[str]:
@@ -251,6 +256,11 @@ async def synthesize_speech(
         except Exception as exc:
             last_error = exc
             continue
+        finally:
+            for part in parts:
+                part.unlink(missing_ok=True)
+            listing = dest.parent / f"{dest.stem}.concat.txt"
+            listing.unlink(missing_ok=True)
     raise last_error
 
 

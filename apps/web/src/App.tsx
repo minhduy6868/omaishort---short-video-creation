@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createJob, dataFileUrl, readJob } from "./api";
+import { createJob, dataFileUrl, readJob, readVoices, type VoiceOption } from "./api";
 import "./App.css";
 import { PIPELINE_STAGES, type Job, type Stage, type VideoKind } from "./types";
 
@@ -21,7 +21,7 @@ const KNOWLEDGE_SAMPLE = `Thuyết minh về lạm phát và cách nó vận hà
 
 const DRAMA_GENRES = ["confession", "cheating", "revenge", "twist", "family", "drama"] as const;
 const EDITORIAL_GENRES = ["news", "knowledge"] as const;
-const VOICES: { id: string; language: string; label: string }[] = [
+const FALLBACK_VOICES: VoiceOption[] = [
   { id: "vi-female", language: "vi", label: "Nữ — Việt Nam" },
   { id: "vi-male", language: "vi", label: "Nam — Việt Nam" },
   { id: "en-female-us", language: "en", label: "Female — US" },
@@ -54,6 +54,17 @@ export default function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [logoEnabled, setLogoEnabled] = useState(false);
+  const [voices, setVoices] = useState<VoiceOption[]>(FALLBACK_VOICES);
+
+  useEffect(() => {
+    let stop = false;
+    void readVoices().then((rows) => {
+      if (!stop && rows.length) setVoices(rows);
+    });
+    return () => {
+      stop = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!jobId) return;
@@ -195,7 +206,7 @@ export default function App() {
           <label>
             Voice
             <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
-              {VOICES.filter((voice) => voice.language === language).map((voice) => (
+              {voices.filter((voice) => voice.language === language).map((voice) => (
                 <option key={voice.id} value={voice.id}>
                   {voice.label}
                 </option>

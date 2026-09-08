@@ -126,7 +126,7 @@ Run from `apps\api`. Do **not** copy a leading `>` from docs — PowerShell trea
 cd D:\tool\lonton\omaishort\apps\api
 
 # Drama
-.\.venv\Scripts\python.exe -m omaishort ..\..\samples\confession-60s.md
+.\.venv\Scripts\python.exe -m omaishort ..\..\samples\confession-60s.md --voice en-female-us
 
 # Knowledge — topic
 .\.venv\Scripts\python.exe -m omaishort "thuyết minh về Lý Thường Kiệt" --kind knowledge --language vi

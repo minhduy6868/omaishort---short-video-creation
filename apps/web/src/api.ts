@@ -1,5 +1,7 @@
 import type { Job, StoryDraft } from "./types";
 
+export type VoiceOption = { id: string; language: string; label: string };
+
 export function dataFileUrl(abs: string | undefined): string | null {
   if (!abs) return null;
   const norm = abs.replace(/\\/g, "/");
@@ -26,4 +28,14 @@ export async function readJob(id: string): Promise<Job> {
     throw new Error("job not found");
   }
   return (await res.json()) as Job;
+}
+
+export async function readVoices(language?: string): Promise<VoiceOption[]> {
+  const q = language ? `?language=${encodeURIComponent(language)}` : "";
+  const res = await fetch(`/voices${q}`);
+  if (!res.ok) {
+    return [];
+  }
+  const data = (await res.json()) as { voices?: VoiceOption[] };
+  return Array.isArray(data.voices) ? data.voices : [];
 }

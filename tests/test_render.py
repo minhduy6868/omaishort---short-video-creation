@@ -48,6 +48,34 @@ def test_generate_clip_skips_without_public_still_url(tmp_path: Path):
     assert not dest.exists()
 
 
+def test_pollinations_duration_clamps_veo():
+    from omaishort.providers.video import pollinations_duration_sec
+
+    assert pollinations_duration_sec("wan-fast", 4.0) == 5
+    assert pollinations_duration_sec("veo", 3.2) == 4
+    assert pollinations_duration_sec("veo", 5.0) == 6
+    assert pollinations_duration_sec("veo", 7.9) == 8
+    assert pollinations_duration_sec("seedance-2.5", 6.0) == 4
+
+
+def test_wavespeed_duration_and_output_url():
+    from omaishort.providers.video import wavespeed_duration_sec, wavespeed_output_url
+
+    assert wavespeed_duration_sec(4.0) == 5
+    assert wavespeed_duration_sec(6.9) == 5
+    assert wavespeed_duration_sec(7.0) == 8
+    assert (
+        wavespeed_output_url({"data": {"outputs": ["https://cdn.example/a.mp4"]}})
+        == "https://cdn.example/a.mp4"
+    )
+    assert (
+        wavespeed_output_url({"outputs": [{"url": "https://cdn.example/b.mp4"}]})
+        == "https://cdn.example/b.mp4"
+    )
+    assert wavespeed_output_url({"data": {"outputs": []}}) is None
+    assert wavespeed_output_url({"message": "success"}) is None
+
+
 def test_hf_sse_extracts_video_url():
     from omaishort.providers.video import _file_data_from_upload, _video_url_from_sse
 

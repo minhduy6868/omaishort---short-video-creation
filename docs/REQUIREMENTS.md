@@ -82,7 +82,7 @@ Mode: use **custom** when the paste clearly asks for another genre/arc (`script_
 | Beat | One of five keys in `StoryStructure`. Editorial **maps labels** but keeps the same keys |
 | Beat lenses | Camera/motion pairs in `engine/fallback.py`. Drama uses close_up punch-ins. Editorial collage stays medium/wide |
 | Ken Burns | FFmpeg zoompan, working frame **2160×3840**, cosine ease, 1080×1920 out. Zoom amplitude: wide 0.04, medium 0.05, close_up 0.12 (drama only) |
-| I2V | Real MP4 from a still (HF Spaces / Pollinations Wan). One clip **per scene**, not per shot |
+| I2V | Real MP4 from a still (HF Spaces / WaveSpeed HTTP / Pollinations Wan). One clip **per scene**, not per shot |
 | `script_brief` | Optional ≤2000 chars, stripped blanks → `None`. Sent to ChatGPT as `USER_BRIEF=` |
 | `script.json` | Knowledge VO + `provider` (`chatgpt-web` / HTTP llm / `wiki` / `github`) + `note` + optional `script_brief` |
 | Topic paste | Knowledge input that is **not** already five authored beats. See §7 |
@@ -234,7 +234,7 @@ Pollinations (Flux/Kontext) → Gemini HTTP (`GEMINI_API_KEY`) → OpenAI images
 | Rescale | After TTS, scene `duration_sec` + shot windows **sum to probed audio** (`engine/rescale.py`) |
 | Captions | WordBoundary from edge-tts → faster-whisper → even-split → ASS. `SubtitleStyle` (default font 64, highlight karaoke, margin_v 120) |
 | Mix | Optional BGM = first **audio** file in `assets/music/` (not README), ducked under VO. Optional logo `mix.logo_enabled` |
-| I2V | **Drama:** HF Spaces (`HF_TOKEN`) or Pollinations Wan (`POLLINATIONS_KEY`), one clip per scene. **News/knowledge:** Ken Burns only (collage). Motion prompt = camera + action only — no VO text |
+| I2V | **Drama:** HF Spaces (`HF_TOKEN`), WaveSpeed Wan (`WAVESPEED_API_KEY`), or Pollinations Wan (`POLLINATIONS_KEY`), one clip per scene. **News/knowledge:** Ken Burns only (collage). Motion prompt = camera + action only — no VO text |
 
 ---
 
@@ -311,7 +311,7 @@ See [ROADMAP.md](ROADMAP.md). Do not pull these into an unrelated PR.
 
 ## 14. Stack
 
-Python 3.11, FastAPI, Pydantic v2, SQLite, Vite + React, FFmpeg. Optional: Playwright ChatGPT web, Gemini image HTTP, OpenAI-compatible LLM, ComfyUI, ElevenLabs, faster-whisper, HF Spaces, Pollinations Wan.
+Python 3.11, FastAPI, Pydantic v2, SQLite, Vite + React, FFmpeg. Optional: Playwright ChatGPT web, Gemini image HTTP, OpenAI-compatible LLM, ComfyUI, ElevenLabs, faster-whisper, HF Spaces, WaveSpeed HTTP, Pollinations Wan.
 
 ---
 

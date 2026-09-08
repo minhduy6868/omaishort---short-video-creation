@@ -154,6 +154,7 @@ Skip slow I2V queues for a Ken Burns-only dry-run:
 ```powershell
 $env:HF_I2V_ENABLED = "0"
 $env:POLLINATIONS_VIDEO_ENABLED = "0"
+$env:WAVESPEED_ENABLED = "0"
 ```
 
 ## API
@@ -168,7 +169,7 @@ Stages: `analyze → plan → refs → stills → tts → captions → render`
 | --- | --- |
 | Script (knowledge) | ChatGPT web → OpenAI-compatible HTTP → wiki / README notes |
 | Image | Pollinations → Gemini API (if `GEMINI_API_KEY`) → OpenAI images → placeholder |
-| Motion | HF Spaces (needs `HF_TOKEN`) → Pollinations Wan (`POLLINATIONS_KEY`) → Ken Burns |
+| Motion | HF Spaces (needs `HF_TOKEN`) → WaveSpeed Wan (if `WAVESPEED_API_KEY`) → Pollinations Wan (`POLLINATIONS_KEY`) → Ken Burns |
 | TTS | ElevenLabs → edge-tts → silence |
 
 Planner never imports a vendor SDK. Do not use Pexels. Do not fork MoneyPrinter / OpenMontage / HyperFrames into this tree.

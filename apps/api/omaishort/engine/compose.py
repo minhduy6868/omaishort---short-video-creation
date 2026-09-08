@@ -10,6 +10,8 @@ from omaishort.config import (
     HF_TOKEN,
     POLLINATIONS_KEY,
     POLLINATIONS_VIDEO_ENABLED,
+    WAVESPEED_API_KEY,
+    WAVESPEED_ENABLED,
 )
 from omaishort.engine.fallback import apply_beat_lenses
 from omaishort.engine.kenburns import conform_clip, ffmpeg_path, render_shot_clip
@@ -24,6 +26,8 @@ def i2v_ready() -> bool:
     if POLLINATIONS_VIDEO_ENABLED and POLLINATIONS_KEY:
         return True
     if HF_I2V_ENABLED and HF_TOKEN:
+        return True
+    if WAVESPEED_ENABLED and WAVESPEED_API_KEY:
         return True
     return False
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 from urllib.parse import quote, urlencode
+import asyncio
 import json
 
 import httpx
@@ -17,8 +18,56 @@ from omaishort.config import (
     POLLINATIONS_VIDEO_ENABLED,
     POLLINATIONS_VIDEO_MODEL,
     POLLINATIONS_VIDEO_URL,
+    WAVESPEED_API_KEY,
+    WAVESPEED_ENABLED,
+    WAVESPEED_MODEL,
+    WAVESPEED_URL,
 )
 from omaishort.providers.pollinations import load_ref_url, looks_like_photo
+
+
+def pollinations_duration_sec(model: str, duration: float) -> int:
+    """Integer seconds the Pollinations video catalog actually accepts."""
+    name = (model or "").lower()
+    if "wan-fast" in name:
+        return 5
+    if "veo" in name:
+        seconds = int(round(duration))
+        if seconds <= 4:
+            return 4
+        if seconds <= 6:
+            return 6
+        return 8
+    if "seedance-2.5" in name:
+        return 4
+    return max(4, min(5, int(round(duration)) or 5))
+
+
+def wavespeed_duration_sec(duration: float) -> int:
+    """Wan 2.2 Ultra Fast I2V on WaveSpeed accepts 5 or 8 seconds only."""
+    return 8 if float(duration) >= 7.0 else 5
+
+
+def wavespeed_output_url(payload: object) -> str | None:
+    """Parse WaveSpeed v3 task JSON for an https MP4."""
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data")
+    blob = data if isinstance(data, dict) else payload
+    if not isinstance(blob, dict):
+        return None
+    outputs = blob.get("outputs") or blob.get("output")
+    if isinstance(outputs, str) and outputs.startswith("http"):
+        return outputs
+    if isinstance(outputs, list) and outputs:
+        first = outputs[0]
+        if isinstance(first, str) and first.startswith("http"):
+            return first
+        if isinstance(first, dict):
+            url = first.get("url") or first.get("video")
+            if isinstance(url, str) and url.startswith("http"):
+                return url
+    return None
 
 
 class VideoProvider(Protocol):
@@ -325,7 +374,7 @@ class PollinationsVideoProvider:
         if not POLLINATIONS_VIDEO_ENABLED or not POLLINATIONS_KEY or not image_url:
             return None
         compact = " ".join(prompt.split())[:400]
-        seconds = 5 if "wan-fast" in POLLINATIONS_VIDEO_MODEL else max(4, min(5, int(round(duration))))
+        seconds = pollinations_duration_sec(POLLINATIONS_VIDEO_MODEL, duration)
         params = {
             "model": POLLINATIONS_VIDEO_MODEL,
             "duration": str(seconds),
@@ -357,6 +406,99 @@ class PollinationsVideoProvider:
             return None
 
 
+class WaveSpeedVideoProvider:
+    """Paid/trial I2V via WaveSpeed HTTP (Wan Ultra Fast default). No SDK."""
+
+    name = "wavespeed_video"
+
+    async def generate(
+        self,
+        prompt: str,
+        dest: Path,
+        *,
+        image_url: str | None,
+        duration: float,
+        still: Path | None = None,
+    ) -> Path | None:
+        if not WAVESPEED_ENABLED or not WAVESPEED_API_KEY or not image_url:
+            return None
+        compact = " ".join(prompt.split())[:400]
+        seconds = wavespeed_duration_sec(duration)
+        submit = f"{WAVESPEED_URL.rstrip('/')}/{WAVESPEED_MODEL.lstrip('/')}"
+        headers = {
+            "Authorization": f"Bearer {WAVESPEED_API_KEY}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "image": image_url,
+            "prompt": compact,
+            "duration": seconds,
+        }
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                created = await client.post(submit, headers=headers, json=body)
+            if created.status_code >= 400:
+                detail = (created.text or "")[:180].replace("\n", " ")
+                print(f"wavespeed {created.status_code} {detail}", flush=True)
+                return None
+            payload = created.json()
+            data = payload.get("data") if isinstance(payload, dict) else None
+            if not isinstance(data, dict):
+                print("wavespeed no task id", flush=True)
+                return None
+            ready = wavespeed_output_url(payload)
+            if ready:
+                return await _download_mp4(ready, dest)
+            task_id = data.get("id")
+            poll_url = None
+            urls = data.get("urls")
+            if isinstance(urls, dict):
+                poll_url = urls.get("get")
+            if not poll_url and isinstance(task_id, str) and task_id:
+                poll_url = f"{WAVESPEED_URL.rstrip('/')}/predictions/{task_id}/result"
+            if not poll_url:
+                print("wavespeed no poll url", flush=True)
+                return None
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                for _ in range(60):
+                    await asyncio.sleep(2.0)
+                    polled = await client.get(poll_url, headers=headers)
+                    if polled.status_code >= 400:
+                        continue
+                    try:
+                        status_body = polled.json()
+                    except Exception:
+                        continue
+                    blob = status_body.get("data") if isinstance(status_body, dict) else None
+                    status = ""
+                    if isinstance(blob, dict):
+                        status = str(blob.get("status") or "")
+                    if status.lower() in {"failed", "error", "cancelled", "timeout", "deleted"}:
+                        print(f"wavespeed task {status}", flush=True)
+                        return None
+                    video_url = wavespeed_output_url(status_body)
+                    if video_url:
+                        return await _download_mp4(video_url, dest)
+            print("wavespeed poll timeout", flush=True)
+            return None
+        except Exception as exc:
+            print(f"wavespeed fail {type(exc).__name__}", flush=True)
+            return None
+
+
+async def _download_mp4(url: str, dest: Path) -> Path | None:
+    try:
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+            response = await client.get(url)
+        if response.status_code >= 400 or len(response.content) < 8000:
+            return None
+        dest.write_bytes(response.content)
+        return dest
+    except Exception:
+        return None
+
+
 async def generate_clip(
     prompt: str,
     dest: Path,
@@ -370,6 +512,7 @@ async def generate_clip(
     providers: list[VideoProvider] = [
         HuggingFaceWanFastProvider(),
         HuggingFaceSpaceVideoProvider(),
+        WaveSpeedVideoProvider(),
         PollinationsVideoProvider(),
         ComfyUIVideoProvider(),
     ]

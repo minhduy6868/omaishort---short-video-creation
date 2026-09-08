@@ -52,6 +52,12 @@ POLLINATIONS_KEY = _env("POLLINATIONS_KEY")
 POLLINATIONS_VIDEO_ENABLED = _env_bool("POLLINATIONS_VIDEO_ENABLED", True)
 POLLINATIONS_VIDEO_URL = _env("POLLINATIONS_VIDEO_URL", "https://gen.pollinations.ai").rstrip("/")
 POLLINATIONS_VIDEO_MODEL = _env("POLLINATIONS_VIDEO_MODEL", "wan-fast") or "wan-fast"
+WAVESPEED_API_KEY = _env("WAVESPEED_API_KEY")
+WAVESPEED_ENABLED = _env_bool("WAVESPEED_ENABLED", True)
+WAVESPEED_URL = _env("WAVESPEED_URL", "https://api.wavespeed.ai/api/v3").rstrip("/")
+WAVESPEED_MODEL = _env("WAVESPEED_MODEL", "wavespeed-ai/wan-2.2/i2v-480p-ultra-fast") or (
+    "wavespeed-ai/wan-2.2/i2v-480p-ultra-fast"
+)
 HF_I2V_ENABLED = _env_bool("HF_I2V_ENABLED", True)
 HF_I2V_SPACE_URL = _env("HF_I2V_SPACE_URL", "https://lightricks-ltx-video-distilled.hf.space").rstrip("/")
 HF_I2V_WAN_URL = _env("HF_I2V_WAN_URL", "https://multimodalart-wan2-1-fast.hf.space").rstrip("/")

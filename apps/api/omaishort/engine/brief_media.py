@@ -68,6 +68,9 @@ _QUERY_ALIASES: tuple[tuple[str, str, str | None], ...] = (
     (r"nigeria", "Nigeria West Africa", None),
     (r"anh quốc|nước anh|\bengland\b", "England countryside house", None),
     (r"trần hưng đạo|hưng đạo vương", "Tran Hung Dao temple statue Vietnam", "Trần Hưng Đạo"),
+    (r"vua hùng|hùng vương|các vua hùng", "Hung Kings temple Vietnam", "Hùng Vương"),
+    (r"sự tích vua hùng|đền hùng", "Den Hung temple Phu Tho", "Đền Hùng"),
+    (r"lạc long|âu cơ|trăm trứng", "Lac Long Quan Au Co legend Vietnam", "Lạc Long Quân"),
     (r"bạch đằng", "Bach Dang river Vietnam", "Bạch Đằng"),
     (r"nguyên mông|mông cổ", "Mongol cavalry", None),
     (r"ngân hàng trung ương|central bank", "central bank building", None),
@@ -82,8 +85,10 @@ _VISUAL_ALIASES: tuple[tuple[str, str], ...] = (
     (r"north cyprus|bắc síp", "Northern Cyprus coast"),
     (r"kém \d+\s*tuổi|chênh lệch tuổi|age gap", "age gap couple"),
     (r"kết hôn|cưới|đăng ký kết hôn|wedding", "wedding rings ceremony"),
-    (r"hẹn hò|dating|ứng dụng", "smartphone dating app"),
-    (r"whatsapp", "smartphone messaging"),
+    (r"hẹn hò|dating app|ứng dụng hẹn hò", "smartphone dating app"),
+    (r"máy chủ|\bvps\b|triển khai", "self hosted server rack"),
+    (r"inbox|hộp thư|phễu bán|\bfunnel\b", "sales inbox laptop"),
+    (r"lead\b|bỏ quên|mất lịch sử", "empty office desk chair"),
     (r"tài sản|giữ tài sản", "house keys property documents"),
     (r"bỏ đi|bỏ rơi", "packed suitcase empty home"),
     (r"thị thực|visa", "passport visa stamp"),
@@ -91,11 +96,18 @@ _VISUAL_ALIASES: tuple[tuple[str, str], ...] = (
     (r"rắn|snake", "snake in grass"),
     (r"5g|phủ sóng", "5G cell tower"),
     (r"github|repository|\brepo\b", "source code editor dark screen"),
+    (r"whatsapp|\bwaha\b", "whatsapp chat phone business"),
+    (r"\bcrm\b|sales os|intercom|kommo", "crm dashboard sales inbox"),
+    (r"self-hosted|self hosted|multi-tenant", "self hosted server rack"),
+    (r"\bmcp\b|ai agent", "ai agent laptop dark screen"),
     (r"python|pytorch|tensorflow", "python code laptop"),
     (r"neural|transformer|machine learning|học máy", "neural network diagram"),
     (r"api|http", "api documentation screen"),
     (r"docker|container", "server rack containers"),
     (r"trần hưng đạo|hưng đạo", "Tran Hung Dao statue temple"),
+    (r"vua hùng|hùng vương|các vua hùng", "Hung Kings temple Vietnam"),
+    (r"sự tích|đền hùng|giỗ tổ", "Den Hung festival Phu Tho"),
+    (r"lạc long|âu cơ|trăm trứng", "Lac Long Quan Au Co Vietnam legend"),
     (r"bạch đằng", "Bach Dang river wooden stakes"),
     (r"nguyên mông|mông cổ", "Mongol cavalry horde"),
     (r"kiếp bạc|đền thờ", "Kiep Bac temple Vietnam"),
@@ -147,9 +159,16 @@ def github_repo_slug(url: str) -> tuple[str, str] | None:
 
 
 _TOPIC_PREFIX = re.compile(
-    r"^\s*(?:tiêu đề:\s*)?(?:thuyết minh(?:\s+về)?|giải thích(?:\s+về)?|"
+    r"^\s*(?:tiêu đề:\s*)?(?:"
+    r"hãy\s+tạo(?:\s+một)?(?:\s+video)?(?:\s+thuyết\s+minh)?(?:\s+về)?|"
+    r"làm(?:\s+một)?(?:\s+video)?(?:\s+thuyết\s+minh)?(?:\s+về)?|"
+    r"video\s+thuyết\s+minh(?:\s+về)?|"
+    r"soạn\s+lời(?:\s+về)?|"
+    r"kể(?:\s+về)?|"
+    r"thuyết minh(?:\s+về)?|giải thích(?:\s+về)?|"
     r"tóm tắt(?:\s+về)?|tìm hiểu(?:\s+về)?|hướng dẫn(?:\s+về)?|"
-    r"explain(?:ing)?(?:\s+(?:how|what))?|what\s+is|how\s+(?:does|do|is))\s+",
+    r"explain(?:ing)?(?:\s+(?:how|what))?|what\s+is|how\s+(?:does|do|is)"
+    r")\s+",
     re.I,
 )
 _TOPIC_TAIL = re.compile(
@@ -296,6 +315,7 @@ _README_NOTE_HEADS = (
     r"why|exist|problem|purpose|about",
     r"feature|how it works|workflow|overview|reference|engineering|skills",
     r"install|quick start|getting started|setup|usage|installation",
+    r"whatsapp|waha|agent|crm|sales|mcp|architecture|self-host",
 )
 
 
@@ -332,6 +352,32 @@ def github_readme_notes(md: str, *, name: str = "", description: str = "") -> st
         if rest and rest.lower() not in blob.lower():
             blob = (blob + "\n\n" + rest).strip()
     return re.sub(r"[ \t]+", " ", blob).strip()[:8000]
+
+
+def github_project_notes(
+    readme: str,
+    *,
+    name: str = "",
+    description: str = "",
+    topics: list[str] | None = None,
+    extras: list[str] | None = None,
+    homepage_text: str = "",
+) -> str:
+    """Merge README, repo meta, extra docs, and homepage copy for ChatGPT."""
+    chunks: list[str] = []
+    tags = [t.strip() for t in (topics or []) if t.strip()]
+    if tags:
+        chunks.append("Topics: " + ", ".join(tags[:12]) + ".")
+    home = re.sub(r"\s+", " ", (homepage_text or "").strip())
+    if len(home.split()) >= 20:
+        chunks.append(_trim_words(home, 160))
+    for extra in extras or []:
+        bit = github_readme_notes(extra, name=name)
+        if bit and bit.lower() not in " ".join(chunks).lower():
+            chunks.append(bit)
+    core = github_readme_notes(readme, name=name, description=description)
+    blob = "\n\n".join(part for part in (*chunks, core) if part).strip()
+    return re.sub(r"[ \t]+", " ", blob).strip()[:12000]
 
 
 def knowledge_spoken_from_notes(extract: str, *, name: str = "") -> str:
@@ -470,7 +516,7 @@ _EXPLAINER_PACKS: tuple[tuple[str, dict[str, dict[str, str]]], ...] = (
                 "conflict": "Ba lần quân Nguyên Mông kéo vào Đại Việt. Cả nước đứng trước mất còn.",
                 "rising": "Ông không thắng bằng hô hào. Ông thắng bằng trận địa và thủy quân.",
                 "twist": "Bạch Đằng: cọc gỗ đóng ngầm dưới sông. Thủy triều rút, thuyền giặc mắc cạn. Đó là kế, không phải phép màu.",
-                "ending": "Nhớ ông vì nước còn, không vì bài vị. Đền Kiếp Bạc còn đó. Đừng nhớ mỗi ngày giỗ.",
+                "ending": "Đền Kiếp Bạc còn thờ ông. Nhớ trận Bạch Đằng: cọc gỗ và thủy triều.",
             },
             "en": {
                 "hook": "They called him Tran Hung Dao. Born Tran Quoc Tuan, a Tran-dynasty general around 1228.",
@@ -478,6 +524,25 @@ _EXPLAINER_PACKS: tuple[tuple[str, dict[str, dict[str, str]]], ...] = (
                 "rising": "He did not win by slogans. He won with river war and field works.",
                 "twist": "Bach Dang: hidden stakes. When the tide fell, the fleet sat on wood. A trap, not magic.",
                 "ending": "Remember him because the country survived. Kiep Bac temple is still there.",
+            },
+        },
+    ),
+    (
+        r"hùng vương|vua hùng|các vua hùng|đền hùng|lạc long|âu cơ",
+        {
+            "vi": {
+                "hook": "Âu Cơ đẻ trăm trứng. Một nửa theo cha xuống biển, một nửa theo mẹ lên núi. Đó là chuyện mở nước Văn Lang.",
+                "conflict": "Các bộ lạc Lạc Việt còn rời rạc. Cần một dòng vua để giữ đất, giữ ruộng, giữ lễ.",
+                "rising": "Các vua Hùng đóng đô ở Phong Châu. Mười tám đời cùng xưng một hiệu, truyền ruộng và hội.",
+                "twist": "Hùng Vương không phải một người. Là cả một dòng. Sử đời sau mới chép thành quốc tổ.",
+                "ending": "Giỗ Tổ mùng mười tháng ba. Đền Hùng ở Phú Thọ còn đó. Nhớ trứng, nhớ rừng biển, nhớ nước Văn Lang.",
+            },
+            "en": {
+                "hook": "Au Co laid a hundred eggs. Half followed their father to the sea, half followed their mother to the mountains.",
+                "conflict": "The Lac Viet clans were scattered. They needed a line of kings to hold Van Lang.",
+                "rising": "The Hung kings sat at Phong Chau. Eighteen reigns shared one title, fields, and rites.",
+                "twist": "Hung Vuong is not one man. Later histories named the whole line the national ancestors.",
+                "ending": "The Hung temple in Phu Tho still stands. Remember the eggs, the mountains, and Van Lang.",
             },
         },
     ),
@@ -552,19 +617,19 @@ def _gather_beat(
 def _knowledge_frames(name: str, vi: bool, person: bool) -> dict[str, str]:
     if person and vi:
         return {
-            "hook": f"{name} còn được nhắc vì việc ông đã làm, không vì một bức tượng.",
-            "conflict": "Ông bước vào lúc thế nước không yên.",
-            "rising": "Chuyện hay nằm ở chỗ ông đánh thế nào, không phải ở chức tước.",
-            "twist": "Đừng nhớ mỗi ngày giỗ. Nhớ cách ông thắng.",
-            "ending": f"Di sản của {name} là bài học còn dùng được, không phải bài vị.",
+            "hook": f"{name} bước vào sử bằng việc đã xảy ra, bằng năm tháng và trận.",
+            "conflict": "Thế nước lúc đó không yên. Có giặc, có mất đất, có người phải đánh.",
+            "rising": "Chuyện nằm ở cách họ làm, từng việc một, không ở tước hiệu.",
+            "twist": "Phần hay thường là kế, là trận, là điều sử chép mà người ta hay bỏ.",
+            "ending": f"Còn lại đền, đất, và chuyện kể về {name}.",
         }
     if person:
         return {
-            "hook": f"{name} is remembered for what they did, not a statue.",
-            "conflict": "They stepped in when the country was at risk.",
-            "rising": "The story is how they fought, not the title they held.",
-            "twist": "Do not remember only the memorial day. Remember how they won.",
-            "ending": f"The legacy of {name} is a lesson that still works.",
+            "hook": f"{name} enters the record through deeds, dates, and a fight.",
+            "conflict": "The country was at risk. There was an invasion to meet.",
+            "rising": "The story is what they did, step by step, not the title.",
+            "twist": "The part people skip is usually the trick or the battle plan.",
+            "ending": f"What remains is a place, a record, and the story of {name}.",
         }
     if vi:
         return {
@@ -594,11 +659,11 @@ def knowledge_spoken_from_wiki(title: str, extract: str, language: str = "vi") -
     used: set[str] = set()
     if person:
         patterns = {
-            "hook": r"sinh|tên thật|quê|nhà quân sự|danh tướng|was born|childhood",
-            "conflict": r"xâm lược|mông cổ|nguyên|giặc|chiến tranh|invade|war |mongol",
-            "rising": r"trận|chỉ huy|đánh|chiến|thủy quân|battle|command",
-            "twist": r"bạch đằng|cọc|thủy triều|kế|stake|tide|trick",
-            "ending": r"đền|di sản|suy tôn|kiếp bạc|mất năm|giỗ|temple|legacy|died",
+            "hook": r"sinh|tên thật|quê|trăm trứng|âu cơ|lạc long|văn lang|was born|childhood",
+            "conflict": r"xâm lược|mông cổ|nguyên|giặc|chiến tranh|bộ lạc|invade|war |mongol",
+            "rising": r"trận|chỉ huy|đánh|chiến|thủy quân|phong châu|mười tám|18 đời|battle|command",
+            "twist": r"bạch đằng|cọc|thủy triều|kế|không phải một|dòng vua|stake|tide|trick",
+            "ending": r"đền|di sản|suy tôn|kiếp bạc|giỗ tổ|phú thọ|mất năm|temple|legacy|died",
         }
         extra_n, extra_min = (1, 0) if pack else (2, 22)
     else:
@@ -613,7 +678,15 @@ def knowledge_spoken_from_wiki(title: str, extract: str, language: str = "vi") -
     beats = []
     for key in ("hook", "conflict", "rising", "twist", "ending"):
         body = _gather_beat(sents, used, patterns[key], n=extra_n, min_words=extra_min)
-        line = " ".join(part for part in (frames.get(key) or "", body) if part).strip()
+        frame = frames.get(key) or ""
+        if pack:
+            line = frame
+            if body and len(frame.split()) < 14 and body.lower()[:24] not in line.lower():
+                line = f"{line} {body}".strip()
+        elif len(body.split()) >= 16:
+            line = body
+        else:
+            line = " ".join(part for part in (frame, body) if part).strip()
         beats.append(_trim_words(re.sub(r"\s+", " ", line), 70))
     return "\n\n".join(beats)[:8000]
 
@@ -924,12 +997,43 @@ def visual_terms_for_beat(vo: str, title: str = "") -> list[str]:
     for pattern, query, _wiki in _QUERY_ALIASES:
         if re.search(pattern, vo, flags=re.I):
             add(query)
+    for noun in beat_search_nouns(vo):
+        add(noun)
     if not terms:
         for term in brief_search_queries(title, vo):
             add(term)
             if len(terms) >= 4:
                 break
     return terms[:4]
+
+
+_BEAT_STOP = {
+    "that", "this", "with", "from", "they", "them", "have", "been", "were", "when",
+    "what", "your", "their", "about", "after", "before", "into", "then", "than",
+    "một", "những", "các", "của", "trong", "với", "và", "cho", "khi", "như",
+    "không", "được", "này", "đó", "còn", "đã", "là", "ở", "từ", "đến", "theo",
+    "người", "việc", "rằng", "nhưng", "cũng", "rất", "để", "hay", "nên",
+    "khách", "chuyện",
+}
+
+
+def beat_search_nouns(vo: str) -> list[str]:
+    """Proper names and content words from this beat's VO — not the job title."""
+    tokens = re.findall(r"[A-ZÀ-Ỹ][\wÀ-ỹ]{2,}|[\wÀ-ỹ]{5,}", vo or "")
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in tokens:
+        key = raw.lower()
+        if key in _BEAT_STOP or key in seen:
+            continue
+        seen.add(key)
+        out.append(raw)
+        if len(out) >= 4:
+            break
+    return out
+
+
+STILL_OVERLAP = 0.15
 
 
 def overlap_score(caption: str, vo: str) -> float:
@@ -993,6 +1097,31 @@ async def fetch_article(url: str) -> ArticlePage:
     )
 
 
+_GITHUB_DOC_FILES = (
+    "docs/README.md",
+    "docs/index.md",
+    "docs/getting-started.md",
+    "docs/architecture.md",
+    "ARCHITECTURE.md",
+    "CONTRIBUTING.md",
+    "AGENTS.md",
+    "INSTALL.md",
+)
+
+
+async def _github_raw_text(
+    client: httpx.AsyncClient, owner: str, repo: str, refs: tuple[str, ...], path: str
+) -> tuple[str, str]:
+    for ref in refs:
+        try:
+            response = await client.get(f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{path}")
+            if response.status_code < 400 and (response.text or "").strip():
+                return response.text, ref
+        except Exception:
+            continue
+    return "", ""
+
+
 async def fetch_github_project(url: str) -> ArticlePage:
     slug = github_repo_slug(url)
     if not slug:
@@ -1000,9 +1129,13 @@ async def fetch_github_project(url: str) -> ArticlePage:
     owner, repo = slug
     headers = {"User-Agent": _WIKI_UA, "Accept": "application/vnd.github+json"}
     description = ""
+    topics: list[str] = []
+    homepage = ""
     branch = "main"
     display = f"{owner}/{repo}"
     readme = ""
+    extras: list[str] = []
+    homepage_text = ""
     raw_base = ""
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
         try:
@@ -1010,37 +1143,74 @@ async def fetch_github_project(url: str) -> ArticlePage:
             if response.status_code < 400:
                 data = response.json()
                 description = (data.get("description") or "").strip()
+                topics = [str(t) for t in (data.get("topics") or []) if t]
+                homepage = (data.get("homepage") or "").strip()
                 branch = data.get("default_branch") or "main"
                 display = data.get("full_name") or display
         except Exception:
             pass
+        refs = (branch, "main", "master")
         filenames = ("README-en.md", "README.en.md", "README_EN.md", "README.md", "readme.md")
-        for ref in (branch, "main", "master"):
-            for filename in filenames:
-                try:
-                    response = await client.get(
-                        f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{filename}"
-                    )
-                    if response.status_code < 400 and (response.text or "").strip():
-                        readme = response.text
-                        raw_base = f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/"
-                        break
-                except Exception:
-                    continue
+        for filename in filenames:
+            readme, used_ref = await _github_raw_text(client, owner, repo, refs, filename)
             if readme:
+                raw_base = f"https://raw.githubusercontent.com/{owner}/{repo}/{used_ref}/"
                 break
+        extra_paths = list(_GITHUB_DOC_FILES)
+        try:
+            listing = await client.get(f"https://api.github.com/repos/{owner}/{repo}/contents/docs")
+            if listing.status_code < 400:
+                payload = listing.json()
+                for item in payload if isinstance(payload, list) else []:
+                    name = str(item.get("name") or "")
+                    if name.lower().endswith((".md", ".txt")) and item.get("type") == "file":
+                        extra_paths.append(f"docs/{name}")
+        except Exception:
+            pass
+        seen_docs: set[str] = set()
+        for path in extra_paths:
+            key = path.lower()
+            if key in seen_docs:
+                continue
+            seen_docs.add(key)
+            extra, _ref = await _github_raw_text(client, owner, repo, refs, path)
+            if extra and extra != readme:
+                extras.append(extra)
+            if len(extras) >= 4:
+                break
+        if homepage.startswith("http") and "github.com" not in homepage.lower():
+            try:
+                page = await client.get(homepage, headers=_headers())
+                if page.status_code < 400 and (page.text or "").strip():
+                    homepage_text = extract_article_text(page.text, repo)
+            except Exception:
+                homepage_text = ""
     title = (description or display).rstrip(".") + "."
-    notes = github_readme_notes(readme, name=repo, description=description)
+    notes = github_project_notes(
+        readme,
+        name=repo,
+        description=description,
+        topics=topics,
+        extras=extras,
+        homepage_text=homepage_text,
+    )
     text = (notes or f"{display}. {description}".strip())[:12000]
     images = [
-        f"https://opengraph.githubassets.com/1/{owner}/{repo}",
-        *extract_markdown_images(readme, raw_base),
+        url
+        for url in extract_markdown_images(readme, raw_base)
+        if "opengraph.githubassets.com" not in url
     ]
+    extra_imgs, _src = await _fill_broll_urls(
+        " ".join(part for part in (repo, description, *topics[:6]) if part),
+        f"{description} {' '.join(topics)}",
+        len(images),
+        6,
+    )
     return ArticlePage(
         url=url,
         title=title.rstrip("."),
         text=text,
-        image_urls=unique_image_urls(images),
+        image_urls=unique_image_urls([*images, *extra_imgs]),
         image_captions={},
     )
 
@@ -1054,16 +1224,88 @@ async def _wiki_json(host: str, params: dict) -> dict:
         return data if isinstance(data, dict) else {}
 
 
+_RELATED_WIKI: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        r"hùng vương|vua hùng|đền hùng|sự tích vua hùng",
+        ("Hùng Vương", "Lạc Long Quân", "Âu Cơ", "Đền Hùng", "Ngày Giỗ Tổ Hùng Vương"),
+    ),
+    (
+        r"trần hưng đạo|hưng đạo vương",
+        ("Trần Hưng Đạo", "Trận Bạch Đằng (1288)", "Đền Kiếp Bạc"),
+    ),
+    (r"lạm phát|\binflation\b", ("Lạm phát", "Chỉ số giá tiêu dùng", "Inflation")),
+)
+
+
+def related_wiki_titles(query: str) -> list[str]:
+    blob = (query or "").strip()
+    out: list[str] = []
+    seen: set[str] = set()
+    for pattern, titles in _RELATED_WIKI:
+        if not re.search(pattern, blob, flags=re.I):
+            continue
+        for title in titles:
+            key = title.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(title)
+    return out
+
+
+async def _wiki_page_extract(host: str, hit_title: str) -> ArticlePage | None:
+    try:
+        page = await _wiki_json(
+            host,
+            {
+                "action": "query",
+                "prop": "extracts|info|pageimages",
+                "titles": hit_title,
+                "explaintext": "1",
+                "exsectionformat": "plain",
+                "inprop": "url",
+                "piprop": "original|thumbnail",
+                "pithumbsize": "1280",
+                "redirects": "1",
+                "format": "json",
+                "utf8": "1",
+            },
+        )
+    except Exception:
+        return None
+    pages = (page.get("query") or {}).get("pages") or {}
+    for item in pages.values():
+        if item.get("missing") is not None:
+            continue
+        extract = str(item.get("extract") or "").strip()
+        if re.search(r"may refer to|có thể đề cập|disambiguation", extract[:240], flags=re.I):
+            continue
+        if len(extract.split()) < 20:
+            continue
+        title = str(item.get("title") or hit_title)
+        page_url = str(item.get("fullurl") or f"{host}/wiki/{hit_title.replace(' ', '_')}")
+        images: list[str] = []
+        original = (item.get("original") or {}).get("source") if isinstance(item.get("original"), dict) else None
+        thumb = (item.get("thumbnail") or {}).get("source") if isinstance(item.get("thumbnail"), dict) else None
+        for img in (original, thumb):
+            if isinstance(img, str) and img.startswith("http"):
+                images.append(img)
+        return ArticlePage(url=page_url, title=title, text=extract[:8000], image_urls=images)
+    return None
+
+
 async def fetch_knowledge_topic(text: str, language: str = "vi") -> ArticlePage:
-    """Turn 'thuyết minh về X' into encyclopedia explainer VO + CC stills."""
+    """Turn 'thuyết minh về X' into notes from several encyclopedia pages + CC stills."""
     query = topic_query(text) or (text or "").strip()[:80]
     lang = "vi" if (language or "vi").lower().startswith("vi") else "en"
     hosts = [f"https://{lang}.wikipedia.org", f"https://{'en' if lang == 'vi' else 'vi'}.wikipedia.org"]
-    title = query
-    extract = ""
-    page_url = ""
+    wanted = related_wiki_titles(query)
     images: list[str] = []
+    chunks: list[str] = []
+    title = query
+    page_url = ""
     for host in hosts:
+        titles = list(wanted)
         try:
             search = await _wiki_json(
                 host,
@@ -1071,57 +1313,31 @@ async def fetch_knowledge_topic(text: str, language: str = "vi") -> ArticlePage:
                     "action": "query",
                     "list": "search",
                     "srsearch": query,
-                    "srlimit": "1",
+                    "srlimit": "3",
                     "format": "json",
                     "utf8": "1",
                 },
             )
         except Exception:
-            continue
-        hits = ((search.get("query") or {}).get("search") or [])
-        if not hits:
-            continue
-        hit_title = str(hits[0].get("title") or "").strip()
-        if not hit_title:
-            continue
-        try:
-            page = await _wiki_json(
-                host,
-                {
-                    "action": "query",
-                    "prop": "extracts|info|pageimages",
-                    "titles": hit_title,
-                    "explaintext": "1",
-                    "exsectionformat": "plain",
-                    "inprop": "url",
-                    "piprop": "original|thumbnail",
-                    "pithumbsize": "1280",
-                    "redirects": "1",
-                    "format": "json",
-                    "utf8": "1",
-                },
-            )
-        except Exception:
-            continue
-        pages = (page.get("query") or {}).get("pages") or {}
-        for item in pages.values():
-            if item.get("missing") is not None:
+            search = {}
+        for hit in (search.get("query") or {}).get("search") or []:
+            hit_title = str(hit.get("title") or "").strip()
+            if hit_title and hit_title not in titles:
+                titles.append(hit_title)
+        for hit_title in titles[:5]:
+            got = await _wiki_page_extract(host, hit_title)
+            if not got:
                 continue
-            extract = str(item.get("extract") or "").strip()[:14000]
-            if re.search(r"may refer to|có thể đề cập|disambiguation", extract[:240], flags=re.I):
-                extract = ""
-                continue
-            title = str(item.get("title") or hit_title)
-            page_url = str(item.get("fullurl") or f"{host}/wiki/{hit_title.replace(' ', '_')}")
-            original = (item.get("original") or {}).get("source") if isinstance(item.get("original"), dict) else None
-            thumb = (item.get("thumbnail") or {}).get("source") if isinstance(item.get("thumbnail"), dict) else None
-            for img in (original, thumb):
-                if isinstance(img, str) and img.startswith("http"):
-                    images.append(img)
-        if extract:
-            extra_imgs, _src = await _fill_broll_urls(title, extract[:400], len(images), 5)
+            if not page_url:
+                title = got.title
+                page_url = got.url
+            chunks.append(f"{got.title}. {got.text}")
+            images.extend(got.image_urls)
+        if chunks:
+            extra_imgs, _src = await _fill_broll_urls(title, " ".join(chunks)[:400], len(images), 6)
             images = unique_image_urls([*images, *extra_imgs])
             break
+    extract = "\n\n".join(chunks)[:14000]
     return ArticlePage(
         url=page_url,
         title=title,
@@ -1365,7 +1581,7 @@ async def assign_editorial_stills(
                 key=lambda url: overlap_score(caps.get(url, "") + " " + urlparse(url).path, vo),
                 reverse=True,
             )
-            if scored and overlap_score(caps.get(scored[0], "") + " " + urlparse(scored[0]).path, vo) >= 0.08:
+            if scored and overlap_score(caps.get(scored[0], "") + " " + urlparse(scored[0]).path, vo) >= STILL_OVERLAP:
                 picked = scored[0]
                 unused.remove(picked)
                 urls.append(picked)
@@ -1391,25 +1607,24 @@ async def assign_editorial_stills(
         still_id = getattr(scene, "still_id", f"still_{i + 1:02d}")
         if still_id in out:
             continue
-        while leftovers:
-            path = await _save(leftovers.pop(0))
+        vo = getattr(scene, "dialogue_or_vo", "") or ""
+        scored = sorted(
+            leftovers,
+            key=lambda url: overlap_score(caps.get(url, "") + " " + urlparse(url).path, vo),
+            reverse=True,
+        )
+        while scored:
+            url = scored.pop(0)
+            blob = caps.get(url, "") + " " + urlparse(url).path
+            if overlap_score(blob, vo) < STILL_OVERLAP:
+                continue
+            leftovers.remove(url)
+            path = await _save(url)
             if path:
                 out[still_id] = path
                 if "article" not in tags:
                     tags.append("article")
                 break
-        if still_id in out:
-            continue
-        pool = list(out.values())
-        if not pool:
-            continue
-        src = pool[i % len(pool)]
-        dest = dest_dir / f"src_{index:02d}.png"
-        dest.write_bytes(src.read_bytes())
-        index += 1
-        out[still_id] = dest
-        if "reuse" not in tags:
-            tags.append("reuse")
 
     provider = "+".join(dict.fromkeys(tags)) if tags else "none"
     return out, provider

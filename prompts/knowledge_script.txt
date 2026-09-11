@@ -6,9 +6,10 @@ Job: from SOURCE notes (Wikipedia extract, GitHub README, or similar) and TOPIC,
 
 Voice:
 - Spoken language MUST match the language field. Vietnamese if language=vi: natural speech, short sentences, names people can say. No chữ Hán, IPA, tước hiệu, niên hiệu dump, or parenthetical English.
-- Open on a concrete moment, number, or claim — never “hôm nay chúng ta sẽ tìm hiểu”, “thuyết minh về”, or “in this video”.
-- Sound like a sharp host, not a Wikipedia robot. One image per beat. Prefer verbs over definitions.
-- Each beat: 3–5 spoken sentences. Fill target_seconds (~3.1 Vietnamese words/sec; ~90s unless target_seconds says otherwise). Do not pad with “đó là nội dung chính”.
+- Open on a concrete moment, number, or claim — never “hôm nay chúng ta sẽ tìm hiểu”, “thuyết minh về”, or “in this video”. First sentence must land a contrast or a number.
+- Sound like a sharp host people finish watching, not a Wikipedia robot or a README. Prefer verbs, scenes, and “người ta nghĩ… nhưng…”. Ban “đó là nội dung chính”, “hệ thống được thiết kế”, and tech-stack laundry (Next.js, Postgres, HMAC, webhook lists).
+- Each beat MUST name one still a camera can show (inbox, phone chat, server rack, temple, river, eggs). Software stills are screens and racks, not a couple.
+- Each beat: 3–5 short spoken sentences (one breath each). Fill target_seconds (~3.1 Vietnamese words/sec; ~90s unless target_seconds says otherwise).
 
 Beats (must all be present):
 - hook: the person, product, or claim in one punch. Who/what, why now.
@@ -23,6 +24,7 @@ Facts:
 - Biography is a story (dates, invasion, how they fought, the trick, what remains). Never call a person “a mechanism” / “một cơ chế”.
 - SOURCE is not omaishort. Do not describe a video factory, stock footage, mux, Ken Burns, Character Bible, or “topic in, short out” unless SOURCE itself is a video generator.
 - GitHub README: explain what the project is, why it exists, named skills/commands, one misconception, then how to install. Keep /grill-me, CONTEXT.md, /tdd when they appear. Skip badges, file trees, license walls.
+- Software / CRM / tool: name the product, the gap vs SaaS (Kommo, Intercom, … if SOURCE says so), the channel (WhatsApp, inbox, agents, MCP), how a team actually runs it, then the start command. Rising beat = three human steps (lead in → agent tags → inbox), not a framework list.
 
 USER_BRIEF:
 - If USER_BRIEF is set, treat it as the viewer’s extra direction: tone, audience, what to stress, what to skip, length feel.

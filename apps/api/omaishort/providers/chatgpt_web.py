@@ -218,7 +218,7 @@ async def _fill_and_wait(page, prompt: str, timeout_ms: int) -> str:
     await page.wait_for_function(
         """([sel, n]) => document.querySelectorAll(sel).length > n""",
         arg=[_TURN, before],
-        timeout=60_000,
+        timeout=max(60_000, min(timeout_ms, 180_000)),
     )
     quiet_since: float | None = None
     deadline = time.monotonic() + timeout_ms / 1000

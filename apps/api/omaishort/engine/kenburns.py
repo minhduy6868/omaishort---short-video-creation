@@ -18,6 +18,11 @@ _ZOOM = {
     Camera.medium: 0.05,
     Camera.close_up: 0.12,
 }
+_ZOOM_EDITORIAL = {
+    Camera.wide: 0.08,
+    Camera.medium: 0.11,
+    Camera.close_up: 0.12,
+}
 
 
 def ffmpeg_path() -> str:
@@ -66,12 +71,15 @@ def has_audio_stream(path: Path) -> bool:
     return "Audio:" in ffmpeg_info(path)
 
 
-def zoompan_expr(shot: Shot, frames: int) -> str:
+def zoompan_expr(shot: Shot, frames: int, *, editorial: bool = False) -> str:
     duration = max(1, frames)
-    amp = _ZOOM.get(shot.camera, _ZOOM[Camera.medium])
+    table = _ZOOM_EDITORIAL if editorial else _ZOOM
+    amp = table.get(shot.camera, table[Camera.medium])
     ease = f"(1-cos(PI*on/{duration}))/2"
     center_x = "iw/2-(iw/zoom/2)"
     center_y = "ih/2-(ih/zoom/2)"
+    hold_k = 0.28 if editorial else 0.12
+    pan_k = 0.50 if editorial else 0.35
     if shot.motion == Motion.zoom_in:
         z = f"1+{amp:.2f}*{ease}"
         x, y = center_x, center_y
@@ -79,15 +87,15 @@ def zoompan_expr(shot: Shot, frames: int) -> str:
         z = f"{1 + amp:.2f}-{amp:.2f}*{ease}"
         x, y = center_x, center_y
     elif shot.motion == Motion.pan_right:
-        z = f"{1 + amp * 0.35:.2f}"
+        z = f"{1 + amp * pan_k:.2f}"
         x = f"(iw-iw/zoom)*{ease}"
         y = center_y
     elif shot.motion == Motion.pan_left:
-        z = f"{1 + amp * 0.35:.2f}"
+        z = f"{1 + amp * pan_k:.2f}"
         x = f"(iw-iw/zoom)*(1-{ease})"
         y = center_y
     else:
-        z = f"1+{amp * 0.12:.2f}*{ease}"
+        z = f"1+{amp * hold_k:.2f}*{ease}"
         x, y = center_x, center_y
     return (
         f"scale={_WORK_W}:{_WORK_H}:force_original_aspect_ratio=increase,"
@@ -97,11 +105,11 @@ def zoompan_expr(shot: Shot, frames: int) -> str:
     )
 
 
-async def render_shot_clip(still: Path, shot: Shot, dest: Path) -> Path:
+async def render_shot_clip(still: Path, shot: Shot, dest: Path, *, editorial: bool = False) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     duration = max(0.2, shot.t_end - shot.t_start)
     frames = max(6, int(round(duration * 30)))
-    vf = zoompan_expr(shot, frames)
+    vf = zoompan_expr(shot, frames, editorial=editorial)
     cmd = [
         ffmpeg_path(),
         "-y",

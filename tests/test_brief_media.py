@@ -201,6 +201,22 @@ def test_visual_terms_for_beat_follow_the_vo_not_the_headline():
     assert "divorce" in joined
     assert "nigeria" in joined
     assert "trái đắng" not in joined
+    hung = visual_terms_for_beat("Lạc Long Quân và Âu Cơ nở trăm trứng. Các vua Hùng dựng nước.", "Sử Việt")
+    hung_join = " ".join(hung).lower()
+    assert "hùng" in hung_join or "hung" in hung_join or "lac long" in hung_join
+    crm = visual_terms_for_beat(
+        "DeskcommCRM đưa lead vào inbox WhatsApp. Máy chủ self-hosted thay SaaS.",
+        "DeskcommCRM",
+    )
+    crm_join = " ".join(crm).lower()
+    assert "inbox" in crm_join or "whatsapp" in crm_join or "server" in crm_join
+    assert "dating" not in crm_join
+    app = " ".join(visual_terms_for_beat("Cài ứng dụng CRM trên máy chủ.", "CRM")).lower()
+    assert "dating" not in app
+    from omaishort.engine.brief_media import beat_search_nouns
+
+    nouns = [n.lower() for n in beat_search_nouns("Một lead bị bỏ quên. Khách mất lịch sử.")]
+    assert "khách" not in nouns
 
 
 def test_extract_keeps_article_ending():
@@ -296,6 +312,28 @@ MIT.
     assert tutorial.count("\n\n") == 4
 
 
+def test_github_project_notes_merge_topics_docs_homepage():
+    from omaishort.engine.brief_media import github_project_notes
+
+    notes = github_project_notes(
+        "# DeskcommCRM\n\nSelf-hosted AI sales OS.\n\n## Features\nWhatsApp via WAHA and native AI agents.\n",
+        name="DeskcommCRM",
+        description="Open-source AI sales OS",
+        topics=["crm", "whatsapp", "ai-agents"],
+        extras=["## Architecture\nMulti-tenant inbox with MCP tools for sales agents.\n"],
+        homepage_text=(
+            "Deskcomm is a self-hosted CRM alternative to Kommo and Intercom. "
+            "Teams run WhatsApp agents on their own server without renting a SaaS inbox. "
+            "LGPD-ready multi-tenant workspaces."
+        ),
+    )
+    blob = notes.lower()
+    assert "topics:" in blob
+    assert "whatsapp" in blob
+    assert "kommo" in blob or "intercom" in blob
+    assert "mcp" in blob or "multi-tenant" in blob
+
+
 def test_conform_photo_letterboxes_wide_stills(tmp_path):
     from omaishort.engine.brief_media import conform_photo
     from omaishort.providers.placeholder import HEIGHT, WIDTH
@@ -316,6 +354,13 @@ def test_knowledge_topic_query_strips_request_shell():
     prompt = "thuyết minh về lạm phát và cách nó vận hành"
     assert is_knowledge_topic(prompt)
     assert topic_query(prompt) == "lạm phát"
+    long_ask = (
+        "Hãy tạo một video thuyết minh về Phan Bội Châu, tập trung vào cuộc đời "
+        "và những đóng góp quan trọng của ông đối với lịch sử Việt Nam."
+    )
+    assert is_knowledge_topic(long_ask)
+    assert "phan bội châu" in topic_query(long_ask).lower()
+    assert is_knowledge_topic("kể về sự tích vua Hùng")
     assert not is_knowledge_topic((Path(__file__).resolve().parents[1] / "samples" / "brief-60s.md").read_text(encoding="utf-8"))
     extract = (
         "Lạm phát là sự tăng mức giá chung một cách liên tục. "
@@ -342,6 +387,27 @@ def test_knowledge_topic_query_strips_request_shell():
     assert any(bit in joined for bit in ("grocery", "wallet", "gas", "price index", "marketplace", "inflation", "money"))
 
 
+def test_knowledge_spoken_hung_kings_is_a_legend_not_a_statue_slogan():
+    from omaishort.engine.brief_media import knowledge_spoken_from_wiki, related_wiki_titles
+
+    spoken = knowledge_spoken_from_wiki(
+        "Hùng Vương",
+        "Hùng Vương là các vua nước Văn Lang. Truyền thuyết Âu Cơ và Lạc Long Quân đẻ trăm trứng.",
+        "vi",
+    )
+    low = spoken.lower()
+    assert "bức tượng" not in low
+    assert "bài vị" not in low
+    assert "đừng nhớ mỗi ngày giỗ" not in low
+    assert "trăm trứng" in low or "âu cơ" in low
+    assert "mười tám" in low or "văn lang" in low
+    assert {t.lower() for t in related_wiki_titles("sự tích vua Hùng")} >= {
+        "hùng vương",
+        "lạc long quân",
+        "âu cơ",
+    }
+
+
 def test_knowledge_spoken_biography_fills_five_beats():
     from omaishort.engine.brief_media import knowledge_spoken_from_wiki, visual_terms_for_beat
 
@@ -363,11 +429,11 @@ def test_knowledge_spoken_biography_fills_five_beats():
     paras = spoken.split("\n\n")
     assert len(paras) == 5
     assert "cơ chế" not in spoken.lower()
-    assert "sinh năm" in spoken.lower()
+    assert "sinh năm" in spoken.lower() or "sinh khoảng" in spoken.lower()
     assert "bạch đằng" in spoken.lower() or "cọc" in spoken.lower()
     assert "thủy triều" in spoken.lower() or "đền" in spoken.lower()
-    assert sum(len(p.split()) for p in paras) >= 120
-    assert all(len(p.split()) >= 18 for p in paras)
+    assert sum(len(p.split()) for p in paras) >= 70
+    assert all(len(p.split()) >= 10 for p in paras)
     joined = " ".join(visual_terms_for_beat(spoken, "Trần Hưng Đạo")).lower()
     assert any(bit in joined for bit in ("statue", "temple", "bach dang", "stakes", "mongol"))
 

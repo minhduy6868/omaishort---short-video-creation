@@ -38,10 +38,10 @@ _BEAT_LENSES: dict[str, tuple[tuple[Camera, Motion], tuple[Camera, Motion]]] = {
 }
 # News/knowledge stills are already 9:16 (often letterboxed screenshots). Skip close_up punch-ins.
 _BEAT_LENSES_EDITORIAL: dict[str, tuple[tuple[Camera, Motion], tuple[Camera, Motion]]] = {
-    "hook": ((Camera.medium, Motion.hold), (Camera.medium, Motion.zoom_in)),
-    "conflict": ((Camera.medium, Motion.hold), (Camera.medium, Motion.zoom_in)),
-    "rising_action": ((Camera.wide, Motion.pan_right), (Camera.medium, Motion.hold)),
-    "twist": ((Camera.medium, Motion.hold), (Camera.medium, Motion.zoom_in)),
+    "hook": ((Camera.medium, Motion.zoom_in), (Camera.medium, Motion.pan_right)),
+    "conflict": ((Camera.wide, Motion.hold), (Camera.medium, Motion.zoom_in)),
+    "rising_action": ((Camera.wide, Motion.pan_right), (Camera.medium, Motion.zoom_in)),
+    "twist": ((Camera.medium, Motion.zoom_in), (Camera.medium, Motion.pan_left)),
     "ending": ((Camera.medium, Motion.hold), (Camera.wide, Motion.zoom_out)),
 }
 

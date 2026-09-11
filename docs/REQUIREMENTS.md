@@ -173,10 +173,10 @@ JSON field names stay the five drama keys.
 
 | Beat | Shot 1 | Shot 2 |
 | --- | --- | --- |
-| hook | medium + hold | medium + zoom_in |
-| conflict | medium + hold | medium + zoom_in |
-| rising_action | wide + pan_right | medium + hold |
-| twist | medium + hold | medium + zoom_in |
+| hook | medium + zoom_in | medium + pan_right |
+| conflict | wide + hold | medium + zoom_in |
+| rising_action | wide + pan_right | medium + zoom_in |
+| twist | medium + zoom_in | medium + pan_left |
 | ending | medium + hold | wide + zoom_out |
 
 If you change a pair, change `fallback.py` **and** this table in the same PR. Tests must cover `apply_beat_lenses`.
@@ -185,13 +185,15 @@ If you change a pair, change `fallback.py` **and** this table in the same PR. Te
 
 ## 7. Kind routing (knowledge / news)
 
-**Knowledge topic** (`is_knowledge_topic`) is true when the paste is not a URL **and** not already five paragraphs of ≥8 words each, **and** either a topic prefix/tail (“thuyết minh về…”, “explain…”) **or** ≤40 words and ≤3 sentences.
+**Knowledge topic** (`is_knowledge_topic`) is true when the paste is not a URL **and** not already five paragraphs of ≥8 words each, **and** either a topic prefix/tail (“thuyết minh về…”, “hãy tạo…”, “kể về…”, “explain…”) **or** ≤40 words and ≤3 sentences.
 
-Then: `fetch_knowledge_topic` (wiki extract) → `write_knowledge_script` (ChatGPT web → OpenAI-compatible HTTP → wiki). `script_brief` → `USER_BRIEF`. Spoken lines need real sentence stops (`ensure_spoken_stops`).
+Then: `fetch_knowledge_topic` (several related Wikipedia pages + CC photos, not one stub extract) → `write_knowledge_script` (ChatGPT web → OpenAI-compatible HTTP → spoken fallback). Wiki fallback must not use statue/memorial slogans. `script_brief` → `USER_BRIEF`. Spoken lines need real sentence stops (`ensure_spoken_stops`).
 
-**GitHub URL:** `kind` becomes knowledge. Facts from README notes (`github_readme_notes`) — not a video-factory template. If ChatGPT fails, `knowledge_spoken_from_notes`; `provider` may be `github`.
+**GitHub URL:** `kind` becomes knowledge. Facts from repo API (description, topics, homepage), README, extra docs (`docs/*.md`, CONTRIBUTING, AGENTS), and homepage copy (`github_project_notes`) — not a video-factory template. Stills: README images, then Wikimedia/Openverse from topics (skip GitHub Open Graph cards). If ChatGPT fails, `knowledge_spoken_from_notes`; `provider` may be `github`.
 
-**News URL:** fetch article text + publisher photos. Cover **outcome**. Do not stop at conflict.
+**News URL:** fetch article text + publisher photos, then `write_knowledge_script` with `news_script.txt` so VO is five spoken beats through the **outcome**. Fail → article clamp. Do not stop at conflict.
+
+**Editorial motion:** Ken Burns per beat (stronger zoom/pan than drama hold); FFmpeg `xfade` (~0.45s, fadeblack / wipeleft / fade / wiperight) **between the five scenes** only. Pad freeze so MP4 duration still equals probed VO. Drama stays hard concat.
 
 **ChatGPT web:** headed `--chatgpt-login` once; later jobs headless; **one** `chatgpt.com/c/…` thread per calendar day (`data/chatgpt-web/daily.json`). Not a clone of ChatGPT-Web2API. Timeout → HTTP then wiki; `script.json.note` says why.
 
@@ -213,7 +215,7 @@ Then: `fetch_knowledge_topic` (wiki extract) → `write_knowledge_script` (ChatG
 Waterfall per beat (`assign_editorial_stills`):
 
 1. Early beats (first two): unused **article** photos from `source_url` when present.
-2. Later beats: leftover article photo only if caption/path **overlaps** the beat VO (score ≥ 0.08).
+2. Later beats: leftover article photo only if caption/path **overlaps** the beat VO (score ≥ 0.15).
 3. Else **per-beat** Wikimedia / Openverse terms (MoneyPrinter-style search terms, not Pexels).
 4. Else generated editorial (Pollinations → Gemini API if keyed → OpenAI → placeholder).
 

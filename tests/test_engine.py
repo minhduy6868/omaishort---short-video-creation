@@ -427,9 +427,11 @@ def test_beat_shots_follow_drama_lenses():
 def test_editorial_beat_shots_stay_in_frame():
     hook = beat_shots("still_01", 6.0, "hook", editorial=True)
     twist = beat_shots("still_04", 6.0, "twist", editorial=True)
-    assert hook[0].motion == Motion.hold
-    assert hook[1].motion == Motion.zoom_in
+    assert hook[0].motion == Motion.zoom_in
+    assert hook[1].motion == Motion.pan_right
     assert hook[0].camera == Camera.medium
+    assert twist[0].motion == Motion.zoom_in
+    assert twist[1].motion == Motion.pan_left
     assert all(shot.camera != Camera.close_up for shot in hook + twist)
 
 
@@ -622,6 +624,35 @@ def test_editorial_beat_lenses_skip_close_up():
     board = Storyboard(title="n", target_seconds=6, language="vi", kind=VideoKind.news, scenes=[scene])
     apply_beat_lenses(board)
     assert all(shot.camera != Camera.close_up for shot in board.scenes[0].shots)
+    assert board.scenes[0].shots[0].motion == Motion.zoom_in
+    assert board.scenes[0].shots[1].motion == Motion.pan_right
+
+
+def test_editorial_xfade_offsets_overlap_between_beats():
+    from omaishort.engine.compose import (
+        EDITORIAL_XFADE_SEC,
+        editorial_xfade_offsets,
+        editorial_xfade_transition,
+    )
+
+    fade = EDITORIAL_XFADE_SEC
+    offsets = editorial_xfade_offsets([10.0, 10.0, 10.0, 10.0, 10.0], fade=fade)
+    assert abs(offsets[0] - (10.0 - fade)) < 1e-6
+    assert abs(offsets[1] - (20.0 - fade * 2)) < 1e-6
+    faded = 50.0 - fade * 4
+    assert abs(faded - (50.0 - EDITORIAL_XFADE_SEC * 4)) < 1e-6
+    assert editorial_xfade_transition(0) == "fadeblack"
+    assert editorial_xfade_transition(1) == "wipeleft"
+
+
+def test_editorial_zoompan_is_stronger_than_drama():
+    from omaishort.engine.kenburns import zoompan_expr
+
+    shot = Shot(camera=Camera.medium, motion=Motion.zoom_in, t_start=0, t_end=2, still_id="still_01")
+    drama = zoompan_expr(shot, 60, editorial=False)
+    editorial = zoompan_expr(shot, 60, editorial=True)
+    assert "1+0.05*" in drama
+    assert "1+0.11*" in editorial
 
 
 def test_i2v_wanted_skips_editorial_collage(monkeypatch):

@@ -14,12 +14,28 @@ from omaishort.config import (
     WAVESPEED_ENABLED,
 )
 from omaishort.engine.fallback import apply_beat_lenses
-from omaishort.engine.kenburns import conform_clip, ffmpeg_path, render_shot_clip
+from omaishort.engine.kenburns import conform_clip, ffmpeg_path, probe_duration, render_shot_clip
 from omaishort.engine.motion_prompt import motion_prompt
 from omaishort.providers.video import generate_clip
 from omaishort_schema.models import MixSettings, Storyboard, is_editorial
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"}
+EDITORIAL_XFADE_SEC = 0.45
+EDITORIAL_XFADE_TRANSITIONS = ("fadeblack", "wipeleft", "fade", "wiperight")
+
+
+def editorial_xfade_transition(index: int) -> str:
+    return EDITORIAL_XFADE_TRANSITIONS[index % len(EDITORIAL_XFADE_TRANSITIONS)]
+
+
+def editorial_xfade_offsets(durations: list[float], fade: float = EDITORIAL_XFADE_SEC) -> list[float]:
+    """xfade offsets so output = sum(durations) - fade*(n-1). Pad after to match VO."""
+    offsets: list[float] = []
+    acc = 0.0
+    for i, dur in enumerate(durations[:-1]):
+        acc += dur
+        offsets.append(max(0.05, acc - fade * (i + 1)))
+    return offsets
 
 
 def i2v_ready() -> bool:
@@ -86,12 +102,15 @@ async def compose_short(
     clips_dir = work_dir / "clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
     clip_paths: list[Path] = []
+    scene_clip_groups: list[list[Path]] = []
     i2v_ids: list[str] = []
     n = 0
     want_i2v = i2v_wanted(board)
+    editorial = is_editorial(board.kind)
     for scene in board.scenes:
         still = stills[scene.still_id]
         i2v_used = False
+        group: list[Path] = []
         if want_i2v:
             raw = work_dir / "i2v" / f"{scene.still_id}.mp4"
             generated = await generate_clip(motion_prompt(scene), raw, still, duration=min(5.0, scene.duration_sec))
@@ -100,14 +119,17 @@ async def compose_short(
                 clip = clips_dir / f"clip_{n:03d}.mp4"
                 await conform_clip(generated[0], clip, scene.duration_sec)
                 clip_paths.append(clip)
+                group.append(clip)
                 i2v_ids.append(scene.still_id)
                 i2v_used = True
         if not i2v_used:
             for shot in scene.shots:
                 n += 1
                 clip = clips_dir / f"clip_{n:03d}.mp4"
-                await render_shot_clip(still, shot, clip)
+                await render_shot_clip(still, shot, clip, editorial=editorial)
                 clip_paths.append(clip)
+                group.append(clip)
+        scene_clip_groups.append(group)
     if not i2v_ids:
         mode = "kenburns"
     elif len(i2v_ids) == len(board.scenes):
@@ -118,16 +140,19 @@ async def compose_short(
         json.dumps({"mode": mode, "i2v_still_ids": i2v_ids}, indent=2),
         encoding="utf-8",
     )
-    concat_file = work_dir / "concat.txt"
-    concat_file.write_text(
-        "".join(f"file '{p.resolve().as_posix()}'\n" for p in clip_paths),
-        encoding="utf-8",
-    )
     silent = work_dir / "video_silent.mp4"
-    try:
-        await _concat(concat_file, silent, work_dir, copy=True)
-    except RuntimeError:
-        await _concat(concat_file, silent, work_dir, copy=False)
+    if editorial and len(scene_clip_groups) >= 2:
+        await _concat_editorial_xfade(scene_clip_groups, board, silent, work_dir)
+    else:
+        concat_file = work_dir / "concat.txt"
+        concat_file.write_text(
+            "".join(f"file '{p.resolve().as_posix()}'\n" for p in clip_paths),
+            encoding="utf-8",
+        )
+        try:
+            await _concat(concat_file, silent, work_dir, copy=True)
+        except RuntimeError:
+            await _concat(concat_file, silent, work_dir, copy=False)
 
     mix = mix or MixSettings()
     bgm = pick_bgm() if mix.bgm_enabled else None
@@ -166,6 +191,66 @@ async def compose_short(
         except RuntimeError as exc:
             last_error = exc
     raise last_error
+
+
+async def _concat_editorial_xfade(
+    groups: list[list[Path]],
+    board: Storyboard,
+    dest: Path,
+    work_dir: Path,
+    fade: float = EDITORIAL_XFADE_SEC,
+) -> Path:
+    scene_paths: list[Path] = []
+    durs: list[float] = []
+    for i, parts in enumerate(groups, start=1):
+        if len(parts) == 1:
+            path = parts[0]
+        else:
+            listing = work_dir / f"scene_{i:02d}.concat.txt"
+            listing.write_text(
+                "".join(f"file '{p.resolve().as_posix()}'\n" for p in parts),
+                encoding="utf-8",
+            )
+            path = work_dir / f"scene_{i:02d}.mp4"
+            await _concat(listing, path, work_dir, copy=False)
+        scene_paths.append(path)
+        durs.append(probe_duration(path) or max(0.4, board.scenes[i - 1].duration_sec))
+    offsets = editorial_xfade_offsets(durs, fade)
+    inputs: list[str] = []
+    for path in scene_paths:
+        inputs += ["-i", str(path.resolve())]
+    chain: list[str] = []
+    last = "[0:v]"
+    for i, offset in enumerate(offsets, start=1):
+        out = f"[xf{i}]"
+        trans = editorial_xfade_transition(i - 1)
+        chain.append(
+            f"{last}[{i}:v]xfade=transition={trans}:duration={fade:.3f}:offset={offset:.3f}{out}"
+        )
+        last = out
+    target = sum(max(0.2, scene.duration_sec) for scene in board.scenes)
+    faded = max(0.2, sum(durs) - fade * max(0, len(durs) - 1))
+    pad = max(0.0, target - faded + 0.05)
+    chain.append(f"{last}tpad=stop_mode=clone:stop_duration={pad:.3f}[vout]")
+    cmd = [
+        ffmpeg_path(),
+        "-y",
+        *inputs,
+        "-filter_complex",
+        ";".join(chain),
+        "-map",
+        "[vout]",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-an",
+        "-preset",
+        "veryfast",
+        dest.name,
+    ]
+    await _run(cmd, cwd=work_dir)
+    return dest
 
 
 async def _concat(concat_file: Path, dest: Path, work_dir: Path, *, copy: bool) -> None:

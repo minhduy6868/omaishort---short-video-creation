@@ -98,8 +98,32 @@ async def run_job(job_id: str) -> None:
                     )
                 else:
                     page = await fetch_article(story.source_url)
-                    if page.text and len(page.text) >= 8:
-                        story = story.model_copy(update={"text": page.text})
+                    extract = page.text if page.text and len(page.text) >= 8 else story.text
+                    script, script_src, script_note = await write_knowledge_script(
+                        page.title or story.source_url,
+                        extract,
+                        story.language,
+                        story.target_seconds,
+                        topic=page.title or story.text[:80],
+                        script_brief=story.script_brief or "",
+                        prompt_name="news_script.txt",
+                    )
+                    if script and len(script) >= 8:
+                        story = story.model_copy(update={"text": script})
+                    script_path = _dump(
+                        job_id,
+                        "script.json",
+                        {
+                            "title": page.title or story.source_url,
+                            "provider": script_src,
+                            "note": script_note,
+                            "text": story.text,
+                            "source": story.source_url,
+                            "script_brief": story.script_brief,
+                        },
+                    )
+                    artifacts["script"] = script_path.as_posix()
+                    providers["script"] = script_src
                 article_urls = page.image_urls
                 article_captions = page.image_captions
                 artifacts["source_url"] = story.source_url
@@ -234,9 +258,6 @@ async def run_job(job_id: str) -> None:
             dest = sdir / f"{scene.still_id}.png"
             refs: list[Path] = []
             src = sourced_by_id.get(scene.still_id)
-            if not src and sourced_by_id:
-                pool = list(dict.fromkeys(sourced_by_id.values()))
-                src = pool[len(stills) % len(pool)]
             if src:
                 conform_photo(src, dest)
                 path, pname = dest, source_kind

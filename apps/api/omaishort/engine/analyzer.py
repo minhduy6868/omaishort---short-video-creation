@@ -67,9 +67,10 @@ async def write_knowledge_script(
     target_seconds: float,
     topic: str = "",
     script_brief: str = "",
+    prompt_name: str = "knowledge_script.txt",
 ) -> tuple[str, str, str]:
     """ChatGPT writes the VO first. Wikipedia / README notes are fallback."""
-    system = load_prompt("knowledge_script.txt")
+    system = load_prompt(prompt_name)
     user = knowledge_script_user(
         title, extract, language, target_seconds, topic=topic, script_brief=script_brief
     )

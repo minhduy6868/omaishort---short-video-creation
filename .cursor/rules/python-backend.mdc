@@ -8,7 +8,8 @@ alwaysApply: false
 
 - Pydantic models live in `packages/schema`, not copied into the API.
 - New vendors implement a provider protocol (`ImageProvider`, `TTSProvider`, `VideoProvider`) and join the chain. Planner/analyzer never import SDKs.
-- Job state: SQLite via `omaishort.db`. Public responses go through `public_job()`.
+- Job state: PostgreSQL via `DATABASE_URL`. Public responses go through `public_job()`. Users/refresh/attachments in the same DB ([docs/AUTH.md](docs/AUTH.md)). Pytest may point `DATABASE_URL` at a temp SQLite file.
+- HTTP job and file routes require `get_current_user`. Do not mount `DATA_DIR` as public static files.
 - Stages must stay `analyze → plan → refs → stills → tts → captions → render`.
 - Use FastAPI `lifespan`, not deprecated `on_event`.
 - Entry points (`run.py`, `python -m omaishort`) call `bootstrap.ensure_sys_path()`.

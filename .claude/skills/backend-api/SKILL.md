@@ -1,6 +1,6 @@
 ---
 name: backend-api
-description: Changes the omaishort FastAPI job API, SQLite persistence, and provider pipeline. Use when editing apps/api, routes, db, pipeline stages, or LLM/image/TTS providers.
+description: Changes the omaishort FastAPI job API, PostgreSQL persistence, and provider pipeline. Use when editing apps/api, routes, db, pipeline stages, or LLM/image/TTS providers.
 ---
 
 # backend-api

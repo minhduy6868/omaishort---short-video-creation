@@ -16,6 +16,10 @@ flowchart LR
   p4 --> p6
 ```
 
+## Accounts (shipped with auth PR)
+
+Studio register/login, PostgreSQL users (`DATABASE_URL`), job ownership, user attachments (`face` / editorial / logo / …). Contract: [AUTH.md](AUTH.md). Not an IdP. Not P6 Redis.
+
 ## P0 — shipped
 
 Analyzer, bible, planner (1 still / scene, multi-shot), placeholder/Comfy/OpenAI images, edge-tts, rescale, ASS, FFmpeg 1080×1920, studio UI, pytest, CI.
@@ -89,3 +93,4 @@ Done when: switching TTS from edge-tts to ElevenLabs is env-only.
 - Auto-post to TikTok (MoneyPrinter Upload-Post).
 - Copying OpenMontage AGPL sources into this tree.
 - Replacing FastAPI with agent-only orchestration.
+- Hosted Auth0/Clerk/Google login as the only way in.

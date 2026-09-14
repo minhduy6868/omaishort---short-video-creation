@@ -32,6 +32,54 @@
   margin: 24px 0;
 }
 
+.auth-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.auth-panel h2 {
+  font-family: Fraunces, serif;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+
+.auth-row {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 12px;
+}
+
+button.ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+}
+
+.attach {
+  margin: 0 0 12px;
+}
+
+.chips {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chips li {
+  border: 1px solid var(--line);
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .row {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

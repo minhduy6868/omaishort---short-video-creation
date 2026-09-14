@@ -1,5 +1,19 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createJob, dataFileUrl, readJob, readVoices, type VoiceOption } from "./api";
+import {
+  createJob,
+  dataFileUrl,
+  listAttachments,
+  login,
+  logout,
+  readJob,
+  readMe,
+  readVoices,
+  register,
+  uploadAttachment,
+  type AttachmentRow,
+  type AuthUser,
+  type VoiceOption,
+} from "./api";
 import "./App.css";
 import { PIPELINE_STAGES, type Job, type Stage, type VideoKind } from "./types";
 
@@ -56,6 +70,51 @@ export default function App() {
   const [logoEnabled, setLogoEnabled] = useState(false);
   const [scriptBrief, setScriptBrief] = useState("");
   const [voices, setVoices] = useState<VoiceOption[]>(FALLBACK_VOICES);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [attachKind, setAttachKind] = useState("face");
+  const [attachBind, setAttachBind] = useState("");
+  const [library, setLibrary] = useState<AttachmentRow[]>([]);
+  const [picked, setPicked] = useState<{ id: string; kind: string; filename: string; bind: string }[]>([]);
+
+  useEffect(() => {
+    let stop = false;
+    void readMe().then((me) => {
+      if (!stop) {
+        setUser(me);
+        setAuthReady(true);
+      }
+    });
+    return () => {
+      stop = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setLibrary([]);
+      return;
+    }
+    let stop = false;
+    void listAttachments().then((rows) => {
+      if (!stop) setLibrary(rows);
+    });
+    return () => {
+      stop = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (isEditorial(kind) && (attachKind === "face" || attachKind === "location" || attachKind === "prop")) {
+      setAttachKind("editorial");
+    }
+    if (!isEditorial(kind) && attachKind === "editorial") {
+      setAttachKind("face");
+    }
+  }, [kind, attachKind]);
 
   useEffect(() => {
     let stop = false;
@@ -124,6 +183,7 @@ export default function App() {
         voice_id: voiceId,
         source_url: isEditorial(kind) ? sourceUrl.trim() || null : null,
         script_brief: scriptBrief.trim() || null,
+        attachments: picked.map((item) => ({ id: item.id, bind: item.bind || null })),
         mix: { logo_enabled: logoEnabled },
       });
       setJobId(data.id);
@@ -164,7 +224,79 @@ export default function App() {
         <p className="lede">
           {lede}
         </p>
+        {authReady && user ? (
+          <div className="auth-bar">
+            <span className="meta">
+              {user.email} · {user.role}
+            </span>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                void logout().then(() => {
+                  setUser(null);
+                  setPicked([]);
+                });
+              }}
+            >
+              Log out
+            </button>
+          </div>
+        ) : null}
       </header>
+
+      {authReady && !user ? (
+        <form
+          className="panel auth-panel"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setMessage(null);
+            const run = authMode === "register" ? register : login;
+            void run(authEmail, authPassword)
+              .then((me) => {
+                setUser(me);
+                setAuthPassword("");
+              })
+              .catch((err) => setMessage(err instanceof Error ? err.message : "Auth failed"));
+          }}
+        >
+          <h2>{authMode === "register" ? "Create account" : "Sign in"}</h2>
+          <p className="meta">Studio jobs and files belong to your account. CLI dry-runs stay local.</p>
+          <div className="row auth-row">
+            <label>
+              Email
+              <input
+                type="email"
+                autoComplete="username"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                autoComplete={authMode === "register" ? "new-password" : "current-password"}
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                minLength={8}
+                required
+              />
+            </label>
+          </div>
+          <div className="actions">
+            <button type="submit">{authMode === "register" ? "Register" : "Sign in"}</button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => setAuthMode(authMode === "register" ? "login" : "register")}
+            >
+              {authMode === "register" ? "Have an account? Sign in" : "Need an account? Register"}
+            </button>
+          </div>
+        </form>
+      ) : null}
 
       <form className="panel" onSubmit={onSubmit}>
         <div className="row">
@@ -262,8 +394,101 @@ export default function App() {
             }
           />
         </label>
+        {user ? (
+          <div className="attach">
+            <p className="meta">Attachments — face / location / prop for drama; editorial photos for news; logo overlay; script is provenance only.</p>
+            <div className="row auth-row">
+              <label>
+                Kind
+                <select value={attachKind} onChange={(e) => setAttachKind(e.target.value)}>
+                  {(isEditorial(kind)
+                    ? ["editorial", "logo", "script"]
+                    : ["face", "location", "prop", "logo", "script"]
+                  ).map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Bind id
+                <input
+                  value={attachBind}
+                  onChange={(e) => setAttachBind(e.target.value)}
+                  placeholder={attachKind === "face" ? "wife" : "optional"}
+                />
+              </label>
+              <label>
+                File
+                <input
+                  type="file"
+                  accept={attachKind === "script" ? ".txt,.md,text/plain" : "image/png,image/jpeg,image/webp"}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    void uploadAttachment(attachKind, file)
+                      .then((row) => {
+                        setLibrary((prev) => [row, ...prev.filter((item) => item.id !== row.id)]);
+                        const bind = attachBind.trim() || file.name.replace(/\.[^.]+$/, "");
+                        setPicked((prev) =>
+                          prev.some((item) => item.id === row.id)
+                            ? prev
+                            : [...prev, { id: row.id, kind: row.kind, filename: row.filename, bind }],
+                        );
+                      })
+                      .catch((err) => setMessage(err instanceof Error ? err.message : "Upload failed"));
+                  }}
+                />
+              </label>
+            </div>
+            {picked.length > 0 ? (
+              <ul className="chips">
+                {picked.map((item) => (
+                  <li key={item.id}>
+                    {item.kind}:{item.filename}
+                    {item.bind ? ` → ${item.bind}` : ""}
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => setPicked((prev) => prev.filter((row) => row.id !== item.id))}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {library.length > 0 && picked.length < library.length ? (
+              <p className="meta">
+                Library:{" "}
+                {library
+                  .filter((row) => !picked.some((item) => item.id === row.id))
+                  .slice(0, 6)
+                  .map((row) => (
+                    <button
+                      key={row.id}
+                      type="button"
+                      className="ghost"
+                      onClick={() =>
+                        setPicked((prev) => [
+                          ...prev,
+                          { id: row.id, kind: row.kind, filename: row.filename, bind: attachBind.trim() },
+                        ])
+                      }
+                    >
+                      {row.kind}:{row.filename}
+                    </button>
+                  ))}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="meta">Sign in to create a job and attach files.</p>
+        )}
         <div className="actions">
-          <button type="submit" disabled={busy || (text.trim().length < 8 && sourceUrl.trim().length < 12)}>
+          <button type="submit" disabled={!user || busy || (text.trim().length < 8 && sourceUrl.trim().length < 12)}>
             {busy ? "Rendering…" : submitLabel}
           </button>
           {jobId && <span className="jobid">job {jobId}</span>}

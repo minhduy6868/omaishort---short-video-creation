@@ -7,6 +7,7 @@ This file is the **product contract**. Schema (`packages/schema/omaishort_schema
 | Doc | Role |
 | --- | --- |
 | This file | What a short **must** be; numbers and routing |
+| [AUTH.md](AUTH.md) | Accounts, cookies/JWT, job ownership, user attachments |
 | [RESEARCH.md](RESEARCH.md) | Why: contracts stolen, repos not forked |
 | [ROADMAP.md](ROADMAP.md) | Later work — do not implement in an unrelated change |
 | `.cursor/rules/quality.mdc` | Quality bar (intent). This file has the exact tables |
@@ -26,6 +27,7 @@ A change is out of product if it breaks any of these.
 6. Planner never imports a vendor SDK. Image/video/TTS/LLM sit behind protocols.
 7. No Pexels. No HyperFrames HTML templates. No Gemini/Midjourney **UI** scrape. No AGPL vendoring.
 8. Secrets stay in `.env`. CI never needs keys. Do not commit `data/jobs/` (demo MP4s live only in `docs/demo/`).
+9. HTTP jobs and `/files` are **per-user**. Studio register/login is required for the API. CLI jobs stay `user_id` null. Full contract: [AUTH.md](AUTH.md).
 
 ---
 
@@ -67,9 +69,9 @@ Mode: use **custom** when the paste clearly asks for another genre/arc (`script_
 
 | User | Job | Surface |
 | --- | --- | --- |
-| Creator | Paste, wait, download MP4 | Studio `apps/web` |
-| Operator | Run API/CLI, keys, `--chatgpt-login` | `python -m omaishort`, `.env` |
-| Agent | Change pipeline without breaking bible / scene / timeline | This file + `AGENTS.md` |
+| Creator | Register/login, paste, attach refs, wait, download MP4 | Studio `apps/web` |
+| Operator | First HTTP user (`role=operator`); CLI still has no login | Studio + `python -m omaishort`, `.env` |
+| Agent | Change pipeline without breaking bible / scene / timeline | This file + [AUTH.md](AUTH.md) + `AGENTS.md` |
 
 ---
 
@@ -86,6 +88,7 @@ Mode: use **custom** when the paste clearly asks for another genre/arc (`script_
 | `script_brief` | Optional ≤2000 chars, stripped blanks → `None`. Sent to ChatGPT as `USER_BRIEF=` |
 | `script.json` | Knowledge VO + `provider` (`chatgpt-web` / HTTP llm / `wiki` / `github`) + `note` + optional `script_brief` |
 | Topic paste | Knowledge input that is **not** already five authored beats. See §7 |
+| Attachment | User-owned file (`face` / `location` / `prop` / `editorial` / `logo` / `script`) stored under `data/attachments/<user_id>/`. Linked on `StoryInput.attachments`. See [AUTH.md](AUTH.md) §6 |
 
 ---
 
@@ -103,6 +106,7 @@ Mode: use **custom** when the paste clearly asks for another genre/arc (`script_
 | `voice_id` | Catalog id or `None`. Blank string → `None` → language default (`vi-female` / `en-female-us`) |
 | `source_url` | Article or GitHub URL; blank → `None` |
 | `script_brief` | max 2000; blank → `None` |
+| `attachments` | 0–12 `{ id, bind? }`. HTTP only; must be owned by the caller. CLI omits. `face`/`location`/`prop` → drama passports; `editorial` → news/knowledge still waterfall first; `logo` → mix overlay; `script` → provenance file, does not replace `text` |
 | `genre` | Drama: confession/family/cheating/revenge/twist/drama. News paste with a drama genre **coerces to `news`**. Knowledge coerces to `knowledge` unless already `news` |
 | Spoken clamp | Editorial VO word budget uses ~**3.15 vi / 2.7 en** words per second. Hard ceiling **600s** in fallback; API never accepts >180 |
 
@@ -116,7 +120,7 @@ Stages (studio labels = `JobStage`): `analyze → plan → refs → stills → t
 
 ```mermaid
 flowchart LR
-  in[Studio / CLI] --> api[FastAPI + SQLite]
+  in[Studio / CLI] --> api[FastAPI + PostgreSQL]
   api --> a[analyze]
   a --> p[plan]
   p --> r[refs]
@@ -142,7 +146,7 @@ Job dir `data/jobs/<id>/` (gitignored):
 | `render/motion.json` | `kenburns` \| `i2v` \| `mixed` |
 | `refs/` `stills/` | Passport + scene stills |
 
-API: `POST /jobs`, `GET /jobs/{id}` (`public_job()` — no raw `*_json` leak), artifacts, download, `/health`, `/providers`, `/voices`.
+API: `POST /auth/register` `/login` `/refresh` `/logout`, `GET /auth/me`; `POST /attachments`, `GET /attachments`; `POST /jobs`, `GET /jobs`, `GET /jobs/{id}` (`public_job()` — no raw `*_json` leak), artifacts, download; authenticated `GET /files/{path}`; `/health`, `/providers`, `/voices`. Anonymous `/files` is forbidden.
 
 ---
 
@@ -268,6 +272,10 @@ Each FR is observable on a finished job or a unit test.
 
 **FR12 Image HTTP chain** — §8. No UI scrape.
 
+**FR13 Auth** — HTTP jobs require a creator/operator. Cookies + Bearer as [AUTH.md](AUTH.md). CLI does not register. `/files` never serves `omaishort.db` or `.auth_secret`.
+
+**FR14 Attachments** — Upload sniff + quotas in AUTH.md §6. Drama uses `face`/`location`/`prop` as passports when bound. Editorial collage uses `editorial` stills **before** article/CC photos. Do not put faces on news/knowledge stills.
+
 ---
 
 ## 11. Non-functional
@@ -276,7 +284,7 @@ Each FR is observable on a finished job or a unit test.
 | --- | --- | --- |
 | NFR1 | Platform | Local-first Windows. FFmpeg from PATH or `imageio-ffmpeg` |
 | NFR2 | Architecture | Protocols only. Planner must not import vendor SDKs |
-| NFR3 | Security | `.env` gitignored. CI without keys |
+| NFR3 | Security | `.env` gitignored. CI without keys. HTTP auth as [AUTH.md](AUTH.md): scrypt, rotating refresh, job/file ownership |
 | NFR4 | Output | 1080×1920, 30fps, duration = probed VO |
 | NFR5 | i18n | Product `en`/`vi`. Vietnamese **docs** OK; code identifiers English |
 | NFR6 | Test | Engine tests do not call ComfyUI, ElevenLabs, or live ChatGPT |
@@ -294,6 +302,7 @@ See [ROADMAP.md](ROADMAP.md). Do not pull these into an unrelated PR.
 - P5: named gateway presets (`ollama` / `openrouter` as first-class config)
 - P6: Part 1..N factory, “scene 5 darker” edit-agent, Redis queue
 - Never default: Pexels; HyperFrames; AGPL copy; auto social upload; Gemini/Midjourney UI scrape
+- Hosted IdP, 2FA, email verify, S3 attachments, public unauthenticated `/files`
 
 ---
 
@@ -308,17 +317,19 @@ See [ROADMAP.md](ROADMAP.md). Do not pull these into an unrelated PR.
 - Storyboard: unique `still_id` per scene; shots share it; after lenses, two shots per scene
 - `--script-brief` appears in `script.json` and in the ChatGPT user blob as `USER_BRIEF=`
 - `render/motion.json` exists; Ken Burns jobs are not `type=video` on stills
+- Unauthenticated `POST /jobs` is 401; owner isolation 404; `/files` rejects leftover `omaishort.db`
+- Attachment upload rejects SVG; drama `face` bind writes `refs/<id>.png` without a new generated passport
 
 ---
 
 ## 14. Stack
 
-Python 3.11, FastAPI, Pydantic v2, SQLite, Vite + React, FFmpeg. Optional: Playwright ChatGPT web, Gemini image HTTP, OpenAI-compatible LLM, ComfyUI, ElevenLabs, faster-whisper, HF Spaces, WaveSpeed HTTP, Pollinations Wan.
+Python 3.11, FastAPI, Pydantic v2, PostgreSQL (`DATABASE_URL`; pytest may use a temp SQLite file), Vite + React, FFmpeg. Optional: Playwright ChatGPT web, Gemini image HTTP, OpenAI-compatible LLM, ComfyUI, ElevenLabs, faster-whisper, HF Spaces, WaveSpeed HTTP, Pollinations Wan.
 
 ---
 
 ## 15. Change gate
 
-Same PR must update this file when you change: beat lens pairs, scene counts, still waterfall, ChatGPT session rules, image/TTS/video provider **order**, `StoryInput` fields, or job stages.
+Same PR must update this file when you change: beat lens pairs, scene counts, still waterfall, ChatGPT session rules, image/TTS/video provider **order**, `StoryInput` fields, job stages, or auth/attachment rules in [AUTH.md](AUTH.md).
 
 Do **not** “fix quality” by adding a new product surface (new kind, new UI app, new stock provider). Fix identity (bible → kontext) or motion (I2V keys / Ken Burns lenses).

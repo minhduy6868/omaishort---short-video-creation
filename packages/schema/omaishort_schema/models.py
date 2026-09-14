@@ -62,6 +62,27 @@ def coerce_video_kind(value: object) -> object:
     return value
 
 
+class AttachmentKind(str, Enum):
+    face = "face"
+    location = "location"
+    prop = "prop"
+    editorial = "editorial"
+    logo = "logo"
+    script = "script"
+
+
+class AttachmentLink(BaseModel):
+    id: str = Field(min_length=8, max_length=64)
+    bind: str | None = Field(default=None, max_length=64)
+
+    @field_validator("bind", mode="before")
+    @classmethod
+    def blank_bind(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+
 class Genre(str, Enum):
     drama = "drama"
     confession = "confession"
@@ -121,6 +142,11 @@ class StoryInput(BaseModel):
         max_length=2000,
         description="Optional extra writing notes for ChatGPT (tone, emphasis, audience).",
     )
+    attachments: list[AttachmentLink] = Field(
+        default_factory=list,
+        max_length=12,
+        description="User-owned files to bind into refs, editorial stills, or logo.",
+    )
     subtitle: SubtitleStyle | None = None
     mix: MixSettings | None = None
 
@@ -155,6 +181,9 @@ class StoryInput(BaseModel):
             self.genre = Genre.news
         if self.kind == VideoKind.knowledge and self.genre not in {Genre.knowledge, Genre.news}:
             self.genre = Genre.knowledge
+        ids = [item.id for item in self.attachments]
+        if len(ids) != len(set(ids)):
+            raise ValueError("duplicate attachment id")
         return self
 
 

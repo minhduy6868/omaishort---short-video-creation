@@ -159,7 +159,13 @@ $env:WAVESPEED_ENABLED = "0"
 
 ## API
 
-`POST /jobs` · `GET /jobs/{id}` · `GET /jobs/{id}/artifacts` · `GET /jobs/{id}/download` · `GET /health` · `GET /providers`
+Auth (studio): `POST /auth/register` · `/auth/login` · `/auth/refresh` · `/auth/logout` · `GET /auth/me`
+
+Jobs: `POST /jobs` · `GET /jobs` · `GET /jobs/{id}` · artifacts · download — **Bearer or `omaishort_at` cookie**. CLI jobs skip HTTP auth.
+
+Attachments: `POST /attachments?kind=face|location|prop|editorial|logo|script`
+
+Public: `GET /health` · `GET /providers` · `GET /voices`. `/files` is authenticated. Jobs/users live in **PostgreSQL** (`DATABASE_URL`, see `scripts/init_postgres.sql`). See [docs/AUTH.md](docs/AUTH.md).
 
 Stages: `analyze → plan → refs → stills → tts → captions → render`
 
@@ -186,6 +192,7 @@ npx tsc --noEmit
 ## Docs
 
 - Product: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md)
+- Auth + attachments: [docs/AUTH.md](docs/AUTH.md)
 - Research notes: [docs/RESEARCH.md](docs/RESEARCH.md)
 - Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Agent entry: [AGENTS.md](AGENTS.md)

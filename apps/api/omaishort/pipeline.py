@@ -6,6 +6,7 @@ from pathlib import Path
 
 from omaishort import db
 from omaishort.config import WHISPER_MODEL, default_mix_settings, default_subtitle_style
+from omaishort.engine.apply_attachments import apply_attachment_files
 from omaishort.engine.analyzer import analyze_story, write_knowledge_script
 from omaishort.engine.brief_media import (
     assign_editorial_stills,
@@ -29,7 +30,30 @@ from omaishort.paths import audio_dir, job_dir, location_refs_dir, prop_refs_dir
 from omaishort.providers.image import generate_image
 from omaishort.providers.tts import join_scene_narration, silence_audio, synthesize_speech
 from omaishort.engine.kenburns import has_audio_stream, probe_duration, probe_video_size
-from omaishort_schema.models import Genre, JobStage, JobStatus, StoryInput, VideoKind, is_editorial
+from omaishort_schema.models import Genre, JobStage, JobStatus, MixSettings, StoryInput, VideoKind, is_editorial
+from omaishort.uploads import disk_path
+
+
+def _attachment_records(story: StoryInput, user_id: str | None) -> list[dict]:
+    if not user_id or not story.attachments:
+        return []
+    rows: list[dict] = []
+    for link in story.attachments:
+        rec = db.get_attachment(link.id)
+        if not rec or rec["user_id"] != user_id:
+            continue
+        path = disk_path(rec)
+        if not path.is_file():
+            continue
+        rows.append(
+            {
+                "kind": rec["kind"],
+                "bind": link.bind,
+                "filename": rec["filename"],
+                "path": path,
+            }
+        )
+    return rows
 
 
 def _dump(job_id: str, name: str, payload) -> Path:
@@ -202,12 +226,31 @@ async def run_job(job_id: str) -> None:
         _dump(job_id, "storyboard.json", board)
         db.update_job(job_id, storyboard_json=board.model_dump_json(), stage=JobStage.refs.value, progress="refs")
 
+        applied = apply_attachment_files(
+            job_id,
+            story.kind.value,
+            bible,
+            _attachment_records(story, row.get("user_id")),
+        )
+        if applied.logo:
+            mix = (story.mix or MixSettings()).model_copy(
+                update={"logo_enabled": True, "logo_path": applied.logo.as_posix()}
+            )
+            story = story.model_copy(update={"mix": mix})
+        if applied.script:
+            artifacts["input_attachment"] = applied.script.as_posix()
+
         rdir = refs_dir(job_id)
         loc_dir = location_refs_dir(job_id)
         prop_dir = prop_refs_dir(job_id)
         if not is_editorial(story.kind):
             for char in bible.characters:
                 dest = rdir / f"{char.id}.png"
+                if char.id in applied.faces and dest.exists():
+                    char.reference_image = dest.as_posix()
+                    artifacts[f"ref_{char.id}"] = dest.as_posix()
+                    providers[f"ref_{char.id}"] = "attachment"
+                    continue
                 prompt = build_ref_prompt(char)
                 path, pname = await generate_image(prompt, dest, photo=True)
                 providers[f"ref_{char.id}"] = pname
@@ -215,6 +258,11 @@ async def run_job(job_id: str) -> None:
                 artifacts[f"ref_{char.id}"] = path.as_posix()
             for loc in bible.locations:
                 dest = loc_dir / f"{loc.id}.png"
+                if loc.id in applied.locations and dest.exists():
+                    loc.reference_image = dest.as_posix()
+                    artifacts[f"loc_{loc.id}"] = dest.as_posix()
+                    providers[f"loc_{loc.id}"] = "attachment"
+                    continue
                 prompt = build_location_prompt(loc)
                 path, pname = await generate_image(prompt, dest, skip_remote=True)
                 providers[f"loc_{loc.id}"] = pname
@@ -222,6 +270,11 @@ async def run_job(job_id: str) -> None:
                 artifacts[f"loc_{loc.id}"] = path.as_posix()
             for prop in bible.props:
                 dest = prop_dir / f"{prop.id}.png"
+                if prop.id in applied.props and dest.exists():
+                    prop.reference_image = dest.as_posix()
+                    artifacts[f"prop_{prop.id}"] = dest.as_posix()
+                    providers[f"prop_{prop.id}"] = "attachment"
+                    continue
                 prompt = build_prop_prompt(prop)
                 path, pname = await generate_image(prompt, dest, skip_remote=True)
                 providers[f"prop_{prop.id}"] = pname
@@ -252,6 +305,7 @@ async def run_job(job_id: str) -> None:
                 captions=article_captions,
                 dest_dir=sdir / "sourced",
                 title=board.title or story.text[:80],
+                local_paths=applied.editorial,
             )
             providers["brief_stills"] = source_kind
         for scene in board.scenes:

@@ -1546,6 +1546,7 @@ async def assign_editorial_stills(
     dest_dir: Path,
     title: str = "",
     captions: dict[str, str] | None = None,
+    local_paths: list[Path] | None = None,
 ) -> tuple[dict[str, Path], str]:
     """One still per beat from article/CC photos. Never Pollinations faces."""
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -1555,6 +1556,7 @@ async def assign_editorial_stills(
     tags: list[str] = []
     index = 0
     tried: set[str] = set()
+    locals_ready = [path for path in (local_paths or []) if path.is_file()]
 
     async def _save(url: str) -> Path | None:
         nonlocal index
@@ -1596,6 +1598,18 @@ async def assign_editorial_stills(
     for i, scene in enumerate(scenes):
         vo = getattr(scene, "dialogue_or_vo", "") or ""
         still_id = getattr(scene, "still_id", f"still_{i + 1:02d}")
+        if locals_ready:
+            src = locals_ready.pop(0)
+            dest = dest_dir / f"src_{index:02d}.png"
+            try:
+                conform_photo(src, dest)
+            except Exception:
+                continue
+            index += 1
+            out[still_id] = dest
+            if "attachment" not in tags:
+                tags.append("attachment")
+            continue
         for url in await _candidates(i, vo):
             path = await _save(url)
             if path:

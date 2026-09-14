@@ -1,5 +1,7 @@
 from omaishort_schema.models import (
     AssetRef,
+    AttachmentKind,
+    AttachmentLink,
     Camera,
     Character,
     CharacterBible,
@@ -25,6 +27,8 @@ from omaishort_schema.models import (
 
 __all__ = [
     "AssetRef",
+    "AttachmentKind",
+    "AttachmentLink",
     "Camera",
     "Character",
     "CharacterBible",

@@ -1,5 +1,33 @@
 {
   "$defs": {
+    "AttachmentLink": {
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "minLength": 8,
+          "title": "Id",
+          "type": "string"
+        },
+        "bind": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bind"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "AttachmentLink",
+      "type": "object"
+    },
     "Genre": {
       "enum": [
         "drama",
@@ -194,6 +222,15 @@
       "default": null,
       "description": "Optional extra writing notes for ChatGPT (tone, emphasis, audience).",
       "title": "Script Brief"
+    },
+    "attachments": {
+      "description": "User-owned files to bind into refs, editorial stills, or logo.",
+      "items": {
+        "$ref": "#/$defs/AttachmentLink"
+      },
+      "maxItems": 12,
+      "title": "Attachments",
+      "type": "array"
     },
     "subtitle": {
       "anyOf": [

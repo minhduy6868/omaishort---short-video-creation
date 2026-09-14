@@ -1,0 +1,9 @@
+# omaishort (Cline / Roo)
+
+Read `AGENTS.md` in the repo root before you edit.
+
+- Rules: `.cursor/rules/*.mdc`
+- Skills: `.cursor/skills/<name>/SKILL.md` (use the table in AGENTS.md)
+- Tests: `pytest -q` after engine/schema; `npx tsc --noEmit` in `apps/web`
+- Do not commit `data/`, `.env`, or MP4
+- Do not clone MoneyPrinter / OpenMontage / HyperFrames into this tree

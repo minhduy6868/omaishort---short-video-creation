@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from omaishort.config import DATA_DIR
+from omaishort import config
+
+
+def attachments_dir(user_id: str) -> Path:
+    path = config.DATA_DIR / "attachments" / user_id
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def job_dir(job_id: str) -> Path:
-    path = DATA_DIR / "jobs" / job_id
+    path = config.DATA_DIR / "jobs" / job_id
     path.mkdir(parents=True, exist_ok=True)
     return path
 

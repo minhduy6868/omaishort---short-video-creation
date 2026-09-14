@@ -21,6 +21,9 @@ htmlcov/
 Thumbs.db
 *.log
 .idea/
+CLAUDE.local.md
+GEMINI.local.md
+.claude/*.local.md
 apps/web/dist/
 apps/remotion/out/
 apps/remotion/dist/

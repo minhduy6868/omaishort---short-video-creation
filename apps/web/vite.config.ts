@@ -11,6 +11,7 @@ export default defineConfig({
       "/health": "http://127.0.0.1:8765",
       "/files": "http://127.0.0.1:8765",
       "/voices": "http://127.0.0.1:8765",
+      "/providers": "http://127.0.0.1:8765",
       "/auth": "http://127.0.0.1:8765",
       "/attachments": "http://127.0.0.1:8765",
     },

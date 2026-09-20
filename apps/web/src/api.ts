@@ -156,3 +156,22 @@ export async function listAttachments(): Promise<AttachmentRow[]> {
   const data = (await res.json()) as { attachments?: AttachmentRow[] };
   return Array.isArray(data.attachments) ? data.attachments : [];
 }
+
+export type ProviderStatus = {
+  grok_image?: boolean;
+  grok_video?: boolean;
+  grok_hub?: boolean;
+  grok_hub_authed?: boolean;
+  drama_motion?: string;
+  image?: Record<string, boolean>;
+  video?: Record<string, boolean>;
+  tts?: Record<string, boolean>;
+  chatgpt_web?: boolean;
+  chatgpt_web_authed?: boolean;
+};
+
+export async function readProviders(): Promise<ProviderStatus | null> {
+  const res = await request("/providers");
+  if (!res.ok) return null;
+  return (await res.json()) as ProviderStatus;
+}

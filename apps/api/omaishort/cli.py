@@ -18,7 +18,7 @@ from omaishort.engine.brief_media import (
 from omaishort.engine.kenburns import has_audio_stream, probe_duration, probe_video_size
 from omaishort.pipeline import run_job
 from omaishort.providers.tts import VOICE_CATALOG
-from omaishort_schema.models import Genre, MixSettings, StoryInput, StoryMode, VideoKind, is_editorial
+from omaishort_schema.models import DramaShape, Genre, MixSettings, StoryInput, StoryMode, VideoKind, is_editorial
 
 
 def _read_story(path: Path) -> str:
@@ -42,6 +42,9 @@ async def _run(
     logo: bool = False,
     voice: str | None = None,
     script_brief: str | None = None,
+    mode: str = "script",
+    drama_shape: str = "infer",
+    bgm: bool = True,
 ) -> str:
     db.init_db()
     url = (source_url or "").strip() or None
@@ -68,16 +71,17 @@ async def _run(
         text = page.text
     kind_enum = VideoKind(kind)
     story = StoryInput(
-        mode=StoryMode.script,
+        mode=StoryMode(mode),
         kind=kind_enum,
         text=text,
         target_seconds=seconds,
         genre=_genre_for(kind_enum, genre),
+        drama_shape=DramaShape(drama_shape) if not is_editorial(kind_enum) else DramaShape.infer,
         language=language,
         source_url=url,
         voice_id=voice,
         script_brief=script_brief,
-        mix=MixSettings(logo_enabled=logo),
+        mix=MixSettings(logo_enabled=logo, bgm_enabled=bgm),
     )
     job_id = "dryrun-" + uuid.uuid4().hex[:8]
     db.create_job(job_id, story.model_dump_json())
@@ -103,11 +107,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="omaishort dry-run")
     parser.add_argument("story", nargs="?", default=str(SAMPLES_DIR / "confession-60s.md"))
     parser.add_argument("--kind", default="drama", choices=["drama", "news", "knowledge", "brief"])
+    parser.add_argument("--mode", default="script", choices=["script", "idea"])
     parser.add_argument("--genre", default="confession")
+    parser.add_argument(
+        "--shape",
+        default="infer",
+        choices=["infer", "default", "custom"],
+        help="Drama tell: infer from paste, viral humiliation→karma, or custom story",
+    )
     parser.add_argument("--language", default="en")
     parser.add_argument("--seconds", type=int, default=0, help="Target length. 0 = 90s for news/knowledge, 60s for drama")
     parser.add_argument("--source-url", default="", help="News article or GitHub repo URL")
     parser.add_argument("--logo", action="store_true", help="Overlay assets/logo on the MP4")
+    parser.add_argument("--no-bgm", action="store_true", help="Skip background music mix")
     parser.add_argument(
         "--voice",
         default="",
@@ -119,11 +131,16 @@ def main() -> None:
         help="Extra writing notes for ChatGPT (tone, emphasis, audience). Empty = engine default",
     )
     parser.add_argument("--chatgpt-login", action="store_true", help="Open Chrome once to save a ChatGPT session")
+    parser.add_argument("--grok-login", action="store_true", help="Open Chrome once to save a Grok hub session")
     args = parser.parse_args()
     if args.chatgpt_login:
         from omaishort.providers.chatgpt_web import login
 
         raise SystemExit(0 if asyncio.run(login()) else 1)
+    if args.grok_login:
+        from omaishort.providers.grok_web import login as grok_login
+
+        raise SystemExit(0 if asyncio.run(grok_login()) else 1)
     kind = args.kind
     if looks_like_url(args.story) and kind == "drama":
         kind = "knowledge" if looks_like_github(args.story) else "news"
@@ -139,6 +156,9 @@ def main() -> None:
             logo=args.logo,
             voice=args.voice or None,
             script_brief=args.script_brief or None,
+            mode=args.mode,
+            drama_shape=args.shape,
+            bgm=not args.no_bgm,
         )
     )
 

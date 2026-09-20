@@ -1,7 +1,7 @@
 """Gemini native image via official HTTP (not a web scrape).
 
-Same adapter slot as Pollinations/OpenAI images. Do not fork Gemini UI
-or ImageFX into this tree — login-once Playwright is ChatGPT-text only.
+Banana / Nano Banana in Google Flow is the same family — we call Gemini
+`generateContent`, not labs.google/fx. Login-once Playwright stays ChatGPT-text only.
 """
 
 from __future__ import annotations
@@ -16,6 +16,39 @@ from PIL import Image
 from omaishort.config import GEMINI_API_KEY, GEMINI_IMAGE_MODEL
 from omaishort.providers.placeholder import HEIGHT, WIDTH
 
+_PHOTO = {".png", ".jpg", ".jpeg", ".webp"}
+_MAX_REF_BYTES = 3_500_000
+
+
+def gemini_image_parts(prompt: str, refs: list[Path] | None = None) -> list[dict]:
+    """Text plus Banana-class refs (up to four photo stills). Identity from the photo, not a new face dump."""
+    lead = "Vertical 9:16 photograph, no text overlay."
+    attached = [path for path in (refs or []) if _usable_ref(path)][:4]
+    if attached:
+        lead += " Keep the exact face, hair, and clothes from the attached reference photograph."
+    parts: list[dict] = [{"text": f"{lead} {prompt[:2800]}"}]
+    for path in attached:
+        raw = path.read_bytes()
+        mime = "image/jpeg" if path.suffix.lower() in {".jpg", ".jpeg"} else "image/png"
+        if path.suffix.lower() == ".webp":
+            mime = "image/webp"
+        parts.append({"inline_data": {"mime_type": mime, "data": base64.b64encode(raw).decode()}})
+    return parts
+
+
+def _usable_ref(path: Path) -> bool:
+    if not path.is_file() or path.suffix.lower() not in _PHOTO:
+        return False
+    size = path.stat().st_size
+    if size < 8000 or size > _MAX_REF_BYTES:
+        return False
+    try:
+        from omaishort.providers.pollinations import looks_like_photo
+
+        return looks_like_photo(path)
+    except Exception:
+        return True
+
 
 class GeminiImageProvider:
     name = "gemini_image"
@@ -29,7 +62,7 @@ class GeminiImageProvider:
             f"{model}:generateContent"
         )
         payload = {
-            "contents": [{"parts": [{"text": f"Vertical 9:16 photograph, no text overlay. {prompt[:3000]}"}]}],
+            "contents": [{"parts": gemini_image_parts(prompt, refs)}],
             "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
         }
         try:

@@ -193,6 +193,21 @@ def test_story_input_kind_defaults_to_drama():
     _assert_board(board, min_scenes=2)
 
 
+def test_analyze_user_includes_drama_shape():
+    from omaishort.engine.analyzer import analyze_user
+
+    custom = StoryInput(
+        mode=StoryMode.script,
+        text="hello world this is a long enough paste",
+        drama_shape="custom",
+    )
+    blob = analyze_user(custom)
+    assert "drama_shape=custom" in blob
+    assert "mode=script" in blob
+    news = StoryInput(text="hello world this is a news brief", kind=VideoKind.news, drama_shape="custom")
+    assert "drama_shape" not in analyze_user(news)
+
+
 def test_fallback_sample_script_has_enough_scenes():
     text = (ROOT / "samples" / "confession-60s.md").read_text(encoding="utf-8")
     story = _story(text)
@@ -412,6 +427,73 @@ def test_motion_prompt_is_camera_and_action_not_bible_dump():
     assert "UNIQUE_VO_PHRASE" not in prompt
     assert "Appearance lock" not in prompt
     assert "9:16" in prompt
+    hook = motion_prompt(scene, beat="hook")
+    ending = motion_prompt(scene, beat="ending", has_end_frame=True)
+    chained = motion_prompt(scene, beat="rising_action", has_end_frame=True, chained=True)
+    assert "punch-in" in hook
+    assert "pull-out" in ending
+    assert "last frame" in ending
+    assert "Continue from this start frame" in chained
+    assert "do not swap faces" in chained
+    assert "UNIQUE_VO_PHRASE" not in hook
+    assert "UNIQUE_VO_PHRASE" not in ending
+
+
+def test_end_frame_bridges_same_cast_not_strangers(tmp_path: Path):
+    from omaishort.engine.i2v_bridge import can_bridge_frames, pick_end_scene
+    from omaishort_schema.models import Scene, Shot
+
+    def _scene(index: int, still_id: str, **kwargs) -> Scene:
+        fields = {
+            "index": index,
+            "duration_sec": 4.0,
+            "location": "kitchen",
+            "location_id": "kitchen",
+            "characters": ["wife"],
+            "emotion": "tense",
+            "action": "stands",
+            "dialogue_or_vo": "line",
+            "lighting": "warm",
+            "mood": "tense",
+            "still_id": still_id,
+            "shots": [Shot(camera=Camera.medium, motion=Motion.hold, t_start=0, t_end=4.0, still_id=still_id)],
+            "use_face_ref": True,
+        }
+        fields.update(kwargs)
+        return Scene(**fields)
+
+    kitchen_a = tmp_path / "a.png"
+    kitchen_b = tmp_path / "b.png"
+    street = tmp_path / "c.png"
+    kitchen_a.write_bytes(b"x")
+    kitchen_b.write_bytes(b"x")
+    street.write_bytes(b"x")
+    wife = _scene(1, "still_01")
+    wife_later = _scene(2, "still_02")
+    husband = _scene(3, "still_03", characters=["husband"], location="street", location_id="street")
+    insert = _scene(4, "still_04", characters=[], use_face_ref=False)
+    stills = {"still_01": kitchen_a, "still_02": kitchen_b, "still_03": street, "still_04": kitchen_b}
+    assert can_bridge_frames(wife, wife_later) is True
+    assert can_bridge_frames(wife, husband) is False
+    assert can_bridge_frames(wife, insert) is False
+    scenes = [wife, wife_later, husband]
+    picked = pick_end_scene(scenes, 0, stills)
+    assert picked is not None and picked.still_id == "still_02"
+    assert pick_end_scene(scenes, 1, stills) is None
+    assert pick_end_scene(scenes, 2, stills) is None
+    from omaishort.engine.i2v_bridge import drama_clip_plan, pick_start_frame
+
+    plan = drama_clip_plan(scenes, stills)
+    assert plan[0]["end_still_id"] == "still_02"
+    assert plan[1]["end_still_id"] is None
+    tail = tmp_path / "tail.png"
+    tail.write_bytes(b"y")
+    assert pick_start_frame(wife_later, kitchen_b, prev=wife, prev_tail=tail, prev_used_end_frame=True) == tail
+    assert pick_start_frame(wife_later, kitchen_b, prev=wife, prev_tail=tail, prev_used_end_frame=False) == tail
+    assert pick_start_frame(husband, street, prev=wife_later, prev_tail=tail, prev_used_end_frame=True) == street
+    wife_street = _scene(5, "still_05", location="street", location_id="street")
+    assert pick_start_frame(wife_street, street, prev=wife, prev_tail=tail, prev_used_end_frame=False) == street
+    assert pick_start_frame(wife_street, street, prev=wife, prev_tail=tail, prev_used_end_frame=True) == tail
 
 
 def test_beat_shots_follow_drama_lenses():
@@ -601,6 +683,45 @@ def test_still_prompt_keeps_personality_lock():
     prompt = build_scene_prompt(board.scenes[0], bible)
     assert "Personality lock" in prompt
     assert "Appearance lock" in prompt
+
+
+def test_scene_still_refs_order_faces_then_location_then_props(tmp_path: Path):
+    from omaishort.engine.image_prompts import scene_still_refs
+    from omaishort_schema.models import Scene
+
+    refs = tmp_path / "refs"
+    locs = refs / "locations"
+    props = refs / "props"
+    refs.mkdir()
+    locs.mkdir()
+    props.mkdir()
+    (refs / "wife.png").write_bytes(b"face")
+    (locs / "kitchen.png").write_bytes(b"set")
+    (props / "phone.png").write_bytes(b"prop")
+    (refs / "husband.png").write_bytes(b"off")
+    scene = Scene(
+        index=1,
+        duration_sec=4.0,
+        location="kitchen",
+        location_id="kitchen",
+        characters=["wife"],
+        prop_ids=["phone"],
+        emotion="hook",
+        action="unlocks the phone",
+        dialogue_or_vo="I found his phone.",
+        lighting="night",
+        mood="tense",
+        still_id="still_01",
+        use_face_ref=True,
+        use_location_ref=True,
+        shots=[Shot(camera=Camera.medium, motion=Motion.hold, t_start=0, t_end=4.0, still_id="still_01")],
+    )
+    paths = scene_still_refs(scene, refs_dir=refs, location_dir=locs, prop_dir=props)
+    assert [p.name for p in paths] == ["wife.png", "kitchen.png", "phone.png"]
+    scene.use_face_ref = False
+    scene.use_location_ref = False
+    insert = scene_still_refs(scene, refs_dir=refs, location_dir=locs, prop_dir=props)
+    assert [p.name for p in insert] == ["phone.png"]
 
 
 def test_editorial_beat_lenses_skip_close_up():

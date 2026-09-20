@@ -80,11 +80,44 @@ button.ghost {
   gap: 8px;
 }
 
+.provider-strip {
+  margin: 16px 0 0;
+}
+
+.provider-strip li.on {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.provider-strip li.off {
+  opacity: 0.55;
+}
+
 .row {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.row.drama-row {
+  grid-template-columns: minmax(16rem, 1fr) minmax(0, 2fr);
+  align-items: end;
+}
+
+.shape-hint {
+  margin: 0 0 6px;
+}
+
+.mix-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin: 0 0 12px;
+}
+
+.mix-opts .logo-opt {
+  margin-bottom: 0;
 }
 
 .logo-opt {

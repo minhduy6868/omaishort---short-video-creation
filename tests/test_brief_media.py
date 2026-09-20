@@ -571,6 +571,14 @@ def test_llm_status_reports_chatgpt_web_slot():
     assert "http" in status
     assert "chatgpt_web_profile" in status
     assert "chatgpt_web_chat" in status
+    assert "grok_image" in status
+    assert "grok_video" in status
+    assert isinstance(status["image"], dict)
+    assert isinstance(status["video"], dict)
+    assert isinstance(status["tts"], dict)
+    assert "grok" in status["image"]
+    assert "grok" in status["video"]
+    assert status["drama_motion"] in {"kenburns", "grok", "grok_hub", "hf", "wavespeed", "pollinations"}
 
 
 def test_chatgpt_web_reuses_one_chat_url_per_day(tmp_path, monkeypatch):
@@ -609,3 +617,60 @@ def test_gemini_image_parses_inline_bytes():
     }
     assert _inline_image(body) == raw
     assert _inline_image({}) == b""
+
+
+def test_gemini_parts_attach_photo_refs_not_tiny_files(tmp_path: Path):
+    from omaishort.providers.gemini_image import gemini_image_parts
+    from PIL import Image
+    import os
+
+    tiny = tmp_path / "geom.png"
+    Image.new("RGB", (32, 32), (10, 10, 10)).save(tiny)
+    photo = tmp_path / "wife.png"
+    Image.frombytes("RGB", (128, 128), os.urandom(128 * 128 * 3)).save(photo)
+    parts = gemini_image_parts("kitchen night wife only", [tiny, photo])
+    assert parts[0]["text"].startswith("Vertical 9:16")
+    assert "attached reference" in parts[0]["text"]
+    assert len(parts) == 2
+    assert parts[1]["inline_data"]["mime_type"] == "image/png"
+    solo = gemini_image_parts("empty street", [])
+    assert len(solo) == 1
+    assert "attached reference" not in solo[0]["text"]
+
+
+def test_xai_image_body_is_vertical():
+    from omaishort.providers.xai_image import xai_image_body
+
+    body = xai_image_body("wife unlocks the phone", "grok-imagine-image")
+    assert body["aspect_ratio"] == "9:16"
+    assert body["n"] == 1
+    assert body["model"] == "grok-imagine-image"
+    assert "9:16" in body["prompt"]
+    assert "unlocks the phone" in body["prompt"]
+
+
+def test_xai_edit_body_attaches_photo_refs_not_tiny_files(tmp_path: Path):
+    from omaishort.providers.xai_image import xai_edit_body, xai_ref_limit
+    from PIL import Image
+    import os
+
+    tiny = tmp_path / "geom.png"
+    Image.new("RGB", (32, 32), (10, 10, 10)).save(tiny)
+    wife = tmp_path / "wife.png"
+    Image.frombytes("RGB", (128, 128), os.urandom(128 * 128 * 3)).save(wife)
+    kitchen = tmp_path / "kitchen.png"
+    Image.frombytes("RGB", (128, 128), os.urandom(128 * 128 * 3)).save(kitchen)
+    assert xai_edit_body("empty street", "grok-imagine-image", []) is None
+    assert xai_edit_body("empty street", "grok-imagine-image", [tiny]) is None
+    one = xai_edit_body("kitchen night wife only", "grok-imagine-image", [tiny, wife])
+    assert one is not None
+    assert one["aspect_ratio"] == "9:16"
+    assert one["n"] == 1
+    assert "attached reference" in one["prompt"]
+    assert isinstance(one["image"], dict)
+    assert one["image"]["url"].startswith("data:image/png;base64,")
+    two = xai_edit_body("kitchen night", "grok-imagine-image", [wife, kitchen])
+    assert isinstance(two["image"], list)
+    assert len(two["image"]) == 2
+    assert xai_ref_limit("grok-imagine-image") == 3
+    assert xai_ref_limit("grok-imagine-image-2.0") == 5

@@ -9,12 +9,25 @@ import httpx
 
 from omaishort.config import (
     CHATGPT_WEB_ENABLED,
+    ELEVENLABS_API_KEY,
+    GEMINI_API_KEY,
+    HF_I2V_ENABLED,
+    HF_TOKEN,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     OPENAI_MODEL,
+    POLLINATIONS_ENABLED,
+    POLLINATIONS_KEY,
+    POLLINATIONS_VIDEO_ENABLED,
     PROMPTS_DIR,
+    WAVESPEED_API_KEY,
+    WAVESPEED_ENABLED,
+    XAI_API_KEY,
+    XAI_VIDEO_ENABLED,
+    GROK_WEB_ENABLED,
+    GROK_WEB_VIDEO_ENABLED,
 )
-from omaishort.providers import chatgpt_web
+from omaishort.providers import chatgpt_web, grok_web
 
 _OPENAI_CLOUD = {"https://api.openai.com/v1", "https://api.openai.com"}
 _WEB2API_BASE = "http://127.0.0.1:8080/v1"
@@ -70,12 +83,51 @@ def llm_http_available() -> bool:
 
 
 def llm_status() -> dict[str, object]:
+    grok = bool(XAI_API_KEY)
+    grok_video = grok and XAI_VIDEO_ENABLED
+    hf_video = bool(HF_I2V_ENABLED and HF_TOKEN)
+    wavespeed = bool(WAVESPEED_ENABLED and WAVESPEED_API_KEY)
+    pollen_video = bool(POLLINATIONS_VIDEO_ENABLED and POLLINATIONS_KEY)
+    grok_hub = bool(GROK_WEB_ENABLED and GROK_WEB_VIDEO_ENABLED and grok_web.is_authed())
+    motion = "kenburns"
+    if grok_hub:
+        motion = "grok_hub"
+    elif grok_video:
+        motion = "grok"
+    elif hf_video:
+        motion = "hf"
+    elif wavespeed:
+        motion = "wavespeed"
+    elif pollen_video:
+        motion = "pollinations"
     return {
         "http": llm_http_available(),
         "chatgpt_web": bool(CHATGPT_WEB_ENABLED and chatgpt_web.playwright_ok()),
         "chatgpt_web_authed": chatgpt_web.is_authed(),
         "chatgpt_web_profile": str(chatgpt_web.profile_dir()),
         "chatgpt_web_chat": (chatgpt_web.load_daily_chat() or {}).get("url") or "",
+        "grok_image": grok,
+        "grok_video": grok_video,
+        "grok_hub": bool(GROK_WEB_ENABLED and grok_web.playwright_ok()),
+        "grok_hub_authed": grok_web.is_authed(),
+        "image": {
+            "pollinations": POLLINATIONS_ENABLED,
+            "gemini": bool(GEMINI_API_KEY),
+            "grok": grok,
+            "openai": bool(OPENAI_API_KEY),
+        },
+        "video": {
+            "grok": grok_video,
+            "grok_hub": grok_hub,
+            "hf": hf_video,
+            "wavespeed": wavespeed,
+            "pollinations": pollen_video,
+        },
+        "tts": {
+            "edge": True,
+            "elevenlabs": bool(ELEVENLABS_API_KEY),
+        },
+        "drama_motion": motion,
     }
 
 

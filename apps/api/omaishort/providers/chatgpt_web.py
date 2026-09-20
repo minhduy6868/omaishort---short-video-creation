@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 import time
 from datetime import date
@@ -22,6 +21,7 @@ from omaishort.config import (
     CHATGPT_WEB_TIMEOUT_MIN,
     DATA_DIR,
 )
+from omaishort.providers.chrome_profile import playwright_ok, system_chrome_exe
 
 _CHAT = "https://chatgpt.com"
 _COMPOSER = (
@@ -51,15 +51,6 @@ def daily_path() -> Path:
     return DATA_DIR / "chatgpt-web" / "daily.json"
 
 
-def playwright_ok() -> bool:
-    try:
-        import playwright  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
-
-
 def is_authed() -> bool:
     root = profile_dir()
     for rel in ("Default/Network/Cookies", "Default/Cookies"):
@@ -67,22 +58,6 @@ def is_authed() -> bool:
         if cookie.is_file() and cookie.stat().st_size > 100:
             return True
     return False
-
-
-def system_chrome_exe() -> Path | None:
-    """Installed Google Chrome — skip Playwright's 190MB CDN download when that host times out."""
-    roots = [
-        os.environ.get("PROGRAMFILES") or r"C:\Program Files",
-        os.environ.get("PROGRAMFILES(X86)") or r"C:\Program Files (x86)",
-        os.environ.get("LOCALAPPDATA") or "",
-    ]
-    for root in roots:
-        if not root:
-            continue
-        exe = Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe"
-        if exe.is_file():
-            return exe
-    return None
 
 
 def today_key() -> str:

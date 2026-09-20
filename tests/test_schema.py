@@ -76,6 +76,40 @@ def test_story_input_script_brief_optional():
         StoryInput(text="hello world this is a knowledge brief", script_brief="x" * 2001)
 
 
+def test_grok_web_sso_cookie_names():
+    from omaishort.providers.grok_web import cookies_have_sso
+
+    assert cookies_have_sso([{"name": "sso", "domain": ".grok.com"}])
+    assert not cookies_have_sso([{"name": "session", "domain": ".grok.com"}])
+
+
+def test_grok_web_is_authed_needs_cookie_db(tmp_path, monkeypatch):
+    from omaishort.providers import grok_web
+
+    monkeypatch.setattr(grok_web, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(grok_web, "GROK_WEB_ENABLED", True)
+    assert not grok_web.is_authed()
+    grok_web.save_authed()
+    assert not grok_web.is_authed()
+    cookies = tmp_path / "grok-web" / "profile" / "Default" / "Cookies"
+    cookies.parent.mkdir(parents=True)
+    cookies.write_bytes(b"x" * 200)
+    assert grok_web.is_authed()
+    grok_web.clear_authed()
+    assert not grok_web.is_authed()
+
+
+def test_story_input_drama_shape_defaults_to_infer():
+    from omaishort_schema.models import DramaShape
+
+    story = StoryInput(text="hello world this is a long enough paste")
+    assert story.drama_shape == DramaShape.infer
+    custom = StoryInput(text="hello world this is a long enough paste", drama_shape="custom")
+    assert custom.drama_shape == DramaShape.custom
+    viral = StoryInput(text="hello world this is a long enough paste", drama_shape=DramaShape.default)
+    assert viral.drama_shape == DramaShape.default
+
+
 def test_character_bible_roundtrip():
     bible = CharacterBible(
         characters=[

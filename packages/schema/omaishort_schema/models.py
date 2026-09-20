@@ -44,6 +44,12 @@ class StoryMode(str, Enum):
     script = "script"
 
 
+class DramaShape(str, Enum):
+    infer = "infer"
+    default = "default"
+    custom = "custom"
+
+
 class VideoKind(str, Enum):
     drama = "drama"
     news = "news"
@@ -134,6 +140,7 @@ class StoryInput(BaseModel):
     text: str = Field(min_length=8)
     target_seconds: int = Field(default=60, ge=15, le=180)
     genre: Genre = Genre.confession
+    drama_shape: DramaShape = DramaShape.infer
     language: str = "en"
     voice_id: str | None = None
     source_url: str | None = None

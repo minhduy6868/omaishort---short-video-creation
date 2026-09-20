@@ -38,6 +38,20 @@ def test_conform_clip_is_vertical_and_timed(tmp_path: Path):
     assert abs(probe_duration(dest) - 0.8) < 0.12
 
 
+def test_extract_last_frame_writes_png(tmp_path: Path):
+    from omaishort.engine.kenburns import extract_last_frame
+
+    still = _still(tmp_path / "still.png")
+    src = tmp_path / "src.mp4"
+    shot = Shot(camera=Camera.medium, motion=Motion.hold, t_start=0, t_end=0.4, still_id="still_01")
+    asyncio.run(render_shot_clip(still, shot, src))
+    dest = tmp_path / "last.png"
+    asyncio.run(extract_last_frame(src, dest))
+    assert dest.exists() and dest.stat().st_size > 0
+    img = Image.open(dest)
+    assert img.size[0] > 0 and img.size[1] > 0
+
+
 def test_generate_clip_skips_without_public_still_url(tmp_path: Path):
     from omaishort.providers.video import generate_clip
 
@@ -49,21 +63,52 @@ def test_generate_clip_skips_without_public_still_url(tmp_path: Path):
 
 
 def test_pollinations_duration_clamps_veo():
-    from omaishort.providers.video import pollinations_duration_sec
+    from omaishort.providers.video import pollinations_duration_sec, pollinations_video_params
 
     assert pollinations_duration_sec("wan-fast", 4.0) == 5
     assert pollinations_duration_sec("veo", 3.2) == 4
     assert pollinations_duration_sec("veo", 5.0) == 6
     assert pollinations_duration_sec("veo", 7.9) == 8
     assert pollinations_duration_sec("seedance-2.5", 6.0) == 4
+    wan = pollinations_video_params(
+        "wan-fast", "https://img.example/start.png", 5.0, end_image_url="https://img.example/end.png"
+    )
+    assert "imageEnd" not in wan
+    veo = pollinations_video_params(
+        "veo", "https://img.example/start.png", 5.0, end_image_url="https://img.example/end.png"
+    )
+    assert veo["image"] == "https://img.example/start.png"
+    assert veo["imageEnd"] == "https://img.example/end.png"
+    assert veo["duration"] == "6"
 
 
 def test_wavespeed_duration_and_output_url():
-    from omaishort.providers.video import wavespeed_duration_sec, wavespeed_output_url
+    from omaishort.providers.video import (
+        wavespeed_duration_sec,
+        wavespeed_output_url,
+        wavespeed_submit_body,
+    )
 
     assert wavespeed_duration_sec(4.0) == 5
     assert wavespeed_duration_sec(6.9) == 5
     assert wavespeed_duration_sec(7.0) == 8
+    start_only = wavespeed_submit_body(
+        "slow push",
+        "https://img.example/start.png",
+        5.0,
+        "wavespeed-ai/wan-2.2/i2v-480p-ultra-fast",
+        end_image_url="https://img.example/end.png",
+    )
+    assert "last_image" not in start_only
+    frames = wavespeed_submit_body(
+        "slow push",
+        "https://img.example/start.png",
+        8.0,
+        "wavespeed-ai/wan-2.2/flf2v-720p",
+        end_image_url="https://img.example/end.png",
+    )
+    assert frames["last_image"] == "https://img.example/end.png"
+    assert frames["duration"] == 8
     assert (
         wavespeed_output_url({"data": {"outputs": ["https://cdn.example/a.mp4"]}})
         == "https://cdn.example/a.mp4"
@@ -74,6 +119,99 @@ def test_wavespeed_duration_and_output_url():
     )
     assert wavespeed_output_url({"data": {"outputs": []}}) is None
     assert wavespeed_output_url({"message": "success"}) is None
+
+
+def test_xai_video_body_is_vertical_i2v():
+    from omaishort.providers.xai_video import xai_video_body, xai_video_duration_sec
+
+    assert xai_video_duration_sec(4.2) == 4
+    assert xai_video_duration_sec(0) == 8
+    assert xai_video_duration_sec(20) == 15
+    body = xai_video_body(
+        "slow punch-in, keep the wife",
+        "grok-imagine-video-1.5",
+        "data:image/png;base64,abc",
+        5.4,
+        resolution="720p",
+    )
+    assert body["aspect_ratio"] == "9:16"
+    assert body["duration"] == 5
+    assert body["image"]["url"].startswith("data:image/png")
+    assert body["resolution"] == "720p"
+    assert "wife" in body["prompt"]
+
+
+def test_i2v_providers_prefer_last_frame_adapters_when_bridging(monkeypatch):
+    from omaishort.providers import grok_web, video as video_mod
+    from omaishort.providers.video import i2v_providers, i2v_used_end_frame
+
+    monkeypatch.setattr(video_mod, "XAI_API_KEY", "")
+    monkeypatch.setattr(video_mod, "XAI_VIDEO_ENABLED", False)
+    monkeypatch.setattr(grok_web, "is_authed", lambda: False)
+    start_only = [p.name for p in i2v_providers(wants_end_frame=False)]
+    bridged = [p.name for p in i2v_providers(wants_end_frame=True)]
+    assert start_only[0] == "hf_space_wan"
+    assert bridged[0] == "hf_space_ltx"
+    assert bridged[-2] == "hf_space_wan"
+    assert i2v_used_end_frame("hf_space_ltx") is True
+    assert i2v_used_end_frame("hf_space_wan") is False
+    assert i2v_used_end_frame("xai_video") is False
+    monkeypatch.setattr(video_mod, "XAI_API_KEY", "xai-test")
+    monkeypatch.setattr(video_mod, "XAI_VIDEO_ENABLED", True)
+    grok_first = [p.name for p in i2v_providers(wants_end_frame=False)]
+    assert grok_first[0] == "xai_video"
+
+
+def test_i2v_providers_prefer_grok_hub_when_authed(monkeypatch):
+    from omaishort.providers import grok_web, video as video_mod
+    from omaishort.providers.video import i2v_providers
+
+    monkeypatch.setattr(video_mod, "XAI_API_KEY", "")
+    monkeypatch.setattr(video_mod, "XAI_VIDEO_ENABLED", False)
+    monkeypatch.setattr(video_mod, "GROK_WEB_VIDEO_ENABLED", True)
+    monkeypatch.setattr(grok_web, "is_authed", lambda: True)
+    names = [p.name for p in i2v_providers(wants_end_frame=False)]
+    assert names[0] == "grok_hub_video"
+
+
+def test_grok_hub_video_payload_is_vertical():
+    from omaishort.providers.grok_hub_video import grok_hub_duration_sec, stream_video_url, video_conversation_body
+
+    assert grok_hub_duration_sec(5) == 6
+    assert grok_hub_duration_sec(9) == 10
+    body = video_conversation_body("slow push in on lan", "post-1", 8, "https://assets.grok.com/x")
+    assert body["modelName"] == "imagine-video-gen"
+    config = body["responseMetadata"]["modelConfigOverride"]["modelMap"]["videoGenModelConfig"]
+    assert config["aspectRatio"] == "9:16"
+    assert config["videoLength"] == 10
+    frame = {
+        "result": {
+            "response": {
+                "streamingVideoGenerationResponse": {"progress": 100, "videoUrl": "/vid/a.mp4"}
+            }
+        }
+    }
+    raw = "data: " + json.dumps(frame)
+    assert stream_video_url(raw).endswith("/vid/a.mp4")
+    from omaishort.providers.grok_hub_video import media_post_id
+
+    assert media_post_id({"id": "root", "post": {"id": "post-real", "meta": {"id": "nested"}}}) == "post-real"
+
+
+def test_i2v_ready_includes_grok_hub(monkeypatch):
+    from omaishort.engine import compose
+
+    monkeypatch.setattr(compose, "XAI_API_KEY", "")
+    monkeypatch.setattr(compose, "XAI_VIDEO_ENABLED", False)
+    monkeypatch.setattr(compose, "POLLINATIONS_KEY", "")
+    monkeypatch.setattr(compose, "HF_TOKEN", "")
+    monkeypatch.setattr(compose, "WAVESPEED_API_KEY", "")
+    monkeypatch.setattr(compose, "GROK_WEB_ENABLED", True)
+    monkeypatch.setattr(compose, "GROK_WEB_VIDEO_ENABLED", True)
+    monkeypatch.setattr("omaishort.providers.grok_web.is_authed", lambda: True)
+    assert compose.i2v_ready() is True
+    monkeypatch.setattr("omaishort.providers.grok_web.is_authed", lambda: False)
+    assert compose.i2v_ready() is False
 
 
 def test_hf_sse_extracts_video_url():
@@ -144,6 +282,8 @@ def test_compose_writes_1080x1920_with_audio(tmp_path: Path):
     motion = json.loads((work / "motion.json").read_text(encoding="utf-8"))
     assert motion["mode"] == "kenburns"
     assert motion["i2v_still_ids"] == []
+    assert motion["merge"] == "concat"
+    assert motion["frames"] == []
 
 
 def test_compose_overlays_logo_when_enabled(tmp_path: Path):

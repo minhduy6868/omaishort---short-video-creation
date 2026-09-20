@@ -13,7 +13,7 @@ Why this shape (not Auth0, not Redis sessions, not a cloned GitHub OAuth app):
 | Secrets stay gitignored | `AUTH_SECRET` in `.env` or `data/.auth_secret`. Never commit it. |
 | CI has no cloud keys | Auth tests use a temp `sqlite:///` file. The running API uses PostgreSQL. |
 
-Do **not** fork Clerk/NextAuth/Supabase into this tree. Do not scrape Google login UIs.
+Do **not** fork Clerk/NextAuth/Supabase into this tree. Do not scrape Google login UIs. Do not clone LocalForge Browser Hub accounts (Chromium partitions per Grok/Google login) — those are **provider sessions**, not omaishort users. Studio users own attachments the way LocalForge accounts own AssetService rows. Provider API keys stay in `.env`.
 
 ---
 

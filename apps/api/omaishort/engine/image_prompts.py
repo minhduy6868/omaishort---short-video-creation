@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from omaishort.providers.llm import load_prompt
 from omaishort_schema.models import AssetRef, Character, CharacterBible, Scene, Storyboard
 
@@ -143,3 +145,28 @@ def build_scene_prompt(scene: Scene, bible: CharacterBible) -> str:
 def fill_image_prompts(board: Storyboard, bible: CharacterBible) -> None:
     for scene in board.scenes:
         scene.image_prompt = build_scene_prompt(scene, bible)
+
+
+def scene_still_refs(
+    scene: Scene,
+    *,
+    refs_dir: Path,
+    location_dir: Path,
+    prop_dir: Path,
+) -> list[Path]:
+    """Drama still inputs: on-camera passports, then location, then props (LocalForge referenceAssetIds)."""
+    out: list[Path] = []
+    if scene.use_face_ref:
+        for cid in scene.characters:
+            path = refs_dir / f"{cid}.png"
+            if path.is_file():
+                out.append(path)
+    if scene.use_location_ref and scene.location_id:
+        path = location_dir / f"{scene.location_id}.png"
+        if path.is_file():
+            out.append(path)
+    for pid in scene.prop_ids:
+        path = prop_dir / f"{pid}.png"
+        if path.is_file():
+            out.append(path)
+    return out

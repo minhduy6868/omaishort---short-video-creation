@@ -61,7 +61,7 @@ Two modes, same engine (bible faces, five beats, motion). The user **always** ca
 
 2. **Custom** — the prompt is a **different story from scratch**, not mapped onto that shape (confession kitchen, Ngộ Không vs Na Tra fight, any arc they write). Five beat **keys** stay for the camera; the arc is theirs. Do not bend a custom prompt into humiliation/reveal/karma.
 
-Mode: use **custom** when the paste clearly asks for another genre/arc (`script_brief`, fight, confession script, `Name: line`). Use **default shape** when they give people/setting but no other structure — fill their facts into the viral shape.
+Mode: Studio/CLI `drama_shape` is `infer` (guess), `default` (force viral shape), or `custom` (never remap). When `infer`, use **custom** if the paste clearly asks for another genre/arc (`script_brief`, fight, confession script, `Name: line`); use **default shape** when they give people/setting but no other structure.
 
 ---
 
@@ -84,7 +84,7 @@ Mode: use **custom** when the paste clearly asks for another genre/arc (`script_
 | Beat | One of five keys in `StoryStructure`. Editorial **maps labels** but keeps the same keys |
 | Beat lenses | Camera/motion pairs in `engine/fallback.py`. Drama uses close_up punch-ins. Editorial collage stays medium/wide |
 | Ken Burns | FFmpeg zoompan, working frame **2160×3840**, cosine ease, 1080×1920 out. Zoom amplitude: wide 0.04, medium 0.05, close_up 0.12 (drama only) |
-| I2V | Real MP4 from a still (HF Spaces / WaveSpeed HTTP / Pollinations Wan). One clip **per scene**, not per shot |
+| I2V | Real MP4 from a still (xAI Grok Imagine HTTP / HF Spaces / WaveSpeed / Pollinations Wan). One clip **per scene**, not per shot. Start frame = scene still, or previous last frame when the same on-camera ids stay in the same set. Last frame = next still when ids overlap (HTTP Frames, not Flow / grok.com) |
 | `script_brief` | Optional ≤2000 chars, stripped blanks → `None`. Sent to ChatGPT as `USER_BRIEF=` |
 | `script.json` | Knowledge VO + `provider` (`chatgpt-web` / HTTP llm / `wiki` / `github`) + `note` + optional `script_brief` |
 | Topic paste | Knowledge input that is **not** already five authored beats. See §7 |
@@ -100,6 +100,8 @@ Mode: use **custom** when the paste clearly asks for another genre/arc (`script_
 | --- | --- |
 | `kind` | `drama` \| `news` \| `knowledge`. `brief` → `news` |
 | `mode` | `script` \| `idea` |
+| `drama_shape` | Drama only: `infer` \| `default` \| `custom`. Default **infer**. `default` forces humiliation→reveal→karma with the user's people. `custom` never remaps. Ignored for news/knowledge |
+| `mix` | Optional. Studio sends `logo_enabled` and `bgm_enabled`. CLI `--logo` / `--no-bgm` |
 | `text` | min 8 chars after fetch |
 | `target_seconds` | 15–180. Schema default **60**. CLI `--seconds 0` → **90** news/knowledge, **60** drama. Studio sets 90 when switching to news/knowledge |
 | `language` | `en` / `vi` (others may exist on TTS; product is en/vi) |
@@ -227,7 +229,7 @@ Generated compact prompt leads with uninhabited editorial still — **zero peopl
 
 ### Image chain
 
-Pollinations (Flux/Kontext) → Gemini HTTP (`GEMINI_API_KEY`) → OpenAI images → placeholder. Comfy stub only when a photograph is **not** required. Photo providers on + non-photo return → **fail the still**, do not mix stick figures. `POLLINATIONS_ENABLED=0` → geometric OK.
+Pollinations (Flux/Kontext) → Gemini HTTP (`GEMINI_API_KEY`, Banana-class + up to four photo refs) → xAI Grok Imagine (`XAI_API_KEY`: `/images/generations`, or `/images/edits` when passport/location/prop photos exist) → OpenAI images (`OPENAI_API_KEY`, last HTTP) → placeholder. Comfy stub only when a photograph is **not** required. Photo providers on + non-photo return → **fail the still**, do not mix stick figures. `POLLINATIONS_ENABLED=0` → geometric OK. Do **not** scrape ChatGPT.com images, Flow Banana, or grok.com. ChatGPT-web stays knowledge VO only.
 
 ---
 
@@ -240,7 +242,7 @@ Pollinations (Flux/Kontext) → Gemini HTTP (`GEMINI_API_KEY`) → OpenAI images
 | Rescale | After TTS, scene `duration_sec` + shot windows **sum to probed audio** (`engine/rescale.py`) |
 | Captions | WordBoundary from edge-tts → faster-whisper → even-split → ASS. `SubtitleStyle` (default font 64, highlight karaoke, margin_v 120) |
 | Mix | Optional BGM = first **audio** file in `assets/music/` (not README), ducked under VO. Optional logo `mix.logo_enabled` |
-| I2V | **Drama:** HF Spaces (`HF_TOKEN`), WaveSpeed Wan (`WAVESPEED_API_KEY`), or Pollinations Wan (`POLLINATIONS_KEY`), one clip per scene. **News/knowledge:** Ken Burns only (collage). Motion prompt = camera + action only — no VO text |
+| I2V | **Drama:** xAI Grok Imagine video (`XAI_API_KEY`) → HF Spaces (`HF_TOKEN`) → WaveSpeed Wan (`WAVESPEED_API_KEY`) → Pollinations Wan (`POLLINATIONS_KEY`), one clip per scene. Start frame = that scene's still, or the previous clip's last frame when the same on-camera ids stay in the same `location_id` (Grok/Wan start-only) or when HTTP Frames landed (do not morph a wife still into a husband still). Last frame = **next** scene still when ids overlap (HTTP Frames: LTX, Pollinations Veo/Seedance `imageEnd`, WaveSpeed `last_image` on FLF2V). Grok Imagine video is start-frame HTTP, not grok.com. Concat clips in scene order; duration stays probed VO (no xfade that shortens). Motion prompt follows beat lenses (hook punch-in → ending pull-out) — camera + action only, no VO text. **News/knowledge:** Ken Burns collage + `xfade` between the five scenes; pad freeze so duration = probed VO. |
 
 ---
 
@@ -324,7 +326,7 @@ See [ROADMAP.md](ROADMAP.md). Do not pull these into an unrelated PR.
 
 ## 14. Stack
 
-Python 3.11, FastAPI, Pydantic v2, PostgreSQL (`DATABASE_URL`; pytest may use a temp SQLite file), Vite + React, FFmpeg. Optional: Playwright ChatGPT web, Gemini image HTTP, OpenAI-compatible LLM, ComfyUI, ElevenLabs, faster-whisper, HF Spaces, WaveSpeed HTTP, Pollinations Wan.
+Python 3.11, FastAPI, Pydantic v2, PostgreSQL (`DATABASE_URL`; pytest may use a temp SQLite file), Vite + React, FFmpeg. Optional: Playwright ChatGPT web (knowledge VO), Gemini image HTTP, xAI Grok Imagine image/video HTTP, OpenAI-compatible LLM, ComfyUI, ElevenLabs, faster-whisper, HF Spaces, WaveSpeed HTTP, Pollinations Wan.
 
 ---
 

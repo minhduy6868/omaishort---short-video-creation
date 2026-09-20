@@ -7,19 +7,23 @@ import {
   logout,
   readJob,
   readMe,
+  readProviders,
   readVoices,
   register,
   uploadAttachment,
   type AttachmentRow,
   type AuthUser,
+  type ProviderStatus,
   type VoiceOption,
 } from "./api";
 import "./App.css";
-import { PIPELINE_STAGES, type Job, type Stage, type VideoKind } from "./types";
+import { PIPELINE_STAGES, type DramaShape, type Job, type Stage, type VideoKind } from "./types";
 
 const DRAMA_SAMPLE = `I found his phone on the counter at 2:17 a.m. He said he was sleeping. The lock screen was a photo of us. The messages were not.
 
 Her name was Mara. She asked if I would be home this weekend. He typed, Don't worry. She never checks.`;
+
+const DRAMA_VIRAL_SAMPLE = `A hotel cleaner in a faded uniform. The arrogant guest at the front desk. She asks for a room. He laughs at her in the lobby, in front of the other staff.`;
 
 const NEWS_SAMPLE = `Tiêu đề: Trái đắng của người phụ nữ lấy chồng kém 37 tuổi.
 
@@ -34,6 +38,14 @@ Anh bỏ đi Nigeria. Cô mất nhà, phải ly hôn, và giữ lại rất ít 
 const KNOWLEDGE_SAMPLE = `Thuyết minh về lạm phát và cách nó vận hành.`;
 
 const DRAMA_GENRES = ["confession", "cheating", "revenge", "twist", "family", "drama"] as const;
+const DRAMA_GENRE_LABELS: Record<(typeof DRAMA_GENRES)[number], string> = {
+  confession: "Confession",
+  cheating: "Cheating",
+  revenge: "Revenge",
+  twist: "Twist",
+  family: "Family",
+  drama: "Drama",
+};
 const EDITORIAL_GENRES = ["news", "knowledge"] as const;
 const FALLBACK_VOICES: VoiceOption[] = [
   { id: "vi-female", language: "vi", label: "Nữ — Việt Nam" },
@@ -54,11 +66,43 @@ function isEditorial(kind: VideoKind): boolean {
   return kind === "news" || kind === "knowledge";
 }
 
+function dramaPasteFor(shape: DramaShape): string {
+  return shape === "default" ? DRAMA_VIRAL_SAMPLE : DRAMA_SAMPLE;
+}
+
+function isDramaSample(value: string): boolean {
+  return value === DRAMA_SAMPLE || value === DRAMA_VIRAL_SAMPLE;
+}
+
+function providerChipList(status: ProviderStatus): { id: string; on: boolean; label: string }[] {
+  const image = status.image ?? {};
+  const video = status.video ?? {};
+  const motion = status.drama_motion ?? "kenburns";
+  return [
+    { id: "motion", on: motion !== "kenburns", label: `drama ${motion}` },
+    { id: "poll", on: Boolean(image.pollinations), label: "Pollinations stills" },
+    { id: "gemini", on: Boolean(image.gemini), label: "Gemini stills" },
+    { id: "grok-img", on: Boolean(status.grok_image ?? image.grok), label: "Grok stills" },
+    { id: "openai", on: Boolean(image.openai), label: "OpenAI stills" },
+    { id: "grok-vid", on: Boolean(status.grok_video ?? video.grok), label: "Grok I2V API" },
+    { id: "grok-hub", on: Boolean(status.grok_hub_authed ?? video.grok_hub), label: "Grok hub" },
+    { id: "hf", on: Boolean(video.hf), label: "HF I2V" },
+    { id: "wavespeed", on: Boolean(video.wavespeed), label: "WaveSpeed I2V" },
+    { id: "pollen", on: Boolean(video.pollinations), label: "Pollinations I2V" },
+    {
+      id: "chatgpt",
+      on: Boolean(status.chatgpt_web_authed),
+      label: status.chatgpt_web_authed ? "ChatGPT VO" : "ChatGPT VO off",
+    },
+  ];
+}
+
 export default function App() {
   const [kind, setKind] = useState<VideoKind>("drama");
   const [text, setText] = useState(DRAMA_SAMPLE);
   const [mode, setMode] = useState<"script" | "idea">("script");
   const [genre, setGenre] = useState("confession");
+  const [dramaShape, setDramaShape] = useState<DramaShape>("infer");
   const [language, setLanguage] = useState("en");
   const [voiceId, setVoiceId] = useState(defaultVoice("en"));
   const [seconds, setSeconds] = useState(60);
@@ -68,6 +112,7 @@ export default function App() {
   const [message, setMessage] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState("");
   const [logoEnabled, setLogoEnabled] = useState(false);
+  const [bgmEnabled, setBgmEnabled] = useState(true);
   const [scriptBrief, setScriptBrief] = useState("");
   const [voices, setVoices] = useState<VoiceOption[]>(FALLBACK_VOICES);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -79,6 +124,7 @@ export default function App() {
   const [attachBind, setAttachBind] = useState("");
   const [library, setLibrary] = useState<AttachmentRow[]>([]);
   const [picked, setPicked] = useState<{ id: string; kind: string; filename: string; bind: string }[]>([]);
+  const [providers, setProviders] = useState<ProviderStatus | null>(null);
 
   useEffect(() => {
     let stop = false;
@@ -87,6 +133,16 @@ export default function App() {
         setUser(me);
         setAuthReady(true);
       }
+    });
+    return () => {
+      stop = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let stop = false;
+    void readProviders().then((status) => {
+      if (!stop) setProviders(status);
     });
     return () => {
       stop = true;
@@ -148,11 +204,13 @@ export default function App() {
 
   function onKindChange(next: VideoKind) {
     const samples: Record<VideoKind, string> = {
-      drama: DRAMA_SAMPLE,
+      drama: dramaPasteFor(dramaShape),
       news: NEWS_SAMPLE,
       knowledge: KNOWLEDGE_SAMPLE,
     };
-    if (Object.values(samples).includes(text)) setText(samples[next]);
+    if (isDramaSample(text) || text === NEWS_SAMPLE || text === KNOWLEDGE_SAMPLE) {
+      setText(samples[next]);
+    }
     setKind(next);
     if (next === "drama") {
       setGenre("confession");
@@ -167,6 +225,11 @@ export default function App() {
     }
   }
 
+  function onDramaShapeChange(next: DramaShape) {
+    if (isDramaSample(text)) setText(dramaPasteFor(next));
+    setDramaShape(next);
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -179,12 +242,13 @@ export default function App() {
         text: text.trim().length >= 8 ? text : `News from ${sourceUrl.trim()}`,
         target_seconds: seconds,
         genre,
+        drama_shape: kind === "drama" ? dramaShape : undefined,
         language,
         voice_id: voiceId,
         source_url: isEditorial(kind) ? sourceUrl.trim() || null : null,
         script_brief: scriptBrief.trim() || null,
         attachments: picked.map((item) => ({ id: item.id, bind: item.bind || null })),
-        mix: { logo_enabled: logoEnabled },
+        mix: { logo_enabled: logoEnabled, bgm_enabled: bgmEnabled },
       });
       setJobId(data.id);
     } catch (err) {
@@ -214,7 +278,7 @@ export default function App() {
       ? "Paste a news URL or notes. Five beats cover the full article, including the ending. Stills match each beat — article photos first, then CC search, never Pexels."
       : kind === "knowledge"
         ? "Paste a topic (thuyết minh về lạm phát…), one claim, or a GitHub URL. Optional script notes steer ChatGPT. The engine writes the explainer — it does not echo the request or dump a README."
-        : "Paste a confession. One still per scene, bible-locked faces, beat cameras. I2V only when keyed — otherwise Ken Burns, never faked as video.";
+        : "Paste a script or name the people. Pick shape (auto / viral / custom), genre, voice, and refs. I2V only when keyed — otherwise Ken Burns, never faked as video.";
 
   return (
     <div className="shell">
@@ -224,6 +288,15 @@ export default function App() {
         <p className="lede">
           {lede}
         </p>
+        {providers ? (
+          <ul className="chips provider-strip" aria-label="Live providers">
+            {providerChipList(providers).map((chip) => (
+              <li key={chip.id} className={chip.on ? "on" : "off"}>
+                {chip.label}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {authReady && user ? (
           <div className="auth-bar">
             <span className="meta">
@@ -311,15 +384,17 @@ export default function App() {
           <label>
             Mode
             <select value={mode} onChange={(e) => setMode(e.target.value as "script" | "idea")}>
-              <option value="script">Script</option>
-              <option value="idea">Idea</option>
+              <option value="script">Script (dialogue)</option>
+              <option value="idea">Idea (who / what)</option>
             </select>
           </label>
           <label>
             Genre
             <select value={genre} onChange={(e) => setGenre(e.target.value)}>
               {genres.map((item) => (
-                <option key={item}>{item}</option>
+                <option key={item} value={item}>
+                  {item in DRAMA_GENRE_LABELS ? DRAMA_GENRE_LABELS[item as (typeof DRAMA_GENRES)[number]] : item}
+                </option>
               ))}
             </select>
           </label>
@@ -358,6 +433,25 @@ export default function App() {
             />
           </label>
         </div>
+        {kind === "drama" ? (
+          <div className="row drama-row">
+            <label>
+              Shape
+              <select value={dramaShape} onChange={(e) => onDramaShapeChange(e.target.value as DramaShape)}>
+                <option value="infer">Auto (infer from paste)</option>
+                <option value="default">Viral (humiliation → karma)</option>
+                <option value="custom">Custom story</option>
+              </select>
+            </label>
+            <p className="meta shape-hint">
+              {dramaShape === "default"
+                ? "Keep your people and place. The engine tells humiliation → reveal → karma."
+                : dramaShape === "custom"
+                  ? "Five camera beats map onto your arc. Not remapped to karma."
+                  : "Dialogue or a named arc stays custom. People + events only become the viral shape."}
+            </p>
+          </div>
+        ) : null}
         {isEditorial(kind) ? (
           <label className="source-url">
             {kind === "knowledge" ? "GitHub URL (optional)" : "Article URL"}
@@ -368,15 +462,29 @@ export default function App() {
             />
           </label>
         ) : null}
-        <label className="logo-opt">
-          <input type="checkbox" checked={logoEnabled} onChange={(e) => setLogoEnabled(e.target.checked)} />
-          Overlay logo (assets/logo)
-        </label>
+        <div className="mix-opts">
+          <label className="logo-opt">
+            <input type="checkbox" checked={bgmEnabled} onChange={(e) => setBgmEnabled(e.target.checked)} />
+            Background music
+          </label>
+          <label className="logo-opt">
+            <input type="checkbox" checked={logoEnabled} onChange={(e) => setLogoEnabled(e.target.checked)} />
+            Overlay logo (assets/logo)
+          </label>
+        </div>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={10}
-          placeholder={kind === "knowledge" ? "Thuyết minh về lạm phát và cách nó vận hành" : undefined}
+          placeholder={
+            kind === "knowledge"
+              ? "Thuyết minh về lạm phát và cách nó vận hành"
+              : kind === "drama" && dramaShape === "default"
+                ? "Name the people, the place, and what happens. Do not write a different plot."
+                : kind === "drama" && mode === "idea"
+                  ? "Name who, where, and what happens — or paste a full custom story."
+                  : undefined
+          }
         />
         <label className="script-brief">
           Extra script notes
@@ -390,7 +498,9 @@ export default function App() {
                 ? "Optional. Example: giọng tài liệu, nhấn trận Khâm Ung Liêm, đừng kể gia phả"
                 : kind === "news"
                   ? "Optional. Example: giọng lạnh, giữ số liệu, đừng đạo đức giảng"
-                  : "Optional. Example: colder tone, stay on the kitchen, no flashback"
+                  : dramaShape === "default"
+                    ? "Optional. Example: colder lobby, keep the cleaner as protagonist, last line in Vietnamese"
+                    : "Optional. Example: colder tone, stay on the kitchen, no flashback"
             }
           />
         </label>

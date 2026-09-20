@@ -136,6 +136,26 @@ async def render_shot_clip(still: Path, shot: Shot, dest: Path, *, editorial: bo
     return dest
 
 
+async def extract_last_frame(src: Path, dest: Path) -> Path:
+    """Last video frame as a PNG — next drama I2V start when HTTP Frames landed."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        ffmpeg_path(),
+        "-y",
+        "-sseof",
+        "-0.05",
+        "-i",
+        str(src),
+        "-frames:v",
+        "1",
+        "-update",
+        "1",
+        str(dest),
+    ]
+    await _run_ffmpeg(cmd, dest, "ffmpeg last frame failed")
+    return dest
+
+
 async def conform_clip(src: Path, dest: Path, duration: float) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     duration = max(0.2, duration)

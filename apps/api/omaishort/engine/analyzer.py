@@ -86,20 +86,28 @@ async def write_knowledge_script(
     return ensure_spoken_stops(knowledge_spoken_from_wiki(title, extract, language)), "wiki", err
 
 
-async def analyze_story(story: StoryInput) -> tuple[CharacterBible, StoryStructure, str]:
-    prompt_name = "analyzer_brief.txt" if is_editorial(story.kind) else "analyzer.txt"
-    system = load_prompt(prompt_name)
+def analyze_user(story: StoryInput) -> str:
     brief = clip_script_brief(story.script_brief)
     extra = f"USER_BRIEF={brief}\n" if brief else ""
-    user = (
+    shape = ""
+    if not is_editorial(story.kind):
+        shape = f"drama_shape={story.drama_shape.value}\n"
+    return (
         f"kind={story.kind.value}\n"
         f"mode={story.mode.value}\n"
         f"genre={story.genre.value}\n"
         f"language={story.language}\n"
         f"target_seconds={story.target_seconds}\n"
+        f"{shape}"
         f"{extra}\n"
         f"STORY:\n{story.text}"
     )
+
+
+async def analyze_story(story: StoryInput) -> tuple[CharacterBible, StoryStructure, str]:
+    prompt_name = "analyzer_brief.txt" if is_editorial(story.kind) else "analyzer.txt"
+    system = load_prompt(prompt_name)
+    user = analyze_user(story)
     raw = await complete_json(system, user)
     if raw:
         try:

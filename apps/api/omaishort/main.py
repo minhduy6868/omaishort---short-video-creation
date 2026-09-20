@@ -93,7 +93,7 @@ def auth_refresh(request: Request, response: Response, body: RefreshBody | None 
     return payload
 
 
-@app.post("/auth/logout", status_code=204)
+@app.post("/auth/logout", status_code=204, response_model=None)
 def auth_logout(request: Request, response: Response, body: RefreshBody | None = None) -> None:
     raw = (body.refresh_token if body else None) or request.cookies.get("omaishort_rt")
     if raw:
@@ -136,7 +136,7 @@ def download_attachment(attachment_id: str, user: CurrentUser) -> FileResponse:
     return FileResponse(path, media_type=row["mime"], filename=row["filename"])
 
 
-@app.delete("/attachments/{attachment_id}", status_code=204)
+@app.delete("/attachments/{attachment_id}", status_code=204, response_model=None)
 def remove_attachment(attachment_id: str, user: CurrentUser) -> None:
     uploads.delete_owned(attachment_id, user["id"])
 

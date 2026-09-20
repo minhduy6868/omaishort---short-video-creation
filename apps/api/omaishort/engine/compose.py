@@ -12,11 +12,22 @@ from omaishort.config import (
     POLLINATIONS_VIDEO_ENABLED,
     WAVESPEED_API_KEY,
     WAVESPEED_ENABLED,
+    XAI_API_KEY,
+    XAI_VIDEO_ENABLED,
+    GROK_WEB_ENABLED,
+    GROK_WEB_VIDEO_ENABLED,
 )
-from omaishort.engine.fallback import apply_beat_lenses
-from omaishort.engine.kenburns import conform_clip, ffmpeg_path, probe_duration, render_shot_clip
+from omaishort.engine.fallback import apply_beat_lenses, infer_beat
+from omaishort.engine.i2v_bridge import pick_end_scene, pick_start_frame
+from omaishort.engine.kenburns import (
+    conform_clip,
+    extract_last_frame,
+    ffmpeg_path,
+    probe_duration,
+    render_shot_clip,
+)
 from omaishort.engine.motion_prompt import motion_prompt
-from omaishort.providers.video import generate_clip
+from omaishort.providers.video import generate_clip, i2v_used_end_frame
 from omaishort_schema.models import MixSettings, Storyboard, is_editorial
 
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac"}
@@ -39,6 +50,13 @@ def editorial_xfade_offsets(durations: list[float], fade: float = EDITORIAL_XFAD
 
 
 def i2v_ready() -> bool:
+    if GROK_WEB_ENABLED and GROK_WEB_VIDEO_ENABLED:
+        from omaishort.providers import grok_web
+
+        if grok_web.is_authed():
+            return True
+    if XAI_VIDEO_ENABLED and XAI_API_KEY:
+        return True
     if POLLINATIONS_VIDEO_ENABLED and POLLINATIONS_KEY:
         return True
     if HF_I2V_ENABLED and HF_TOKEN:
@@ -104,16 +122,44 @@ async def compose_short(
     clip_paths: list[Path] = []
     scene_clip_groups: list[list[Path]] = []
     i2v_ids: list[str] = []
+    frames: list[dict] = []
     n = 0
     want_i2v = i2v_wanted(board)
     editorial = is_editorial(board.kind)
-    for scene in board.scenes:
+    total = len(board.scenes)
+    prev_scene = None
+    prev_tail: Path | None = None
+    prev_used_end = False
+    for i, scene in enumerate(board.scenes):
         still = stills[scene.still_id]
         i2v_used = False
         group: list[Path] = []
         if want_i2v:
+            beat = infer_beat(scene, i, total)
+            start_still = pick_start_frame(
+                scene,
+                still,
+                prev=prev_scene,
+                prev_tail=prev_tail,
+                prev_used_end_frame=prev_used_end,
+            )
+            chained = start_still != still
+            end_scene = pick_end_scene(board.scenes, i, stills)
+            end_still = stills.get(end_scene.still_id) if end_scene is not None else None
+            prompt = motion_prompt(
+                scene,
+                beat=beat,
+                has_end_frame=end_still is not None,
+                chained=chained,
+            )
             raw = work_dir / "i2v" / f"{scene.still_id}.mp4"
-            generated = await generate_clip(motion_prompt(scene), raw, still, duration=min(5.0, scene.duration_sec))
+            generated = await generate_clip(
+                prompt,
+                raw,
+                start_still,
+                duration=scene.duration_sec,
+                end_still=end_still,
+            )
             if generated is not None:
                 n += 1
                 clip = clips_dir / f"clip_{n:03d}.mp4"
@@ -121,6 +167,26 @@ async def compose_short(
                 clip_paths.append(clip)
                 group.append(clip)
                 i2v_ids.append(scene.still_id)
+                used_end = bool(end_still) and i2v_used_end_frame(generated[1])
+                tail = work_dir / "i2v" / f"{scene.still_id}_last.png"
+                try:
+                    await extract_last_frame(clip, tail)
+                    prev_tail = tail
+                except RuntimeError:
+                    prev_tail = None
+                    used_end = False
+                prev_scene = scene
+                prev_used_end = used_end
+                frames.append(
+                    {
+                        "still_id": scene.still_id,
+                        "end_still_id": end_scene.still_id if end_scene is not None else None,
+                        "start": "prev_last_frame" if chained else "still",
+                        "used_end_frame": used_end,
+                        "provider": generated[1],
+                        "beat": beat,
+                    }
+                )
                 i2v_used = True
         if not i2v_used:
             for shot in scene.shots:
@@ -129,6 +195,9 @@ async def compose_short(
                 await render_shot_clip(still, shot, clip, editorial=editorial)
                 clip_paths.append(clip)
                 group.append(clip)
+            prev_scene = scene
+            prev_tail = None
+            prev_used_end = False
         scene_clip_groups.append(group)
     if not i2v_ids:
         mode = "kenburns"
@@ -136,8 +205,17 @@ async def compose_short(
         mode = "i2v"
     else:
         mode = "mixed"
+    merge = "xfade" if editorial and len(scene_clip_groups) >= 2 else "concat"
     (work_dir / "motion.json").write_text(
-        json.dumps({"mode": mode, "i2v_still_ids": i2v_ids}, indent=2),
+        json.dumps(
+            {
+                "mode": mode,
+                "i2v_still_ids": i2v_ids,
+                "merge": merge,
+                "frames": frames,
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
     silent = work_dir / "video_silent.mp4"

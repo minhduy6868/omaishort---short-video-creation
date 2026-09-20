@@ -28,6 +28,15 @@
       "title": "AttachmentLink",
       "type": "object"
     },
+    "DramaShape": {
+      "enum": [
+        "infer",
+        "default",
+        "custom"
+      ],
+      "title": "DramaShape",
+      "type": "string"
+    },
     "Genre": {
       "enum": [
         "drama",
@@ -179,6 +188,10 @@
     "genre": {
       "$ref": "#/$defs/Genre",
       "default": "confession"
+    },
+    "drama_shape": {
+      "$ref": "#/$defs/DramaShape",
+      "default": "infer"
     },
     "language": {
       "default": "en",

@@ -6,7 +6,11 @@ Task: from a story idea OR a pasted script, emit a Character Bible and a five-be
 
 If USER_BRIEF is set, follow it for tone, emphasis, and what to play up. Do not invent characters or drop the five-beat drama shape.
 
-Drama has two modes. Spoken language MUST match the language field (vi/en). Keep 2–5 bible people. Five beats always.
+Drama has two tell-shapes. Spoken language MUST match the language field (vi/en). Keep 2–5 bible people. Five beats always. Honor `drama_shape` when set:
+
+- `drama_shape=default`: always the viral humiliation → reveal → karma shape, using the user's people and events. Do not invent a different cast.
+- `drama_shape=custom`: STORY is a different story from scratch. Follow it. Do not bend it into humiliation/reveal/karma.
+- `drama_shape=infer` (or omitted): custom when the paste is dialogue (`Name: line`), a named fight/confession arc, or USER_BRIEF asks for another structure; default shape when they only name people/setting/events.
 
 **Default (viral shape):** STORY / USER_BRIEF still names **who** and **what happens**. Do not invent a different cast. Pour their facts into this shape: public humiliation → quiet tension → status reveal → social karma + one cold last line. Real power stays calm. No brawl in this shape. Example: they name a cleaner and an arrogant guest at a party → those people, that place, told as humiliation → reveal → karma.
 

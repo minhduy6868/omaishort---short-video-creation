@@ -116,9 +116,27 @@ cd D:\tool\lonton\omaishort\apps\api
 
 Session is stored under `data/chatgpt-web/profile` (gitignored). Later jobs stay **headless** and reuse **one ChatGPT thread per day** (`data/chatgpt-web/daily.json`). Wiki / README notes are the fallback if ChatGPT is off.
 
-Gemini / similar image sites: do not scrape the Gemini UI the same way. Still images use HTTP adapters — Pollinations (no key), then Gemini API if `GEMINI_API_KEY` is set, then OpenAI images. The login-once Playwright pattern is for ChatGPT **text**, not image carousels.
+Gemini / similar image sites: do not scrape the Gemini UI the same way. Still images use HTTP adapters — Pollinations (no key), then Gemini API if `GEMINI_API_KEY` is set, then xAI Grok if `XAI_API_KEY` is set, then OpenAI images. The login-once Playwright pattern is for ChatGPT **text**, not image carousels.
 
 Optional: set `OPENAI_BASE_URL` + `OPENAI_API_KEY` for an OpenAI-compatible HTTP model (used after ChatGPT web).
+
+### Full stack (drama I2V)
+
+Keys live in the repo-root `.env`. **Restart the API** after editing them. Studio chips (and `GET /providers`) show which adapters are live. For Grok motion, `drama_motion` must read `grok`.
+
+| Need | Env / action |
+| --- | --- |
+| Grok stills + I2V | `XAI_API_KEY` from [console.x.ai](https://console.x.ai) — not grok.com |
+| Gemini stills | `GEMINI_API_KEY` |
+| Prefer Grok-only motion | `HF_I2V_ENABLED=0` (skip ZeroGPU queue) |
+| HF I2V fallback | `HF_TOKEN` |
+| WaveSpeed I2V | `WAVESPEED_API_KEY` |
+| Pollinations I2V | `POLLINATIONS_KEY` |
+| Knowledge VO | `python -m omaishort --chatgpt-login` once |
+| PostgreSQL | `DATABASE_URL` (see `scripts/init_postgres.sql`) |
+| Studio | API `:8765` + Vite `:5173` → register/login → **Make drama short** |
+
+News/knowledge stay Ken Burns collage. Do not scrape grok.com / Flow.
 
 ## Commands
 
@@ -128,7 +146,10 @@ Run from `apps\api`. Do **not** copy a leading `>` from docs — PowerShell trea
 cd D:\tool\lonton\omaishort\apps\api
 
 # Drama
-.\.venv\Scripts\python.exe -m omaishort ..\..\samples\confession-60s.md --voice en-female-us
+.\.venv\Scripts\python.exe -m omaishort ..\..\samples\confession-60s.md --voice en-female-us --shape custom
+
+# Drama — viral shape from people + events (not a confession script)
+.\.venv\Scripts\python.exe -m omaishort "A hotel cleaner. An arrogant guest laughs at her in the lobby." --kind drama --mode idea --shape default --voice en-female-us
 
 # Knowledge — topic
 .\.venv\Scripts\python.exe -m omaishort "thuyết minh về Lý Thường Kiệt" --kind knowledge --language vi
@@ -174,8 +195,8 @@ Stages: `analyze → plan → refs → stills → tts → captions → render`
 | Stage | Order |
 | --- | --- |
 | Script (knowledge) | ChatGPT web → OpenAI-compatible HTTP → wiki / README notes |
-| Image | Pollinations → Gemini API (if `GEMINI_API_KEY`) → OpenAI images → placeholder |
-| Motion | HF Spaces (needs `HF_TOKEN`) → WaveSpeed Wan (if `WAVESPEED_API_KEY`) → Pollinations Wan (`POLLINATIONS_KEY`) → Ken Burns |
+| Image | Pollinations → Gemini API (`GEMINI_API_KEY`) → xAI Grok (`XAI_API_KEY`) → OpenAI images → placeholder |
+| Motion | **Drama:** Grok Imagine (`XAI_API_KEY`) → HF Spaces (`HF_TOKEN`) → WaveSpeed Wan (`WAVESPEED_API_KEY`) → Pollinations Wan (`POLLINATIONS_KEY`) → Ken Burns. **News/knowledge:** Ken Burns only |
 | TTS | ElevenLabs → edge-tts → silence |
 
 Planner never imports a vendor SDK. Do not use Pexels. Do not fork MoneyPrinter / OpenMontage / HyperFrames into this tree.

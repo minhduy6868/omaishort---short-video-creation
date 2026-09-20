@@ -22,8 +22,13 @@ from omaishort.config import (
     WAVESPEED_ENABLED,
     WAVESPEED_MODEL,
     WAVESPEED_URL,
+    XAI_API_KEY,
+    XAI_VIDEO_ENABLED,
+    GROK_WEB_VIDEO_ENABLED,
 )
+from omaishort.providers.grok_hub_video import GrokHubVideoProvider
 from omaishort.providers.pollinations import load_ref_url, looks_like_photo
+from omaishort.providers.xai_video import XaiVideoProvider
 
 
 def pollinations_duration_sec(model: str, duration: float) -> int:
@@ -46,6 +51,57 @@ def pollinations_duration_sec(model: str, duration: float) -> int:
 def wavespeed_duration_sec(duration: float) -> int:
     """Wan 2.2 Ultra Fast I2V on WaveSpeed accepts 5 or 8 seconds only."""
     return 8 if float(duration) >= 7.0 else 5
+
+
+def pollinations_supports_end_frame(model: str) -> bool:
+    """Veo / Seedance / Omni HTTP accept a last frame. Wan-fast is start-only."""
+    name = (model or "").lower()
+    return any(token in name for token in ("veo", "seedance", "omni", "gemini"))
+
+
+def wavespeed_supports_last_image(model: str) -> bool:
+    """FLF2V SKUs take last_image. Default Ultra Fast I2V is start-frame only."""
+    name = (model or "").lower()
+    return "flf2v" in name or "flf-2v" in name or "first-last" in name or "first_last" in name
+
+
+def pollinations_video_params(
+    model: str,
+    image_url: str,
+    duration: float,
+    *,
+    end_image_url: str | None = None,
+) -> dict[str, str]:
+    seconds = pollinations_duration_sec(model, duration)
+    params = {
+        "model": model,
+        "duration": str(seconds),
+        "aspectRatio": "9:16",
+        "image": image_url,
+        "audio": "false",
+        "referrer": "omaishort",
+    }
+    if end_image_url and pollinations_supports_end_frame(model):
+        params["imageEnd"] = end_image_url
+    return params
+
+
+def wavespeed_submit_body(
+    prompt: str,
+    image_url: str,
+    duration: float,
+    model: str,
+    *,
+    end_image_url: str | None = None,
+) -> dict:
+    body: dict = {
+        "image": image_url,
+        "prompt": prompt,
+        "duration": wavespeed_duration_sec(duration),
+    }
+    if end_image_url and wavespeed_supports_last_image(model):
+        body["last_image"] = end_image_url
+    return body
 
 
 def wavespeed_output_url(payload: object) -> str | None:
@@ -81,6 +137,8 @@ class VideoProvider(Protocol):
         image_url: str | None,
         duration: float,
         still: Path | None = None,
+        end_image_url: str | None = None,
+        end_still: Path | None = None,
     ) -> Path | None:
         ...
 
@@ -96,6 +154,8 @@ class ComfyUIVideoProvider:
         image_url: str | None,
         duration: float,
         still: Path | None = None,
+        end_image_url: str | None = None,
+        end_still: Path | None = None,
     ) -> Path | None:
         try:
             async with httpx.AsyncClient(timeout=1.0) as client:
@@ -237,6 +297,8 @@ class HuggingFaceWanFastProvider:
         image_url: str | None,
         duration: float,
         still: Path | None = None,
+        end_image_url: str | None = None,
+        end_still: Path | None = None,
     ) -> Path | None:
         if not HF_I2V_ENABLED or not HF_TOKEN:
             return None
@@ -294,6 +356,8 @@ class HuggingFaceSpaceVideoProvider:
         image_url: str | None,
         duration: float,
         still: Path | None = None,
+        end_image_url: str | None = None,
+        end_still: Path | None = None,
     ) -> Path | None:
         if not HF_I2V_ENABLED or not HF_TOKEN:
             return None
@@ -310,6 +374,15 @@ class HuggingFaceSpaceVideoProvider:
                 )
                 if file_data is None:
                     return None
+                last_data = None
+                if end_still is not None or end_image_url:
+                    last_data = await _resolve_gradio_image(
+                        client,
+                        base,
+                        still=end_still,
+                        image_url=end_image_url,
+                        log="hf i2v end",
+                    )
                 return await _gradio_await_video(
                     client,
                     base,
@@ -318,7 +391,7 @@ class HuggingFaceSpaceVideoProvider:
                         compact,
                         "worst quality, inconsistent motion, blurry, jittery, distorted, watermark, text, subtitles",
                         file_data,
-                        None,
+                        last_data,
                         512,
                         320,
                         "image-to-video",
@@ -370,19 +443,18 @@ class PollinationsVideoProvider:
         image_url: str | None,
         duration: float,
         still: Path | None = None,
+        end_image_url: str | None = None,
+        end_still: Path | None = None,
     ) -> Path | None:
         if not POLLINATIONS_VIDEO_ENABLED or not POLLINATIONS_KEY or not image_url:
             return None
         compact = " ".join(prompt.split())[:400]
-        seconds = pollinations_duration_sec(POLLINATIONS_VIDEO_MODEL, duration)
-        params = {
-            "model": POLLINATIONS_VIDEO_MODEL,
-            "duration": str(seconds),
-            "aspectRatio": "9:16",
-            "image": image_url,
-            "audio": "false",
-            "referrer": "omaishort",
-        }
+        params = pollinations_video_params(
+            POLLINATIONS_VIDEO_MODEL,
+            image_url,
+            duration,
+            end_image_url=end_image_url,
+        )
         url = f"{POLLINATIONS_VIDEO_URL.rstrip('/')}/video/{quote(compact, safe='')}?{urlencode(params)}"
         dest.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -419,21 +491,24 @@ class WaveSpeedVideoProvider:
         image_url: str | None,
         duration: float,
         still: Path | None = None,
+        end_image_url: str | None = None,
+        end_still: Path | None = None,
     ) -> Path | None:
         if not WAVESPEED_ENABLED or not WAVESPEED_API_KEY or not image_url:
             return None
         compact = " ".join(prompt.split())[:400]
-        seconds = wavespeed_duration_sec(duration)
         submit = f"{WAVESPEED_URL.rstrip('/')}/{WAVESPEED_MODEL.lstrip('/')}"
         headers = {
             "Authorization": f"Bearer {WAVESPEED_API_KEY}",
             "Content-Type": "application/json",
         }
-        body = {
-            "image": image_url,
-            "prompt": compact,
-            "duration": seconds,
-        }
+        body = wavespeed_submit_body(
+            compact,
+            image_url,
+            duration,
+            WAVESPEED_MODEL,
+            end_image_url=end_image_url,
+        )
         dest.parent.mkdir(parents=True, exist_ok=True)
         try:
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -505,21 +580,56 @@ async def generate_clip(
     still: Path,
     *,
     duration: float,
+    end_still: Path | None = None,
 ) -> tuple[Path, str] | None:
     image_url = load_ref_url(still)
     if not image_url and not looks_like_photo(still):
         return None
-    providers: list[VideoProvider] = [
-        HuggingFaceWanFastProvider(),
-        HuggingFaceSpaceVideoProvider(),
-        WaveSpeedVideoProvider(),
-        PollinationsVideoProvider(),
-        ComfyUIVideoProvider(),
-    ]
-    for provider in providers:
+    end_image_url = load_ref_url(end_still) if end_still is not None else None
+    wants_end = end_still is not None or bool(end_image_url)
+    for provider in i2v_providers(wants_end_frame=wants_end):
         result = await provider.generate(
-            prompt, dest, image_url=image_url, duration=duration, still=still
+            prompt,
+            dest,
+            image_url=image_url,
+            duration=duration,
+            still=still,
+            end_image_url=end_image_url,
+            end_still=end_still,
         )
         if result is not None:
             return result, provider.name
     return None
+
+
+def i2v_used_end_frame(provider_name: str) -> bool:
+    """True when that adapter actually consumes a last frame (not Wan-fast)."""
+    if provider_name == "hf_space_ltx":
+        return True
+    if provider_name == "pollinations_video":
+        return pollinations_supports_end_frame(POLLINATIONS_VIDEO_MODEL)
+    if provider_name == "wavespeed_video":
+        return wavespeed_supports_last_image(WAVESPEED_MODEL)
+    return False
+
+
+def i2v_providers(*, wants_end_frame: bool) -> list[VideoProvider]:
+    """Drama continuity: Grok hub (logged-in) then xAI HTTP; last-frame adapters before Wan-fast."""
+    from omaishort.providers import grok_web
+
+    grok = XaiVideoProvider()
+    hub = GrokHubVideoProvider()
+    wan = HuggingFaceWanFastProvider()
+    ltx = HuggingFaceSpaceVideoProvider()
+    wave = WaveSpeedVideoProvider()
+    pollen = PollinationsVideoProvider()
+    comfy = ComfyUIVideoProvider()
+    if wants_end_frame:
+        chain: list[VideoProvider] = [ltx, wave, pollen, wan, comfy]
+    else:
+        chain = [wan, ltx, wave, pollen, comfy]
+    if XAI_API_KEY and XAI_VIDEO_ENABLED:
+        chain = [grok, *chain]
+    if GROK_WEB_VIDEO_ENABLED and grok_web.is_authed():
+        chain = [hub, *chain]
+    return chain

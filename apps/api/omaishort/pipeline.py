@@ -22,7 +22,13 @@ from omaishort.engine.brief_media import (
 from omaishort.engine.fallback import clamp_brief_storyboard, fallback_analyze, fallback_plan
 from omaishort.engine.captions import resolve_word_stamps, words_to_ass
 from omaishort.engine.compose import compose_short
-from omaishort.engine.image_prompts import build_location_prompt, build_prop_prompt, build_ref_prompt, fill_image_prompts
+from omaishort.engine.image_prompts import (
+    build_location_prompt,
+    build_prop_prompt,
+    build_ref_prompt,
+    fill_image_prompts,
+    scene_still_refs,
+)
 from omaishort.engine.planner import plan_scenes
 from omaishort.engine.rescale import rescale_to_audio
 from omaishort.engine.timeline import build_timeline
@@ -310,7 +316,6 @@ async def run_job(job_id: str) -> None:
             providers["brief_stills"] = source_kind
         for scene in board.scenes:
             dest = sdir / f"{scene.still_id}.png"
-            refs: list[Path] = []
             src = sourced_by_id.get(scene.still_id)
             if src:
                 conform_photo(src, dest)
@@ -318,11 +323,9 @@ async def run_job(job_id: str) -> None:
             elif is_editorial(story.kind):
                 path, pname = await generate_image(scene.image_prompt, dest, skip_remote=True)
             else:
-                if scene.use_face_ref:
-                    for cid in scene.characters:
-                        ref = rdir / f"{cid}.png"
-                        if ref.exists():
-                            refs.append(ref)
+                refs = scene_still_refs(
+                    scene, refs_dir=rdir, location_dir=loc_dir, prop_dir=prop_dir
+                )
                 path, pname = await generate_image(scene.image_prompt, dest, refs, photo=True)
             providers[f"still_{scene.still_id}"] = pname
             stills[scene.still_id] = path

@@ -42,6 +42,16 @@ def test_health_is_public(client: TestClient):
     assert not db.is_postgres()
 
 
+def test_providers_is_public(client: TestClient):
+    res = client.get("/providers")
+    assert res.status_code == 200
+    body = res.json()
+    assert "drama_motion" in body
+    assert "image" in body
+    assert "video" in body
+    assert body["drama_motion"] in {"kenburns", "grok", "grok_hub", "hf", "wavespeed", "pollinations"}
+
+
 def test_jobs_require_auth(client: TestClient):
     res = client.post(
         "/jobs",

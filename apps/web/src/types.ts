@@ -59,12 +59,15 @@ export type Job = {
 
 export type VideoKind = "drama" | "news" | "knowledge";
 
+export type DramaShape = "infer" | "default" | "custom";
+
 export type StoryDraft = {
   mode: "script" | "idea";
   kind: VideoKind;
   text: string;
   target_seconds: number;
   genre: string;
+  drama_shape?: DramaShape;
   language: string;
   voice_id?: string | null;
   source_url?: string | null;

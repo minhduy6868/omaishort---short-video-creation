@@ -401,6 +401,41 @@ Official pages, Sep 2026. One account per product. Do not farm extra WaveSpeed /
 
 A Space named Seedance is not Seedance weights. Same rule as Gemini/Midjourney: **no UI scrape**.
 
+### AIForge Studio (closed Electron, do not vendor)
+
+Windows NSIS installer `AIForge Studio-*-win-x64.exe` (build `0.1.0-20260909`) is an Electron app (`resources/app.asar`, updater `phanvannhan98/AIForgeStudio`, shop `aitoolforge.shop`). It is a **licensed workstation**, not a story→five-beat engine.
+
+How it makes video (high level): logged-in **browser sessions** → unofficial Google Flow (`labs.google/fx` + `aisandbox-pa.googleapis.com`, Veo 3.1 Lite/Fast/Quality + Omni Flash; T2V / I2V / start–end Frames / R2V) or Grok Imagine video (WebSocket) → download MP4 → local `ffmpeg-static` concat (copy, then re-encode; optional `xfade`/`acrossfade`). Image/TTS via ChatGPT.com, Flow “Banana”, ElevenLabs — same session pattern. Workflows are an xyflow node graph (`google-flow`, `grok`, `chatgpt`, `elevenlabs`, `loop`, `merge`).
+
+Take: batch prompt table; start+end frame I2V; concat fallback (already P4). **Mapped in engine:** beat-keyed `motion_prompt`, next-scene last frame when cast overlaps (`engine/i2v_bridge.py`), Pollinations `imageEnd` / WaveSpeed `last_image` on FLF2V / LTX end-image slot, ffmpeg concat in scene order.
+
+**LocalForge (`videoai` sibling) stills — steal Grok + Banana + assets + accounts, skip ChatGPT Images.** Decoded ChatGPT image runtime is the **wrong** still path (anti-bot, browser-page posts, broken MIME gates). Do not map it onto OpenAI Images or `chatgpt_web.py`.
+
+| LocalForge contract | omaishort HTTP |
+| --- | --- |
+| Banana `batchGenerateImages` + `imageInputs` (≤10 refs, 9:16) | Gemini `generateContent` + up to four photo refs |
+| Grok Imagine **no refs** (WS `num_generations` 1–4, `aspect_ratio`) | `POST /v1/images/generations` `aspect_ratio=9:16` `n=1` |
+| Grok Imagine **with refs** (upload → media-post → image-edit, ≤7 on grok.com) | `POST /v1/images/edits` with passport data URIs (≤3, or ≤5 on `grok-imagine-image-2.0`) |
+| Grok Imagine **video** (grok.com WS) | `POST /v1/videos/generations` I2V 9:16 (`XAI_API_KEY`). Start-frame data URI; poll `/v1/videos/{id}`. No grok.com login. |
+| AssetService: import / pinned reference / generated; kinds Image/Video/Audio | Attachments `face` / `location` / `prop` / `editorial` / `logo` / `script`; job `refs/` + `stills/` |
+| AccountAllocator: one Chromium partition per provider login, load-based | Studio JWT user owns those attachments ([AUTH.md](AUTH.md)). Provider keys stay `.env`. No Browser Hub. |
+
+**How other srcs authenticate video (not grok.com):**
+
+| Src | How they get a clip | Auth | Steal for omaishort | Skip |
+| --- | --- | --- | --- | --- |
+| **Wind Comic** | Still → I2V race (`VIDEO_ENGINE_ORDER=kling,minimax,veo,…`); first good MP4 wins; failed shot = labeled animatic | `.env` keys (`KELING_API_KEY`, MiniMax, Veo) | Race + honest fallback (already `VideoProvider` chain) | Per-shot I2V; lip-sync as required |
+| **MoneyPrinterTurbo** | Default **Pexels clips**; optional Ark Seedance / WaveSpeed checkbox | `.env` API keys | Submit/poll HTTP | Stock as the picture; treating MPT as Grok |
+| **FTL / Story Forge / ArcReel** | Canon still (bible) → Wan/LTX/API I2V → concat | Replicate/fal/HF/local GPU | Still then I2V; judge before spend | Vendor their UI |
+| **OpenMontage** | Cloud API **or** local, same tool name | Key or Comfy | `render_runtime` lock; review gates | AGPL copy |
+| **gflow-cli / flow-py / ginigen Veo** | Playwright → Flow / “free Veo” Space | Google **browser** session | Confirms I2V exists | Cookie steal; second ChatGPT-web exception |
+| **LocalForge `videoai`** | Browser Hub → grok.com WS / Flow `aisandbox-pa` | Chromium partition per Grok/Google login | Asset kinds, start+end frames, concat, Grok generate vs edit **shape** | grok.com / Flow scrape; ChatGPT Images (wrong) |
+| **xAI official** | `POST /v1/videos/generations` I2V 9:16, poll `/v1/videos/{id}` | `XAI_API_KEY` (console.x.ai, same Grok product, HTTP) | **This is the Grok path in engine** (`providers/xai_video.py`) | grok.com Imagine UI |
+
+Drama peers that keep faces all do **approved still → short I2V → ffmpeg concat**. They do **not** drive grok.com. LocalForge’s Browser Hub is a workstation for consumer quotas; omaishort maps the same Imagine contract onto xAI HTTP so Studio login stays *our* user, not a Grok cookie.
+
+Drama stills attach on-camera passports, then location, then props (`scene_still_refs`). Skip: Flow/Grok/ChatGPT **UI scrape**, captcha solvers, license shop, forking the asar, xfade that shortens the VO clock. ChatGPT-web in omaishort stays knowledge VO only.
+
 ### Other I2V families (drama motion menu)
 
 | Family | How you get a clip | Length / 9:16 | Fit for omaishort |
@@ -411,9 +446,10 @@ A Space named Seedance is not Seedance weights. Same rule as Gemini/Midjourney: 
 | **Seedance** (ByteDance) | Ark / BytePlus / pollen `seedance*` | 4–15s (2.0), 4–30s (2.5) | Next **paid** drama adapter. Best official first/last-frame contract. |
 | **Veo 3.1** (Google) | Gemini `generate_videos` (paid); Pollinations `veo`; Flow UI credits | 4/6/8s, 9:16, 24fps | HTTP + still = drama. **No** Flow/Playwright. Mute native audio. |
 | **Gemini Omni Flash** | Pollinations `google/gemini-omni-1.1-flash` | 3–10s | Pollen; always-on audio — strip or don’t use. |
+| **Grok Imagine video** (xAI) | `XAI_API_KEY` `POST /v1/videos/generations` I2V, poll `/v1/videos/{id}` | 1–15s, 9:16 | **Already in** `providers/xai_video.py`. Not grok.com scrape. |
 | **Kling** (Kuaishou) | Paid API | cinematic | Skip as a required planner vendor. Optional later gateway. |
 | **Hailuo / MiniMax** | Paid API; pollen `minimax-h3` | ~5s | Same — optional, not hardcoded. |
-| **Runway Gen-3 / Luma / Grok video** | Paid / pollen `grok-video-pro` | | Skip lock-in. |
+| **Runway Gen-3 / Luma** | Paid / pollen | | Skip lock-in. |
 | **CogVideoX-2B** | Local Apache weights | ~5s | Comfy later if GPU exists. |
 | **HunyuanVideo-I2V** | Local; ~60GB+ VRAM | ~5s 720p | GPU box only. |
 | **FramePack** | Local next-frame I2V | advertised ≥6GB VRAM | Existing P4 note. |
@@ -425,9 +461,9 @@ Story-pipeline peers already mapped in §D/§E (FTL, Story Forge, Wind Comic, Dr
 
 Take:
 
-- One I2V clip **per scene**, start frame = approved `still_id` (bible faces already in the photo).
-- Motion prompt from beat lenses (hook zoom_in → … → ending zoom_out); no VO text.
-- Race providers: HF Wan → LTX → WaveSpeed Wan HTTP (if keyed) → Pollinations (Wan, Seedance, or Veo if keyed) → Gemini Veo HTTP if `GEMINI_API_KEY` billed → Comfy → Ken Burns. Failed I2V stays a labeled animatic (`render/motion.json`).
+- One I2V clip **per scene**, start frame = approved `still_id` (bible faces already in the photo). Last frame = next scene still when on-camera ids overlap (`engine/i2v_bridge.py`). Wan-fast stays start-only; Veo/Seedance/LTX/FLF2V get the pair.
+- Motion prompt from beat lenses (hook punch-in → … → ending pull-out); no VO text.
+- Race providers: HF Wan → LTX → WaveSpeed Wan HTTP (if keyed) → Pollinations (Wan, Seedance, or Veo if keyed) → Gemini Veo HTTP if `GEMINI_API_KEY` billed → Comfy → Ken Burns. Failed I2V stays a labeled animatic (`render/motion.json`). Concat in scene order; do not xfade (VO duration invariant).
 - Seedance last-frame / Veo `last_frame` only after scene stills are stable (P3 review).
 - Native model audio **off**; duration clamp to the model’s integer window (Veo 4/6/8, Seedance 4–15, Wan ~5), then FFmpeg stretch/trim to probed TTS like today.
 

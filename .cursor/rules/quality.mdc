@@ -10,9 +10,9 @@ A short is a **vertical 1080×1920** piece. `kind=drama` is a **short story** (b
 **Must**
 
 - 1080×1920 @ 30fps, VO + karaoke ASS, duration = probed audio.
-- One still per scene; 1–3 shots share `still_id`. Drama faces come from the Character Bible passport, not a new description. Drama uses close-up beat lenses and I2V when keyed. News/knowledge stills are editorial and **match that beat's VO**; no on-camera bible faces; Ken Burns on medium/wide so screenshots stay in frame.
+- One still per scene; 1–3 shots share `still_id`. Drama faces come from the Character Bible passport, not a new description. Drama uses close-up beat lenses and I2V when keyed (start frame = scene still, or previous clip last frame after a Frames landing; last frame = next still when on-camera ids overlap). News/knowledge stills are editorial and **match that beat's VO**; no on-camera bible faces; Ken Burns on medium/wide so screenshots stay in frame.
 - Shots follow beat lenses (exact pairs in `docs/REQUIREMENTS.md` §6). Drama: hook push-in → conflict tight → rising pan → twist punch-in → ending pull-out.
-- Image: photographic stills when Pollinations is on. Drama compact prompt leads with **ONLY on-camera ids**. News/knowledge compact prompt leads with editorial still, no soap-opera couple. Kontext from the passport **URL** on drama only. Fail the still rather than mix stick figures. Inserts: no full-body crowd.
+- Image: photographic stills when Pollinations is on. Drama compact prompt leads with **ONLY on-camera ids**. News/knowledge compact prompt leads with editorial still, no soap-opera couple. Kontext from the passport **URL** on drama only; Gemini and xAI HTTP may attach the same passport bytes (plus location/prop photos). Fail the still rather than mix stick figures. Inserts: no full-body crowd. Do not use ChatGPT.com images.
 - Motion: drama prefers I2V when `HF_TOKEN` or Pollinations pollen exists. Editorial collage stays Ken Burns. Never call Ken Burns I2V.
 - Motion prompt = camera + action only. No VO text in image/video prompts.
 

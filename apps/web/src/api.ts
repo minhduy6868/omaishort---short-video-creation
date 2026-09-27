@@ -128,6 +128,13 @@ export async function createJob(draft: StoryDraft): Promise<{ id: string }> {
   return (await res.json()) as { id: string };
 }
 
+export async function listJobs(): Promise<Job[]> {
+  const res = await request("/jobs");
+  if (!res.ok) return [];
+  const data = (await res.json()) as { jobs?: Job[] };
+  return Array.isArray(data.jobs) ? data.jobs : [];
+}
+
 export async function readJob(id: string): Promise<Job> {
   const res = await request(`/jobs/${id}`);
   if (!res.ok) throw new Error("job not found");
@@ -169,6 +176,12 @@ export type ProviderStatus = {
   chatgpt_web?: boolean;
   chatgpt_web_authed?: boolean;
 };
+
+export async function startChatgptLogin(): Promise<{ status: string }> {
+  const res = await request("/providers/chatgpt-login", { method: "POST" });
+  if (!res.ok) throw await parseError(res, "Could not open ChatGPT");
+  return (await res.json()) as { status: string };
+}
 
 export async function readProviders(): Promise<ProviderStatus | null> {
   const res = await request("/providers");

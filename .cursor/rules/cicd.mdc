@@ -6,10 +6,11 @@ alwaysApply: false
 
 # CI
 
-Workflow: `.github/workflows/ci.yml`.
+Workflows: `.github/workflows/ci.yml` (test) and `.github/workflows/cd-pages.yml` (Cloudflare Pages).
 
 - `api` job: Python 3.11, `pip install -r apps/api/requirements.txt -r apps/api/requirements-dev.txt`, `pytest -q`. No API keys.
 - `web` job: Node 22, `npm ci`, `npx tsc --noEmit` in `apps/web`.
+- `cd-pages` deploys `apps/landing` to the Pages project `omaishort` on `main`. Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. D1 and the `omaishort-db` Worker hold account and job rows. The video engine stays on the desktop app (`python -m omaishort.desktop`). Do not put FFmpeg, Playwright, or MP4 files on Workers.
 - Keep CI green before merge. Do not add a required cloud GPU/ComfyUI step.
 - New test deps go in `requirements-dev.txt`, not `requirements.txt`.
 - FFmpeg dry-run is local-only; do not add it to CI unless a runner has ffmpeg and a short fixture that skips TTS network.

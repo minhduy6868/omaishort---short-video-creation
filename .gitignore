@@ -21,6 +21,7 @@ htmlcov/
 Thumbs.db
 *.log
 .idea/
+.wrangler/
 CLAUDE.local.md
 GEMINI.local.md
 .claude/*.local.md

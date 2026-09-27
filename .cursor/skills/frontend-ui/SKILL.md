@@ -9,9 +9,9 @@ Read `apps/web/src/types.ts`, `api.ts`, `App.tsx`, `App.css`, `index.css`.
 
 Checklist:
 
-- Keep the one-page studio. Split files rather than a mega-component.
+- Pages, not one scroll: gate (`/login`, `/register`), rail (`/work`, `/drama`, `/news`, `/knowledge`, `/account`), job screen (`/watch/{id}`). Split files rather than a mega-component.
 - Poll job JSON; map `artifacts[still_id]` through `dataFileUrl`. `fetch` uses `credentials: "include"` (auth cookies).
-- Logged-out studio shows register/login on the same page. Attachments bind onto `POST /jobs`.
+- Logged-out routes are only the gate. Attachments bind onto `POST /jobs` from the compose page for that kind. ChatGPT sign-in stays on Knowledge.
 - Stages match the API: analyze, plan, refs, stills, tts, captions, render.
 - Visual: charcoal panel, terracotta `--accent`, Fraunces heading. No emoji in the UI.
 - After edits: `npx tsc --noEmit` in `apps/web`. Exercise paste → create job → poll if the API is up.

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+import asyncio
+import threading
 import uuid
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
@@ -60,9 +62,41 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+_chatgpt_gate = threading.Lock()
+_chatgpt_opening = False
+
+
 @app.get("/providers")
 def providers() -> dict[str, object]:
     return llm_status()
+
+
+@app.post("/providers/chatgpt-login")
+def start_chatgpt_login(_user: CurrentUser) -> dict[str, str]:
+    """Open headed Chrome on this PC until a ChatGPT session cookie exists."""
+    global _chatgpt_opening
+    from omaishort.providers.chatgpt_web import is_authed, login as chatgpt_login
+    from omaishort.providers.chrome_profile import playwright_ok
+
+    if is_authed():
+        return {"status": "ready"}
+    if not playwright_ok():
+        raise HTTPException(status_code=503, detail="Playwright Chromium is not installed")
+
+    def _run() -> None:
+        global _chatgpt_opening
+        try:
+            asyncio.run(chatgpt_login())
+        finally:
+            with _chatgpt_gate:
+                _chatgpt_opening = False
+
+    with _chatgpt_gate:
+        if _chatgpt_opening:
+            return {"status": "opening"}
+        _chatgpt_opening = True
+    threading.Thread(target=_run, name="chatgpt-login", daemon=True).start()
+    return {"status": "opening"}
 
 
 @app.get("/voices")

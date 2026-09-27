@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Frontend
 
-- One studio page. Types in `src/types.ts`, HTTP in `src/api.ts`, view in `src/App.tsx`.
+- Studio pages: `/login`, `/register`, then a rail (`/work`, `/drama`, `/news`, `/knowledge`, `/account`) and `/watch/{id}` for a job. Types in `src/types.ts`, HTTP in `src/api.ts`. Do not put UI routes on `/jobs` (that prefix is the API).
 - Fonts: Fraunces (display) + Public Sans (UI). Colors from CSS variables in `index.css` (`--bg`, `--accent`). No Inter, no purple AI gradient.
 - Poll `/jobs/{id}` every 1.5s until `done` or `failed`. Stills use `dataFileUrl()` → `/files/...` (cookie-authenticated).
 - `fetch` with `credentials: "include"`. Proxy `/auth` and `/attachments` too.

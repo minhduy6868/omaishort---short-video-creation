@@ -27,10 +27,23 @@ def _now() -> str:
 
 def database_url() -> str:
     env = os.environ.get("DATABASE_URL", "").strip()
+    if env.startswith("sqlite"):
+        return env
+    if config.D1_WORKER_URL and config.D1_WORKER_KEY:
+        return "d1://worker"
     if env:
         return env
     configured = (getattr(config, "DATABASE_URL", "") or "").strip()
+    if configured.startswith("sqlite"):
+        return configured
+    if config.D1_WORKER_URL and config.D1_WORKER_KEY:
+        return "d1://worker"
     return configured or _DEFAULT_PG
+
+
+def is_d1(url: str | None = None) -> bool:
+    raw = (url or database_url()).lower()
+    return raw.startswith("d1:")
 
 
 def is_postgres(url: str | None = None) -> bool:
@@ -75,6 +88,12 @@ def _unique_violation(exc: BaseException) -> bool:
 
 def connect():
     url = database_url()
+    if is_d1(url):
+        from omaishort.d1 import D1Connection
+
+        if not config.D1_WORKER_URL or not config.D1_WORKER_KEY:
+            raise RuntimeError("Set D1_WORKER_URL and D1_WORKER_KEY for the Cloudflare database.")
+        return D1Connection(config.D1_WORKER_URL, config.D1_WORKER_KEY)
     if is_postgres(url):
         if psycopg is None:
             raise RuntimeError("install psycopg (see apps/api/requirements.txt) for PostgreSQL")
@@ -94,6 +113,12 @@ def connect():
 
 
 def _ensure_column(conn, table: str, name: str, ddl: str) -> None:
+    if is_d1():
+        rows = conn.execute(f"SELECT name FROM pragma_table_info('{table}')").fetchall()
+        names = {(_row(row) or {}).get("name") for row in rows}
+        if name not in names:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+        return
     if is_postgres():
         found = conn.execute(
             _sql(

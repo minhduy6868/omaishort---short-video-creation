@@ -181,6 +181,10 @@ def test_malformed_bearer_is_401_not_500(client: TestClient):
         assert res.status_code == 401, token
 
 
+def test_chatgpt_login_requires_account(client: TestClient):
+    assert client.post("/providers/chatgpt-login").status_code == 401
+
+
 def test_locked_user_cannot_use_existing_jwt(client: TestClient):
     from datetime import datetime, timedelta, timezone
 

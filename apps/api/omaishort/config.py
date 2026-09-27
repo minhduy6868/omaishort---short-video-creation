@@ -82,10 +82,9 @@ AUTH_SIGNUP = _env_bool("AUTH_SIGNUP", True)
 AUTH_COOKIE_SECURE = _env_bool("AUTH_COOKIE_SECURE", False)
 AUTH_ACCESS_TTL_SEC = _env_int("AUTH_ACCESS_TTL_SEC", 900)
 AUTH_REFRESH_TTL_SEC = _env_int("AUTH_REFRESH_TTL_SEC", 14 * 24 * 3600)
-DATABASE_URL = _env(
-    "DATABASE_URL",
-    "postgresql://omaishort:omaishort@127.0.0.1:5432/omaishort",
-)
+DATABASE_URL = _env("DATABASE_URL")
+D1_WORKER_URL = _env("D1_WORKER_URL")
+D1_WORKER_KEY = _env("D1_WORKER_KEY")
 _raw_data = _env("DATA_DIR")
 DATA_DIR = Path(_raw_data) if _raw_data else (ROOT / "data")
 if not DATA_DIR.is_absolute():

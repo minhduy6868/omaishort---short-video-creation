@@ -6,12 +6,12 @@ Why this shape (not Auth0, not Redis sessions, not a cloned GitHub OAuth app):
 
 | Constraint | Decision |
 | --- | --- |
-| Local-first Windows, **PostgreSQL 16** on `127.0.0.1:5432`, FastAPI, Vite proxy | Identity in Postgres (`DATABASE_URL`). Job bytes stay under `data/`. No Redis, no Keycloak. |
+| Local-first Windows, FastAPI, Vite studio in the desktop window | Identity and job rows in Cloudflare D1 (`D1_WORKER_URL`). Job bytes stay under `data/`. No Redis, no Keycloak. |
 | Studio is one page; `<img>` / `<video>` cannot send `Authorization` | httpOnly cookies for access + refresh so media GETs authenticate. |
 | Planner must stay vendor-free | Auth lives in API/db only. Engine receives file paths, not tokens. |
 | CLI is the operator tool | `python -m omaishort` does not log in. Jobs it creates have `user_id=NULL`. |
 | Secrets stay gitignored | `AUTH_SECRET` in `.env` or `data/.auth_secret`. Never commit it. |
-| CI has no cloud keys | Auth tests use a temp `sqlite:///` file. The running API uses PostgreSQL. |
+| CI has no cloud keys | Auth tests use a temp `sqlite:///` file. The running desktop API uses Cloudflare D1. |
 
 Do **not** fork Clerk/NextAuth/Supabase into this tree. Do not scrape Google login UIs. Do not clone LocalForge Browser Hub accounts (Chromium partitions per Grok/Google login) — those are **provider sessions**, not omaishort users. Studio users own attachments the way LocalForge accounts own AssetService rows. Provider API keys stay in `.env`.
 
@@ -47,7 +47,7 @@ Roles are **not** a permission matrix beyond operator-can-read-unowned-jobs. Do 
 
 | Approach | Fit | Verdict |
 | --- | --- | --- |
-| OAuth2 password + JWT access + opaque rotating refresh in PostgreSQL | FastAPI-standard, revocable refresh, same tables | **Ship this** |
+| OAuth2 password + JWT access + opaque rotating refresh in Cloudflare D1 | FastAPI-standard, revocable refresh, same tables | **Ship this** |
 | Server sessions in Redis | P6 queue only; not in MVP stack | No |
 | JWT-only (no refresh store) | Cannot revoke a stolen access token until TTL; refresh replay | No |
 | API keys in `.env` as the user | Operator keys already exist for providers; mixing them with creator identity leaks provider secrets | No |
@@ -116,9 +116,9 @@ CLI never calls these routes.
 
 ---
 
-## 4. Data model (PostgreSQL)
+## 4. Data model (Cloudflare D1)
 
-Store: `DATABASE_URL` (default `postgresql://omaishort:omaishort@127.0.0.1:5432/omaishort`). Bootstrap: [`scripts/init_postgres.sql`](../scripts/init_postgres.sql). `init_db()` creates tables and `ALTER TABLE jobs ADD COLUMN user_id` when missing. Pytest sets `DATABASE_URL=sqlite:///…` so CI does not need a Postgres server.
+Store: Worker `omaishort-db` bound to D1 database `omaishort-db`. Desktop sets `D1_WORKER_URL` and `D1_WORKER_KEY` (gitignored). Schema: [`apps/cloud/schema.sql`](../apps/cloud/schema.sql). `init_db()` creates the same tables on first boot. Pytest sets `DATABASE_URL=sqlite:///…` so CI does not call Cloudflare. A `DATABASE_URL` that starts with `sqlite` always wins over D1.
 
 ### 4.1 `users`
 

@@ -105,6 +105,21 @@ python run.py
 
 Copy `.env.example` to `.env`. Studio: `http://127.0.0.1:5173` (proxy → API `:8765`).
 
+### Desktop app
+
+The engine stays on this PC (FFmpeg, voice, MP4). One window serves the built studio and the API on `http://127.0.0.1:8765`. Accounts and job rows are stored in Cloudflare D1 (`D1_WORKER_URL` in `.env`).
+
+```powershell
+cd D:\tool\lonton\omaishort\apps\web
+npm run build
+cd D:\tool\lonton\omaishort
+.\apps\desktop\omaishort.ps1
+```
+
+### Cloudflare Pages
+
+GitHub Actions `cd-pages` publishes the landing page in `apps/landing` to Pages project `omaishort` when `main` moves. Add repository secrets `CLOUDFLARE_API_TOKEN` (Pages Edit) and `CLOUDFLARE_ACCOUNT_ID`. The page introduces the tool and links the Windows download. Rendering stays in the desktop app.
+
 ### ChatGPT for knowledge VO
 
 Knowledge topics and GitHub READMEs ask ChatGPT to write `script.json` **before** stills. First login (headed Chrome, once):
@@ -133,7 +148,7 @@ Keys live in the repo-root `.env`. **Restart the API** after editing them. Studi
 | WaveSpeed I2V | `WAVESPEED_API_KEY` |
 | Pollinations I2V | `POLLINATIONS_KEY` |
 | Knowledge VO | `python -m omaishort --chatgpt-login` once |
-| PostgreSQL | `DATABASE_URL` (see `scripts/init_postgres.sql`) |
+| Cloudflare D1 | `D1_WORKER_URL` and `D1_WORKER_KEY` in `.env` |
 | Studio | API `:8765` + Vite `:5173` → register/login → **Make drama short** |
 
 News/knowledge stay Ken Burns collage. Do not scrape grok.com / Flow.
@@ -186,7 +201,7 @@ Jobs: `POST /jobs` · `GET /jobs` · `GET /jobs/{id}` · artifacts · download �
 
 Attachments: `POST /attachments?kind=face|location|prop|editorial|logo|script`
 
-Public: `GET /health` · `GET /providers` · `GET /voices`. `/files` is authenticated. Jobs/users live in **PostgreSQL** (`DATABASE_URL`, see `scripts/init_postgres.sql`). See [docs/AUTH.md](docs/AUTH.md).
+Public: `GET /health` · `GET /providers` · `GET /voices`. `/files` is authenticated. Jobs/users live in **Cloudflare D1**. See [docs/AUTH.md](docs/AUTH.md).
 
 Stages: `analyze → plan → refs → stills → tts → captions → render`
 

@@ -18,7 +18,7 @@ flowchart LR
 
 ## Accounts (shipped with auth PR)
 
-Studio register/login, PostgreSQL users (`DATABASE_URL`), job ownership, user attachments (`face` / editorial / logo / …). Contract: [AUTH.md](AUTH.md). Not an IdP. Not P6 Redis.
+Studio register/login, Cloudflare D1 users (`D1_WORKER_URL`), job ownership, user attachments (`face` / editorial / logo / …). Contract: [AUTH.md](AUTH.md). Not an IdP. Not P6 Redis.
 
 ## P0 — shipped
 

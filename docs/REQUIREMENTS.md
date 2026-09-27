@@ -122,7 +122,7 @@ Stages (studio labels = `JobStage`): `analyze → plan → refs → stills → t
 
 ```mermaid
 flowchart LR
-  in[Studio / CLI] --> api[FastAPI + PostgreSQL]
+  in[Studio / CLI] --> api[FastAPI + Cloudflare D1]
   api --> a[analyze]
   a --> p[plan]
   p --> r[refs]
@@ -326,7 +326,7 @@ See [ROADMAP.md](ROADMAP.md). Do not pull these into an unrelated PR.
 
 ## 14. Stack
 
-Python 3.11, FastAPI, Pydantic v2, PostgreSQL (`DATABASE_URL`; pytest may use a temp SQLite file), Vite + React, FFmpeg. Optional: Playwright ChatGPT web (knowledge VO), Gemini image HTTP, xAI Grok Imagine image/video HTTP, OpenAI-compatible LLM, ComfyUI, ElevenLabs, faster-whisper, HF Spaces, WaveSpeed HTTP, Pollinations Wan.
+Python 3.11, FastAPI, Pydantic v2, Cloudflare D1 for accounts and job rows (pytest uses a temp SQLite file), Vite + React, FFmpeg. MP4 and stills stay in `data/`. Optional: Playwright ChatGPT web (knowledge VO), Gemini image HTTP, xAI Grok Imagine image/video HTTP, OpenAI-compatible LLM, ComfyUI, ElevenLabs, faster-whisper, HF Spaces, WaveSpeed HTTP, Pollinations Wan.
 
 ---
 

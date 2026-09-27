@@ -1,0 +1,8 @@
+name = "omaishort-db"
+main = "src/index.js"
+compatibility_date = "2026-09-27"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "omaishort-db"
+database_id = "9fcb56bd-4733-4736-a4eb-e888e5af6eb8"

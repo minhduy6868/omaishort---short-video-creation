@@ -42,6 +42,9 @@ export type Job = {
   stage: Stage | string;
   error?: string | null;
   progress?: string;
+  created_at?: string;
+  updated_at?: string;
+  input?: Partial<StoryDraft> & Record<string, unknown>;
   structure?: {
     hook: string;
     conflict: string;

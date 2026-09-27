@@ -1004,7 +1004,7 @@ def visual_terms_for_beat(vo: str, title: str = "") -> list[str]:
             add(term)
             if len(terms) >= 4:
                 break
-    return terms[:4]
+    return terms[:6]
 
 
 _BEAT_STOP = {
@@ -1042,6 +1042,59 @@ def overlap_score(caption: str, vo: str) -> float:
     if not left or not right:
         return 0.0
     return len(left & right) / len(left | right)
+
+
+def editorial_candidate_score(
+    url: str,
+    vo: str,
+    *,
+    caption: str = "",
+    query: str = "",
+    article: bool = False,
+) -> float:
+    """Rank a photo against one beat's VO. Article photos lead only when the caption agrees."""
+    path = urlparse(url).path.replace("_", " ").replace("-", " ")
+    score = overlap_score(f"{caption} {path}", vo)
+    if query:
+        score = max(score, 0.22 + overlap_score(query, vo))
+    if article and score >= STILL_OVERLAP:
+        score += 0.18
+    return score
+
+
+async def gather_external_for_beat(vo: str, title: str, limit: int = 8) -> list[tuple[str, str, str]]:
+    """More Wikimedia / Wikipedia / Openverse hits for this beat. Each row is url, source, query."""
+    found: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    terms = visual_terms_for_beat(vo, title)
+    nouns = beat_search_nouns(vo)
+    if len(nouns) >= 2:
+        phrase = " ".join(nouns[:3])
+        if phrase.lower() not in {term.lower() for term in terms}:
+            terms = [phrase, *terms]
+    terms = terms[:6]
+
+    def push(urls: list[str], tag: str, query: str) -> None:
+        for url in unique_image_urls(urls):
+            if len(found) >= limit:
+                return
+            if url in seen:
+                continue
+            seen.add(url)
+            found.append((url, tag, query))
+
+    for page in wikipedia_titles(vo)[:2]:
+        push(await search_wikipedia_original(page), "wikipedia", page)
+        if len(found) >= limit:
+            return found
+    for term in terms:
+        if len(found) >= limit:
+            break
+        push(await search_wikimedia(term, limit=6), "wikimedia", term)
+        if len(found) >= limit:
+            break
+        push(await search_openverse(term, limit=6), "openverse", term)
+    return found
 
 
 def extract_image_captions(html: str, page_url: str) -> dict[str, str]:
@@ -1556,6 +1609,7 @@ async def assign_editorial_stills(
     tags: list[str] = []
     index = 0
     tried: set[str] = set()
+    used: set[str] = set()
     locals_ready = [path for path in (local_paths or []) if path.is_file()]
 
     async def _save(url: str) -> Path | None:
@@ -1571,33 +1625,9 @@ async def assign_editorial_stills(
             index += 1
         return path
 
-    async def _candidates(i: int, vo: str) -> list[str]:
-        urls: list[str] = []
-        if i < 2 and unused:
-            urls.append(unused.pop(0))
-            if "article" not in tags:
-                tags.append("article")
-        elif unused:
-            scored = sorted(
-                unused,
-                key=lambda url: overlap_score(caps.get(url, "") + " " + urlparse(url).path, vo),
-                reverse=True,
-            )
-            if scored and overlap_score(caps.get(scored[0], "") + " " + urlparse(scored[0]).path, vo) >= STILL_OVERLAP:
-                picked = scored[0]
-                unused.remove(picked)
-                urls.append(picked)
-                if "article" not in tags:
-                    tags.append("article")
-        for term in visual_terms_for_beat(vo, title):
-            extras, extra_tags = await _fill_broll_urls(term, vo, 0, 3)
-            tags.extend(extra_tags)
-            urls.extend(extras)
-        return unique_image_urls(urls)
-
-    for i, scene in enumerate(scenes):
+    for scene_index, scene in enumerate(scenes):
         vo = getattr(scene, "dialogue_or_vo", "") or ""
-        still_id = getattr(scene, "still_id", f"still_{i + 1:02d}")
+        still_id = getattr(scene, "still_id", f"still_{scene_index + 1:02d}")
         if locals_ready:
             src = locals_ready.pop(0)
             dest = dest_dir / f"src_{index:02d}.png"
@@ -1610,35 +1640,33 @@ async def assign_editorial_stills(
             if "attachment" not in tags:
                 tags.append("attachment")
             continue
-        for url in await _candidates(i, vo):
-            path = await _save(url)
-            if path:
-                out[still_id] = path
-                break
-
-    leftovers = list(unused)
-    for i, scene in enumerate(scenes):
-        still_id = getattr(scene, "still_id", f"still_{i + 1:02d}")
-        if still_id in out:
-            continue
-        vo = getattr(scene, "dialogue_or_vo", "") or ""
-        scored = sorted(
-            leftovers,
-            key=lambda url: overlap_score(caps.get(url, "") + " " + urlparse(url).path, vo),
-            reverse=True,
-        )
-        while scored:
-            url = scored.pop(0)
-            blob = caps.get(url, "") + " " + urlparse(url).path
-            if overlap_score(blob, vo) < STILL_OVERLAP:
+        ranked: list[tuple[float, str, str]] = []
+        for url in unused:
+            if url in used:
                 continue
-            leftovers.remove(url)
+            ranked.append(
+                (
+                    editorial_candidate_score(url, vo, caption=caps.get(url, ""), article=True),
+                    url,
+                    "article",
+                )
+            )
+        for url, tag, query in await gather_external_for_beat(vo, title):
+            if url in used:
+                continue
+            ranked.append((editorial_candidate_score(url, vo, caption=caps.get(url, ""), query=query), url, tag))
+        ranked.sort(key=lambda row: row[0], reverse=True)
+        for _score, url, tag in ranked:
             path = await _save(url)
-            if path:
-                out[still_id] = path
-                if "article" not in tags:
-                    tags.append("article")
-                break
+            if not path:
+                continue
+            out[still_id] = path
+            used.add(url)
+            if url in unused:
+                unused.remove(url)
+            if tag not in tags:
+                tags.append(tag)
+            break
 
     provider = "+".join(dict.fromkeys(tags)) if tags else "none"
     return out, provider

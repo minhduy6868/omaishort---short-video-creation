@@ -51,11 +51,31 @@ def daily_path() -> Path:
     return DATA_DIR / "chatgpt-web" / "daily.json"
 
 
+def _cookie_db_has_session(path: Path) -> bool:
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=1)
+    except sqlite3.Error:
+        return False
+    try:
+        rows = conn.execute(
+            "SELECT 1 FROM cookies WHERE host_key LIKE '%chatgpt.com' AND name IN (?, ?, ?) LIMIT 1",
+            _AUTH_COOKIES,
+        ).fetchone()
+        return rows is not None
+    except sqlite3.Error:
+        return False
+    finally:
+        conn.close()
+
+
 def is_authed() -> bool:
+    """True when the Chrome profile holds a ChatGPT session cookie, not merely a cookie file."""
     root = profile_dir()
     for rel in ("Default/Network/Cookies", "Default/Cookies"):
         cookie = root / rel
-        if cookie.is_file() and cookie.stat().st_size > 100:
+        if cookie.is_file() and _cookie_db_has_session(cookie):
             return True
     return False
 
@@ -107,6 +127,9 @@ def chat_open_url(model: str = "", daily: dict | None = None) -> str:
     return f"{_CHAT}/"
 
 
+_HIDE_WEBDRIVER = "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+
+
 def _launch_args(*, headed: bool) -> dict:
     args = list(_STEALTH)
     if not headed:
@@ -116,19 +139,31 @@ def _launch_args(*, headed: bool) -> dict:
         "headless": (not headed) and (not CHATGPT_WEB_HEADED),
         "viewport": {"width": 1280, "height": 900},
         "args": args,
+        # Google rejects Playwright's default --enable-automation ("this browser may not be secure").
+        "ignore_default_args": ["--enable-automation"],
     }
     if system_chrome_exe() is not None:
         opts["channel"] = "chrome"
     return opts
 
 
-async def _has_session(ctx, page) -> bool:
+def chrome_launch_error(exc: BaseException) -> str:
+    text = str(exc)
+    lowered = text.lower()
+    if "in use" in lowered or "singleton" in lowered or "existing browser session" in lowered:
+        return "Cửa sổ Chrome đăng nhập ChatGPT đang mở. Đăng nhập trên cửa sổ đó, hoặc đóng rồi bấm lại."
+    return "Không mở được Chrome. Đóng hết cửa sổ Chrome rồi bấm Đăng nhập ChatGPT lại."
+
+
+async def _prepare(ctx) -> None:
+    await ctx.add_init_script(_HIDE_WEBDRIVER)
+
+
+async def _account_live(page) -> bool:
+    """True only when chatgpt.com/backend-api/me returns a real account."""
+    if page.is_closed():
+        return False
     try:
-        cookies = await ctx.cookies(_CHAT)
-        if any(c.get("name") in _AUTH_COOKIES and len(c.get("value") or "") > 20 for c in cookies):
-            return True
-        if page.is_closed():
-            return False
         me = await page.evaluate(
             """async () => {
                 try {
@@ -148,8 +183,18 @@ async def _has_session(ctx, page) -> bool:
     return bool(ident and not ident.startswith("ua-") and (me.get("email") or me.get("name")))
 
 
-async def login() -> bool:
-    """Open a visible Chrome window until ChatGPT session cookies exist."""
+async def _has_session(ctx, page) -> bool:
+    try:
+        cookies = await ctx.cookies(_CHAT)
+        if any(c.get("name") in _AUTH_COOKIES and len(c.get("value") or "") > 20 for c in cookies):
+            return True
+        return await _account_live(page)
+    except Exception:
+        return False
+
+
+async def open_content() -> bool:
+    """Open today's ChatGPT thread and leave the window up so the user can edit it."""
     if not playwright_ok():
         print("Install: pip install playwright && python -m playwright install chromium")
         return False
@@ -158,15 +203,62 @@ async def login() -> bool:
     profile_dir().mkdir(parents=True, exist_ok=True)
     async with async_playwright() as pw:
         launch = {**_launch_args(headed=True), "headless": False}
+        try:
+            ctx = await pw.chromium.launch_persistent_context(**launch)
+        except Exception as exc:
+            print(f"ChatGPT window failed: {exc}", flush=True)
+            return False
+        await _prepare(ctx)
+        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        print("ChatGPT content window is open. Close it when you finish editing.", flush=True)
+        await page.goto(chat_open_url(CHATGPT_WEB_MODEL, load_daily_chat()), wait_until="domcontentloaded")
+        deadline = time.monotonic() + 30 * 60
+        while time.monotonic() < deadline:
+            if page.is_closed() or not ctx.pages:
+                break
+            save_daily_chat(page.url or "")
+            await asyncio.sleep(1)
+        try:
+            await ctx.close()
+        except Exception:
+            pass
+        return is_authed()
+
+
+async def login(on_open=None) -> bool:
+    """Open a visible Chrome window until chatgpt.com reports a signed-in account."""
+    def _opened(exc: BaseException | None) -> None:
+        if on_open is not None:
+            on_open(exc)
+
+    if not playwright_ok():
+        print("Install: pip install playwright && python -m playwright install chromium")
+        _opened(RuntimeError("Playwright Chromium is not installed"))
+        return False
+    from playwright.async_api import async_playwright
+
+    profile_dir().mkdir(parents=True, exist_ok=True)
+    async with async_playwright() as pw:
+        launch = {**_launch_args(headed=True), "headless": False}
         if launch.get("channel") == "chrome":
             print(f"Using installed Chrome at {system_chrome_exe()}")
-        ctx = await pw.chromium.launch_persistent_context(**launch)
+        try:
+            ctx = await pw.chromium.launch_persistent_context(**launch)
+        except Exception as exc:
+            print(f"ChatGPT login could not open Chrome: {exc}", flush=True)
+            _opened(exc)
+            return False
+        await _prepare(ctx)
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-        print("Log in to ChatGPT in the window. It closes when the session is saved.")
+        _opened(None)
+        print("Log in to ChatGPT in the window. It stays open until the account is saved.", flush=True)
         await page.goto(f"{_CHAT}/auth/login", wait_until="domcontentloaded")
         deadline = time.monotonic() + 30 * 60
         while time.monotonic() < deadline:
-            if await _has_session(ctx, page):
+            if page.is_closed() or not ctx.pages:
+                print("ChatGPT login window was closed.", flush=True)
+                return False
+            if await _account_live(page):
                 await page.wait_for_timeout(1200)
                 await ctx.close()
                 print(f"Session saved at {profile_dir()}")
@@ -236,6 +328,7 @@ async def _complete_once(prompt: str, *, headed: bool, timeout_ms: int) -> str:
     url = chat_open_url(CHATGPT_WEB_MODEL, daily)
     async with async_playwright() as pw:
         ctx = await pw.chromium.launch_persistent_context(**_launch_args(headed=headed))
+        await _prepare(ctx)
         try:
             await ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=_CHAT)
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()

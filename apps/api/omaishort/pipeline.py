@@ -14,7 +14,6 @@ from omaishort.engine.brief_media import (
     fetch_article,
     fetch_github_project,
     fetch_knowledge_topic,
-    is_knowledge_topic,
     looks_like_github,
     looks_like_url,
     prefer_readme_language,
@@ -160,7 +159,7 @@ async def run_job(job_id: str) -> None:
                 providers["article"] = f"{len(article_urls)} photos"
             except Exception as exc:
                 providers["article"] = f"fetch_failed:{type(exc).__name__}"
-        elif story.kind == VideoKind.knowledge and is_knowledge_topic(story.text):
+        elif story.kind == VideoKind.knowledge and not (story.source_url or "").strip():
             topic = story.text
             try:
                 page = await fetch_knowledge_topic(topic, story.language)

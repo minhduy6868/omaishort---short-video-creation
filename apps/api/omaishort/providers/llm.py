@@ -9,7 +9,6 @@ import httpx
 
 from omaishort.config import (
     CHATGPT_WEB_ENABLED,
-    ELEVENLABS_API_KEY,
     GEMINI_API_KEY,
     HF_I2V_ENABLED,
     HF_TOKEN,
@@ -27,7 +26,7 @@ from omaishort.config import (
     GROK_WEB_ENABLED,
     GROK_WEB_VIDEO_ENABLED,
 )
-from omaishort.providers import chatgpt_web, grok_web
+from omaishort.providers import chatgpt_web, elevenlabs_hub, grok_web
 
 _OPENAI_CLOUD = {"https://api.openai.com/v1", "https://api.openai.com"}
 _WEB2API_BASE = "http://127.0.0.1:8080/v1"
@@ -125,7 +124,7 @@ def llm_status() -> dict[str, object]:
         },
         "tts": {
             "edge": True,
-            "elevenlabs": bool(ELEVENLABS_API_KEY),
+            "elevenlabs": bool(elevenlabs_hub.api_key()),
         },
         "drama_motion": motion,
     }

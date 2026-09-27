@@ -332,6 +332,33 @@ def get_user_by_id(user_id: str) -> dict[str, Any] | None:
             conn.close()
 
 
+def list_users() -> list[dict[str, Any]]:
+    with _lock:
+        conn = connect()
+        try:
+            rows = conn.execute(_sql("SELECT * FROM users ORDER BY created_at")).fetchall()
+            return [item for item in (_row(row) for row in rows) if item]
+        finally:
+            conn.close()
+
+
+def interrupted_job_ids() -> list[str]:
+    with _lock:
+        conn = connect()
+        try:
+            rows = conn.execute(
+                _sql("SELECT id FROM jobs WHERE status IN ('queued', 'running') ORDER BY created_at")
+            ).fetchall()
+            ids: list[str] = []
+            for row in rows:
+                item = _row(row)
+                if item and item.get("id"):
+                    ids.append(str(item["id"]))
+            return ids
+        finally:
+            conn.close()
+
+
 def get_user_by_email(email: str) -> dict[str, Any] | None:
     with _lock:
         conn = connect()

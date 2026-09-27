@@ -220,9 +220,9 @@ Then: `fetch_knowledge_topic` (several related Wikipedia pages + CC photos, not 
 
 Waterfall per beat (`assign_editorial_stills`):
 
-1. Early beats (first two): unused **article** photos from `source_url` when present.
-2. Later beats: leftover article photo only if caption/path **overlaps** the beat VO (score ≥ 0.15).
-3. Else **per-beat** Wikimedia / Openverse terms (MoneyPrinter-style search terms, not Pexels).
+1. Each beat gathers unused **article** photos plus up to eight external hits (Wikipedia page image, then Wikimedia, then Openverse) from that beat's VO terms.
+2. Rank by caption/filename overlap with the beat VO. A file found by this beat's search terms counts as a match. An article photo leads only when its caption or path already overlaps the VO.
+3. Download in that order until one file lands. Each URL is used once.
 4. Else generated editorial (Pollinations → Gemini API if keyed → OpenAI → placeholder).
 
 Generated compact prompt leads with uninhabited editorial still — **zero people, zero faces, zero couple**. Letterbox wide photos into 9:16.

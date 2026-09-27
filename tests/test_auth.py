@@ -60,6 +60,20 @@ def test_jobs_require_auth(client: TestClient):
     assert res.status_code == 401
 
 
+def test_gmail_dots_are_one_account(client: TestClient):
+    first = _register(client, "Foo.Bar+tag@gmail.com")
+    assert first["user"]["email"] == "foobar@gmail.com"
+    again = client.post(
+        "/auth/register",
+        json={"email": "foo.bar@gmail.com", "password": "password1", "display_name": "again"},
+    )
+    assert again.status_code == 409
+    assert "đã có tài khoản" in again.json()["detail"]
+    logged = client.post("/auth/login", json={"email": "foobar@gmail.com", "password": "password1"})
+    assert logged.status_code == 200
+    assert logged.json()["user"]["id"] == first["user"]["id"]
+
+
 def test_register_login_me_cookie(client: TestClient):
     payload = _register(client, "Op@example.com")
     assert payload["user"]["email"] == "op@example.com"
@@ -96,16 +110,37 @@ def test_second_user_is_creator_and_cannot_read_foreign_job(client: TestClient, 
 
 
 def test_refresh_rotates_and_reuse_revokes(client: TestClient):
+    from datetime import datetime, timedelta, timezone
+
+    from omaishort import db
+    from omaishort.auth import hash_refresh
+
     payload = _register(client, "op@example.com")
     old = payload["refresh_token"]
     again = client.post("/auth/refresh", json={"refresh_token": old})
     assert again.status_code == 200
     new = again.json()["refresh_token"]
     assert new != old
+    # A second caller still holding the old cookie must not kill the new session.
     reused = client.post("/auth/refresh", json={"refresh_token": old})
     assert reused.status_code == 401
-    family = client.post("/auth/refresh", json={"refresh_token": new})
-    assert family.status_code == 401
+    kept = client.post("/auth/refresh", json={"refresh_token": new})
+    assert kept.status_code == 200
+    newest = kept.json()["refresh_token"]
+    row = db.get_refresh_by_hash(hash_refresh(new))
+    assert row
+    stale = (datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat()
+    with db._lock:
+        conn = db.connect()
+        try:
+            conn.execute("UPDATE refresh_tokens SET revoked_at = ? WHERE id = ?", (stale, row["id"]))
+            conn.commit()
+        finally:
+            conn.close()
+    stolen = client.post("/auth/refresh", json={"refresh_token": new})
+    assert stolen.status_code == 401
+    family = client.post("/auth/refresh", json={"refresh_token": newest})
+    assert family.status_code == 200
 
 
 def test_logout_revokes_refresh(client: TestClient):
@@ -183,6 +218,68 @@ def test_malformed_bearer_is_401_not_500(client: TestClient):
 
 def test_chatgpt_login_requires_account(client: TestClient):
     assert client.post("/providers/chatgpt-login").status_code == 401
+
+
+def test_chatgpt_open_requires_account(client: TestClient):
+    assert client.post("/providers/chatgpt-open").status_code == 401
+
+
+def test_chatgpt_open_needs_saved_session(client: TestClient, monkeypatch):
+    from omaishort.providers import chatgpt_web
+
+    monkeypatch.setattr(chatgpt_web, "is_authed", lambda: False)
+    _register(client, "chatgpt@example.com")
+    res = client.post("/providers/chatgpt-open")
+    assert res.status_code == 409
+
+
+def test_elevenlabs_hub_requires_account(client: TestClient):
+    assert client.get("/providers/elevenlabs").status_code == 401
+    assert client.put("/providers/elevenlabs", json={"enabled": False}).status_code == 401
+
+
+def test_elevenlabs_hub_masks_key_and_drives_tts(client: TestClient, monkeypatch):
+    from omaishort.providers import elevenlabs_hub
+    from omaishort.providers.tts import tts_providers
+
+    secret = "sk_test_secret_key_value"
+
+    def fake_voices(key: str):
+        assert key == secret
+        return [{"id": "voice1", "name": "Narrator"}]
+
+    monkeypatch.setattr(elevenlabs_hub, "fetch_voices", fake_voices)
+    _register(client, "hub@example.com")
+    saved = client.put(
+        "/providers/elevenlabs",
+        json={"api_key": secret, "voice_id": "voice1", "enabled": True},
+    )
+    assert saved.status_code == 200, saved.text
+    assert secret not in saved.text
+    body = saved.json()
+    assert body["enabled"] is True
+    assert body["voice_id"] == "voice1"
+    assert body["key_hint"] == "…alue"
+    assert "api_key" not in body
+    assert [item.name for item in tts_providers("vi-female")][0] == "elevenlabs"
+
+    cleared = client.put("/providers/elevenlabs", json={"api_key": ""})
+    assert cleared.status_code == 200
+    assert cleared.json()["configured"] is False
+    assert elevenlabs_hub.api_key() == ""
+    assert [item.name for item in tts_providers("vi-female")] == ["edge-tts"]
+
+    anon = client.put(
+        "/providers/elevenlabs",
+        json={"mode": "anonymous", "enabled": True, "voice_id": "aN7cv9yXNrfIR87bDmyD"},
+    )
+    assert anon.status_code == 200, anon.text
+    assert anon.json()["mode"] == "anonymous"
+    assert anon.json()["enabled"] is True
+    assert len(anon.json()["voices"]) > 1
+    assert any(item["name"].startswith("Rachel") for item in anon.json()["voices"])
+    assert "api_key" not in anon.text
+    assert [item.name for item in tts_providers("vi-female")][0] == "elevenlabs"
 
 
 def test_locked_user_cannot_use_existing_jwt(client: TestClient):

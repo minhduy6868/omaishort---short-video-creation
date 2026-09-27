@@ -6,7 +6,11 @@
   --ink: #f3ece3;
   --muted: #b7a99a;
   --accent: #c45c26;
+  --accent-ink: #e7a16f;
   --ok: #c9d4a3;
+  --radius: 18px;
+  --radius-sm: 12px;
+  --shadow: 0 20px 70px rgba(0, 0, 0, 0.24);
 }
 
 * {
@@ -23,9 +27,17 @@ body,
   font-family: "Public Sans", sans-serif;
 }
 
+body {
+  overflow-x: hidden;
+}
+
 button,
 textarea,
 select,
 input {
   font: inherit;
+}
+
+a {
+  color: inherit;
 }

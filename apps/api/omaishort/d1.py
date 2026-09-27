@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
+import time
 from typing import Any
+
+import certifi
+import httpx
 
 
 class D1Result:
@@ -32,26 +34,36 @@ class D1Connection:
         self._key = key
 
     def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> D1Result:
-        body = json.dumps({"sql": sql, "params": list(params)}).encode("utf-8")
-        request = urllib.request.Request(
-            self._url,
-            data=body,
-            headers={
-                "content-type": "application/json",
-                "user-agent": "omaishort-desktop/0.1",
-                "x-omaishort-key": self._key,
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(detail or exc.reason) from exc
-        if not payload.get("ok"):
-            raise RuntimeError(str(payload.get("error") or "d1 query failed"))
-        rows = payload.get("rows") or []
+        payload = {"sql": sql, "params": list(params)}
+        headers = {
+            "content-type": "application/json",
+            "user-agent": "omaishort-desktop/0.1",
+            "x-omaishort-key": self._key,
+        }
+        last: Exception | None = None
+        for attempt in range(3):
+            try:
+                response = httpx.post(
+                    self._url,
+                    json=payload,
+                    headers=headers,
+                    timeout=30.0,
+                    verify=certifi.where(),
+                )
+                response.raise_for_status()
+                body = response.json()
+                break
+            except httpx.HTTPStatusError as exc:
+                detail = exc.response.text
+                raise RuntimeError(detail or str(exc)) from exc
+            except (httpx.TransportError, json.JSONDecodeError) as exc:
+                last = exc
+                time.sleep(0.4 * (attempt + 1))
+        else:
+            raise RuntimeError("Cloudflare D1 không phản hồi") from last
+        if not body.get("ok"):
+            raise RuntimeError(str(body.get("error") or "d1 query failed"))
+        rows = body.get("rows") or []
         return D1Result([dict(row) for row in rows])
 
     def commit(self) -> None:

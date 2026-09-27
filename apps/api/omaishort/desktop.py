@@ -75,7 +75,7 @@ def open_studio_window(url: str) -> None:
     webbrowser.open(url)
 
 
-def _wait_until_up(url: str, timeout_sec: float = 20) -> None:
+def _wait_until_up(url: str, timeout_sec: float = 45) -> None:
     deadline = time.monotonic() + timeout_sec
     while time.monotonic() < deadline:
         try:

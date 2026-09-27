@@ -109,6 +109,32 @@ def normalize_email(raw: str) -> str:
     return raw.strip().lower()
 
 
+def canonical_email(raw: str) -> str:
+    """Gmail ignores dots and +tags, so those addresses are one account."""
+    email = normalize_email(raw)
+    local, sep, domain = email.partition("@")
+    if sep != "@":
+        return email
+    if domain in {"gmail.com", "googlemail.com"}:
+        local = local.split("+", 1)[0].replace(".", "")
+        domain = "gmail.com"
+    return f"{local}@{domain}"
+
+
+def find_account(raw: str) -> dict[str, Any] | None:
+    normalized = normalize_email(raw)
+    wanted = canonical_email(normalized)
+    direct = db.get_user_by_email(normalized) or db.get_user_by_email(wanted)
+    if direct:
+        return direct
+    if not wanted.endswith("@gmail.com"):
+        return None
+    for row in db.list_users():
+        if canonical_email(str(row.get("email") or "")) == wanted:
+            return row
+    return None
+
+
 def valid_email(email: str) -> bool:
     return bool(_EMAIL_RE.match(email)) and ".." not in email
 
@@ -207,24 +233,33 @@ def token_payload(user: dict[str, Any], refresh: str) -> dict[str, Any]:
 
 
 def issue_refresh(user_id: str, user_agent: str | None) -> str:
-    raw = new_refresh_token()
     expires = datetime.now(timezone.utc) + timedelta(seconds=AUTH_REFRESH_TTL_SEC)
-    db.insert_refresh(
-        secrets.token_hex(8),
-        user_id,
-        hash_refresh(raw),
-        expires.isoformat(),
-        (user_agent or "")[:200] or None,
-    )
-    return raw
+    agent = (user_agent or "")[:200] or None
+    last: Exception | None = None
+    for _ in range(2):
+        raw = new_refresh_token()
+        try:
+            db.insert_refresh(
+                secrets.token_hex(8),
+                user_id,
+                hash_refresh(raw),
+                expires.isoformat(),
+                agent,
+            )
+            return raw
+        except RuntimeError as exc:
+            last = exc
+            if "UNIQUE" not in str(exc):
+                raise
+    raise RuntimeError("could not store session") from last
 
 
 def rotate_refresh(raw: str, user_agent: str | None) -> tuple[dict[str, Any], str]:
     row = db.get_refresh_by_hash(hash_refresh(raw))
     if not row:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
+    # A stale tab presenting an old cookie must not sign out the window that is still working.
     if row.get("revoked_at"):
-        db.revoke_user_refresh(row["user_id"])
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
     expires = datetime.fromisoformat(row["expires_at"])
     if expires.tzinfo is None:
@@ -252,9 +287,11 @@ def _parse_iso(raw: str | None) -> datetime | None:
 
 
 def register_user(body: RegisterBody) -> dict[str, Any]:
-    email = normalize_email(body.email)
+    email = canonical_email(body.email)
     if not valid_email(email):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "invalid email")
+    if find_account(email):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email này đã có tài khoản. Hãy đăng nhập.")
     if db.count_users() == 0:
         role = "operator"
     else:
@@ -266,12 +303,12 @@ def register_user(body: RegisterBody) -> dict[str, Any]:
     try:
         return db.create_user(secrets.token_hex(6), email, hash_password(body.password), name, role)
     except ValueError:
-        raise HTTPException(status.HTTP_409_CONFLICT, "email taken") from None
+        raise HTTPException(status.HTTP_409_CONFLICT, "Email này đã có tài khoản. Hãy đăng nhập.") from None
 
 
 def authenticate(body: LoginBody) -> dict[str, Any]:
     email = normalize_email(body.email)
-    user = db.get_user_by_email(email) if valid_email(email) else None
+    user = find_account(email) if valid_email(email) else None
     now = datetime.now(timezone.utc)
     if user:
         locked = _parse_iso(user.get("locked_until"))

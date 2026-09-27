@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { readMe, type AuthUser } from "./api";
+import { bindAuthLost, readMe, type AuthUser } from "./api";
 
 type SessionValue = {
   user: AuthUser | null;
@@ -23,6 +23,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    bindAuthLost(() => setUser(null));
+    return () => bindAuthLost(null);
+  }, []);
 
   return <SessionContext.Provider value={{ user, ready, setUser }}>{children}</SessionContext.Provider>;
 }

@@ -152,7 +152,12 @@ def test_assign_retries_cc_when_article_download_fails(tmp_path, monkeypatch):
             self.dialogue_or_vo = vo
 
     async def fake_wiki(query: str, limit: int = 4) -> list[str]:
-        return ["https://upload.wikimedia.org/wikipedia/commons/cyprus.jpg"]
+        q = query.lower()
+        if "cyprus" in q or "síp" in q:
+            return ["https://upload.wikimedia.org/wikipedia/commons/cyprus.jpg"]
+        if "dating" in q or "hẹn" in q:
+            return ["https://upload.wikimedia.org/wikipedia/commons/dating-app.jpg"]
+        return [f"https://upload.wikimedia.org/wikipedia/commons/{q[:12].replace(' ', '-')}.jpg"]
 
     async def fake_openverse(query: str, limit: int = 6) -> list[str]:
         return []
@@ -190,6 +195,25 @@ def test_assign_retries_cc_when_article_download_fails(tmp_path, monkeypatch):
     assert out["still_01"].exists()
     assert out["still_02"].exists()
     assert "wikimedia" in provider
+    assert out["still_01"] != out["still_02"]
+
+
+def test_editorial_score_prefers_the_spoken_place():
+    from omaishort.engine.brief_media import editorial_candidate_score
+
+    vo = "Chồng bỏ đi Nigeria. Họ ly hôn."
+    beach = editorial_candidate_score(
+        "https://cdn.example/beach.jpg",
+        vo,
+        caption="beach party sunset",
+        article=True,
+    )
+    nigeria = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/Nigeria_divorce_court.jpg",
+        vo,
+        query="divorce Nigeria",
+    )
+    assert nigeria > beach
 
 
 def test_visual_terms_for_beat_follow_the_vo_not_the_headline():
@@ -543,6 +567,17 @@ def test_chatgpt_web_profile_is_under_data_dir(tmp_path, monkeypatch):
     cookies = tmp_path / "chatgpt-web" / "profile" / "Default" / "Cookies"
     cookies.parent.mkdir(parents=True)
     cookies.write_bytes(b"x" * 200)
+    assert not chatgpt_web.is_authed()
+    import sqlite3
+
+    cookies.unlink()
+    conn = sqlite3.connect(cookies)
+    conn.execute("CREATE TABLE cookies (host_key TEXT, name TEXT)")
+    conn.execute(
+        "INSERT INTO cookies (host_key, name) VALUES ('chatgpt.com', '__Secure-next-auth.session-token')"
+    )
+    conn.commit()
+    conn.close()
     assert chatgpt_web.is_authed()
 
 
@@ -560,6 +595,8 @@ def test_chatgpt_launch_can_use_system_chrome(tmp_path, monkeypatch):
     opts = chatgpt_web._launch_args(headed=True)
     assert opts["channel"] == "chrome"
     assert opts["headless"] is False
+    assert "--enable-automation" in opts["ignore_default_args"]
+    assert "cửa sổ" in chatgpt_web.chrome_launch_error(RuntimeError("profile in use by existing browser session")).lower()
 
 
 def test_llm_status_reports_chatgpt_web_slot():

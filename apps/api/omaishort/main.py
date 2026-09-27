@@ -28,9 +28,21 @@ from omaishort.auth import (
 )
 from omaishort.files import resolve_public_file
 from omaishort.pipeline import run_job
+from omaishort.providers.elevenlabs_hub import ElevenLabsHubBody, load_status, update as update_elevenlabs
 from omaishort.providers.llm import llm_status
 from omaishort.providers.tts import list_voices
 from omaishort_schema.models import AttachmentKind, StoryInput
+
+
+def _resume_interrupted_jobs() -> None:
+    """A restart kills in-process work. The row stays, so run it again instead of leaving it frozen."""
+    for job_id in db.interrupted_job_ids():
+        db.update_job(job_id, status="queued", progress="resume", error=None)
+
+        def _run(jid: str = job_id) -> None:
+            asyncio.run(run_job(jid))
+
+        threading.Thread(target=_run, name=f"resume-{job_id}", daemon=True).start()
 
 
 @asynccontextmanager
@@ -39,6 +51,7 @@ async def lifespan(_app: FastAPI):
     (config.DATA_DIR / "jobs").mkdir(parents=True, exist_ok=True)
     (config.DATA_DIR / "attachments").mkdir(parents=True, exist_ok=True)
     db.init_db()
+    _resume_interrupted_jobs()
     yield
 
 
@@ -75,28 +88,85 @@ def providers() -> dict[str, object]:
 def start_chatgpt_login(_user: CurrentUser) -> dict[str, str]:
     """Open headed Chrome on this PC until a ChatGPT session cookie exists."""
     global _chatgpt_opening
-    from omaishort.providers.chatgpt_web import is_authed, login as chatgpt_login
+    from omaishort.providers.chatgpt_web import login as chatgpt_login
     from omaishort.providers.chrome_profile import playwright_ok
 
-    if is_authed():
-        return {"status": "ready"}
+    if not playwright_ok():
+        raise HTTPException(status_code=503, detail="Playwright Chromium is not installed")
+
+    opened = threading.Event()
+    box: dict[str, str] = {}
+
+    def _on_open(exc: BaseException | None) -> None:
+        if exc is not None:
+            from omaishort.providers.chatgpt_web import chrome_launch_error
+
+            box["error"] = chrome_launch_error(exc)
+        opened.set()
+
+    def _run() -> None:
+        global _chatgpt_opening
+        try:
+            asyncio.run(chatgpt_login(_on_open))
+        finally:
+            opened.set()
+            with _chatgpt_gate:
+                _chatgpt_opening = False
+
+    with _chatgpt_gate:
+        if _chatgpt_opening:
+            raise HTTPException(status_code=409, detail="Cửa sổ ChatGPT đang mở. Đăng nhập trên cửa sổ đó, hoặc đóng rồi bấm lại.")
+        _chatgpt_opening = True
+    threading.Thread(target=_run, name="chatgpt-login", daemon=True).start()
+    opened.wait(30)
+    if box.get("error"):
+        with _chatgpt_gate:
+            _chatgpt_opening = False
+        raise HTTPException(status_code=503, detail=box["error"])
+    return {"status": "opening"}
+
+
+@app.post("/providers/chatgpt-open")
+def open_chatgpt_content(_user: CurrentUser) -> dict[str, str]:
+    """Open today's ChatGPT thread in Chrome so the operator can edit the script."""
+    global _chatgpt_opening
+    from omaishort.providers.chatgpt_web import is_authed, open_content
+    from omaishort.providers.chrome_profile import playwright_ok
+
+    if not is_authed():
+        raise HTTPException(status_code=409, detail="Đăng nhập ChatGPT trước")
     if not playwright_ok():
         raise HTTPException(status_code=503, detail="Playwright Chromium is not installed")
 
     def _run() -> None:
         global _chatgpt_opening
         try:
-            asyncio.run(chatgpt_login())
+            asyncio.run(open_content())
         finally:
             with _chatgpt_gate:
                 _chatgpt_opening = False
 
     with _chatgpt_gate:
         if _chatgpt_opening:
-            return {"status": "opening"}
+            raise HTTPException(status_code=409, detail="Cửa sổ ChatGPT đang mở. Đăng nhập trên cửa sổ đó, hoặc đóng rồi bấm lại.")
         _chatgpt_opening = True
-    threading.Thread(target=_run, name="chatgpt-login", daemon=True).start()
+    threading.Thread(target=_run, name="chatgpt-content", daemon=True).start()
     return {"status": "opening"}
+
+
+@app.get("/providers/elevenlabs")
+def elevenlabs_hub(_user: CurrentUser) -> dict[str, object]:
+    return load_status()
+
+
+@app.put("/providers/elevenlabs")
+def save_elevenlabs_hub(body: ElevenLabsHubBody, _user: CurrentUser) -> dict[str, object]:
+    try:
+        return update_elevenlabs(body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get("/voices")

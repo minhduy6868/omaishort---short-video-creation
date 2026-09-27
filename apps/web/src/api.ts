@@ -28,9 +28,34 @@ type AuthPayload = {
 };
 
 let accessToken: string | null = null;
+let refreshInflight: Promise<boolean> | null = null;
+let onAuthLost: (() => void) | null = null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+}
+
+export function bindAuthLost(handler: (() => void) | null) {
+  onAuthLost = handler;
+}
+
+async function refreshSession(): Promise<boolean> {
+  if (!refreshInflight) {
+    refreshInflight = (async () => {
+      const refreshed = await fetch("/auth/refresh", { method: "POST", credentials: "include" });
+      if (!refreshed.ok) {
+        setAccessToken(null);
+        onAuthLost?.();
+        return false;
+      }
+      const payload = (await refreshed.json()) as AuthPayload;
+      setAccessToken(payload.access_token);
+      return true;
+    })().finally(() => {
+      refreshInflight = null;
+    });
+  }
+  return refreshInflight;
 }
 
 function headers(extra?: HeadersInit, json = false): Headers {
@@ -56,13 +81,8 @@ const NO_REFRESH = ["/auth/refresh", "/auth/login", "/auth/register", "/auth/log
 async function request(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
   const res = await fetch(path, { credentials: "include", ...init, headers: headers(init.headers) });
   if (res.status !== 401 || !retry || NO_REFRESH.some((p) => path.startsWith(p))) return res;
-  const refreshed = await fetch("/auth/refresh", { method: "POST", credentials: "include" });
-  if (!refreshed.ok) {
-    setAccessToken(null);
-    return res;
-  }
-  const payload = (await refreshed.json()) as AuthPayload;
-  setAccessToken(payload.access_token);
+  const ok = await refreshSession();
+  if (!ok) return res;
   return request(path, init, false);
 }
 
@@ -175,12 +195,55 @@ export type ProviderStatus = {
   tts?: Record<string, boolean>;
   chatgpt_web?: boolean;
   chatgpt_web_authed?: boolean;
+  chatgpt_web_chat?: string;
 };
 
 export async function startChatgptLogin(): Promise<{ status: string }> {
   const res = await request("/providers/chatgpt-login", { method: "POST" });
   if (!res.ok) throw await parseError(res, "Could not open ChatGPT");
   return (await res.json()) as { status: string };
+}
+
+export async function openChatgptContent(): Promise<{ status: string }> {
+  const res = await request("/providers/chatgpt-open", { method: "POST" });
+  if (!res.ok) throw await parseError(res, "Could not open ChatGPT");
+  return (await res.json()) as { status: string };
+}
+
+export type ElevenLabsVoice = { id: string; name: string };
+
+export type ElevenLabsHub = {
+  enabled: boolean;
+  configured: boolean;
+  mode?: "anonymous" | "api";
+  model_id?: string;
+  voice_id: string;
+  voice_name: string;
+  key_hint: string;
+  voices: ElevenLabsVoice[];
+  error?: string;
+};
+
+export async function readElevenLabs(): Promise<ElevenLabsHub> {
+  const res = await request("/providers/elevenlabs");
+  if (!res.ok) throw await parseError(res, "Could not read ElevenLabs");
+  return (await res.json()) as ElevenLabsHub;
+}
+
+export async function saveElevenLabs(body: {
+  api_key?: string;
+  voice_id?: string;
+  enabled?: boolean;
+  mode?: "anonymous" | "api";
+  model_id?: string;
+}): Promise<ElevenLabsHub> {
+  const res = await request("/providers/elevenlabs", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Could not save ElevenLabs");
+  return (await res.json()) as ElevenLabsHub;
 }
 
 export async function readProviders(): Promise<ProviderStatus | null> {

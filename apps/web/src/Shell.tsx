@@ -15,11 +15,15 @@ export function Shell({ children }: { children: ReactNode }) {
   const { route, go } = useNav();
   const { user, setUser } = useSession();
   const current = route.name === "watch" ? "work" : route.name;
+  const currentLabel = LINKS.find((link) => link.name === current)?.label ?? "Studio";
 
   return (
     <div className="app">
       <aside className="rail">
-        <p className="brand">omaishort</p>
+        <div className="brand-block">
+          <p className="brand">omaishort</p>
+          <p>Vertical story studio</p>
+        </div>
         <nav>
           {LINKS.map((link) => (
             <a
@@ -35,21 +39,35 @@ export function Shell({ children }: { children: ReactNode }) {
             </a>
           ))}
         </nav>
-        <p className="who">{user?.email}</p>
-        <button
-          type="button"
-          className="ghost"
-          onClick={() => {
-            void logout().then(() => {
-              setUser(null);
-              go("/login");
-            });
-          }}
-        >
-          Đăng xuất
-        </button>
+        <div className="rail-foot">
+          <p className="who">{user?.email}</p>
+          <button
+            type="button"
+            className="ghost rail-logout"
+            onClick={() => {
+              void logout().then(() => {
+                setUser(null);
+                go("/login");
+              });
+            }}
+          >
+            Đăng xuất
+          </button>
+        </div>
       </aside>
-      <div className="stage">{children}</div>
+      <main className="workspace">
+        <header className="topbar">
+          <div>
+            <span className="topbar-label">Workspace</span>
+            <strong>{currentLabel}</strong>
+          </div>
+          <div className="topbar-status">
+            <span>Local render</span>
+            <span>{user?.role || "user"}</span>
+          </div>
+        </header>
+        <div className="stage">{children}</div>
+      </main>
     </div>
   );
 }

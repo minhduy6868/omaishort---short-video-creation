@@ -8,7 +8,7 @@ from typing import Protocol
 
 import httpx
 
-from omaishort.config import ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID
+from omaishort.providers import elevenlabs_hub
 from omaishort.engine.captions import WordStamp, edge_ticks_to_seconds
 from omaishort.engine.kenburns import probe_duration as probe_duration
 
@@ -53,6 +53,17 @@ def list_voices(language: str | None = None) -> list[dict[str, str]]:
     if not lang:
         return list(VOICE_CATALOG)
     return [row for row in VOICE_CATALOG if row["language"] == lang]
+
+
+def tts_providers(voice_id: str | None = None) -> list[TTSProvider]:
+    """ElevenLabs hub wins when it is on. Edge-tts stays the fallback."""
+    providers: list[TTSProvider] = []
+    if elevenlabs_hub.enabled():
+        providers.append(ElevenLabsTTSProvider())
+    elif elevenlabs_hub.api_key() and elevenlabs_hub.voice_id() and not voice_id:
+        providers.append(ElevenLabsTTSProvider())
+    providers.append(EdgeTTSProvider())
+    return providers
 
 
 def resolve_edge_voice(language: str = "en", voice_id: str | None = None) -> str:
@@ -114,18 +125,27 @@ class ElevenLabsTTSProvider:
     async def synthesize(
         self, text: str, dest: Path, language: str = "en", voice: str | None = None
     ) -> TTSResult | None:
-        if not ELEVENLABS_API_KEY or not ELEVENLABS_VOICE_ID:
+        selected = elevenlabs_hub.voice_id()
+        if elevenlabs_hub.uses_anonymous():
+            from omaishort.providers.elevenlabs_anonymous import synthesize_anonymous
+
+            path = await synthesize_anonymous(text, dest, selected, elevenlabs_hub.model_id())
+            if path is None:
+                return None
+            return TTSResult(path=path, provider=self.name, words=None)
+        key = elevenlabs_hub.api_key()
+        if not key or not selected:
             return None
         dest.parent.mkdir(parents=True, exist_ok=True)
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{selected}"
         headers = {
-            "xi-api-key": ELEVENLABS_API_KEY,
+            "xi-api-key": key,
             "Content-Type": "application/json",
             "Accept": "audio/mpeg",
         }
         payload = {
             "text": text,
-            "model_id": "eleven_multilingual_v2",
+            "model_id": elevenlabs_hub.model_id(),
             "voice_settings": {"stability": 0.4, "similarity_boost": 0.7},
         }
         try:
@@ -215,10 +235,7 @@ async def synthesize_speech(
     text: str, dest: Path, language: str = "en", voice_id: str | None = None
 ) -> TTSResult:
     edge_voice = resolve_edge_voice(language, voice_id)
-    providers: list[TTSProvider] = []
-    if ELEVENLABS_API_KEY and not voice_id:
-        providers.append(ElevenLabsTTSProvider())
-    providers.append(EdgeTTSProvider())
+    providers = tts_providers(voice_id)
     chunks = split_tts_chunks(text)
     if len(chunks) <= 1:
         for provider in providers:

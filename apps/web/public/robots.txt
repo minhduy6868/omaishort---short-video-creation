@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /studio
+Disallow: /auth
+Disallow: /jobs
+Disallow: /files
+Disallow: /attachments
+
+# Sitemap will use actual domain when confirmed
+# Sitemap: https://omaishort.com/sitemap.xml

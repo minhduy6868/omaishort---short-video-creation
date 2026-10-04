@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "features": "機能",
+    "howItWorks": "使い方",
+    "demo": "デモ",
+    "faq": "よくある質問",
+    "tryStudio": "Studioを試す",
+    "backToHome": "ホームに戻る"
+  },
+  "footer": {
+    "tagline": "ストーリーを貼り付けるだけ。ショート動画が完成。",
+    "product": "プロダクト",
+    "resources": "リソース",
+    "documentation": "ドキュメント",
+    "github": "GitHub",
+    "studio": "Studio",
+    "copyright": "© {{year}} omaishort. ローカルファーストのストーリー動画エンジン。"
+  },
+  "meta": {
+    "title": "omaishort — AIストーリー動画エンジン",
+    "description": "ストーリー、ニュースURL、またはトピックを貼り付けるだけ。omaishortがAIナレーション、画像生成、カラオケ字幕付きの1080×1920ショート動画を作成します。"
+  }
+}

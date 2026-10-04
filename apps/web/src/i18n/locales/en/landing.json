@@ -1,0 +1,157 @@
+{
+  "_meta": {
+    "needsReview": false,
+    "status": "verified",
+    "notes": "Canonical English source translations."
+  },
+  "hero": {
+    "kicker": "Story Video Engine",
+    "title": "Turn any story into a short video",
+    "subtitle": "Paste a script, news URL, or topic. omaishort creates a 1080×1920 video with AI voiceover, generated stills, and karaoke captions.",
+    "cta_primary": "Try the Studio",
+    "cta_secondary": "See how it works"
+  },
+  "features": {
+    "kicker": "Three Formats",
+    "title": "One engine, three kinds of short",
+    "drama": {
+      "title": "Drama Stories",
+      "description": "Character Bible keeps faces consistent across every scene. Five-beat arcs with I2V motion when keyed, Ken Burns otherwise."
+    },
+    "news": {
+      "title": "News Shorts",
+      "description": "Paste an article URL. Five editorial beats cover the full story — from headline to outcome — with narrator voiceover and Ken Burns stills."
+    },
+    "knowledge": {
+      "title": "Knowledge Explainers",
+      "description": "Type a topic or paste a GitHub README. AI writes the voiceover script, generates editorial stills, and narrates the explainer."
+    }
+  },
+  "capabilities": {
+    "kicker": "Key Features",
+    "title": "Built for creators who move fast",
+    "items": [
+      {
+        "title": "Character Bible",
+        "description": "Lock faces, clothing, and identity. Every scene uses the same passport stills — no jitter between shots."
+      },
+      {
+        "title": "Five-Beat Storytelling",
+        "description": "Hook, conflict, rising action, twist, ending. Every short follows a proven dramatic structure."
+      },
+      {
+        "title": "AI Voiceover",
+        "description": "ElevenLabs or edge-tts in Vietnamese and English. Word-synced timing drives the entire video clock."
+      },
+      {
+        "title": "Karaoke Captions",
+        "description": "Word-level timestamps from TTS or Whisper. Highlighted karaoke ASS subtitles burned into the video."
+      },
+      {
+        "title": "Cinematic Motion",
+        "description": "Ken Burns zoompan with cosine ease. Drama scenes can use I2V (Grok, HF, WaveSpeed, Pollinations) when API keys are set."
+      },
+      {
+        "title": "Local-First Privacy",
+        "description": "Runs on your machine. No cloud upload required. Your stories and API keys stay local."
+      }
+    ]
+  },
+  "howItWorks": {
+    "kicker": "How It Works",
+    "title": "From paste to video in four steps",
+    "steps": [
+      {
+        "title": "Paste your content",
+        "description": "Drop in a script, news article URL, topic, or GitHub README."
+      },
+      {
+        "title": "AI analyzes and plans",
+        "description": "The engine builds a Character Bible and plans scenes across five dramatic beats."
+      },
+      {
+        "title": "Generate everything",
+        "description": "Stills, voiceover, karaoke captions, and motion — all assembled automatically."
+      },
+      {
+        "title": "Download your short",
+        "description": "One 1080×1920 MP4 at 30fps, ready for TikTok, Reels, or Shorts."
+      }
+    ]
+  },
+  "demo": {
+    "kicker": "See It In Action",
+    "title": "Real videos, rendered locally",
+    "subtitle": "Both clips are actual CLI renders using kind=knowledge and --language vi.",
+    "items": [
+      {
+        "title": "History — Lý Thường Kiệt",
+        "description": "Knowledge explainer about the Vietnamese general. ~97 seconds."
+      },
+      {
+        "title": "How-to — Agent Skills",
+        "description": "Knowledge video from a GitHub README (mattpocock/skills). ~106 seconds."
+      }
+    ]
+  },
+  "useCases": {
+    "kicker": "Use Cases",
+    "title": "What will you create?",
+    "items": [
+      {
+        "title": "Viral Drama Shorts",
+        "description": "Confession stories, cheating reveals, revenge arcs. Consistent faces and cinematic I2V motion.",
+        "example": "A hotel cleaner. An arrogant guest. Humiliation in the lobby — then the twist."
+      },
+      {
+        "title": "News Video Automation",
+        "description": "Paste a VnExpress or Reuters URL. Get a complete five-beat video covering the full story.",
+        "example": "Article URL → five editorial beats → narrator VO → 1080×1920 MP4."
+      },
+      {
+        "title": "Educational Explainers",
+        "description": "History topics, science concepts, GitHub project walkthroughs — all narrated with editorial stills.",
+        "example": "'Thuyết minh về lạm phát' → scripted explainer with Wikimedia stills."
+      }
+    ]
+  },
+  "faq": {
+    "kicker": "FAQ",
+    "title": "Frequently asked questions",
+    "items": [
+      {
+        "question": "What is omaishort?",
+        "answer": "A local-first video engine that turns stories, news articles, and topics into 1080×1920 short videos with AI voiceover, generated stills, and karaoke captions."
+      },
+      {
+        "question": "Is it free?",
+        "answer": "The engine is free and open source. Some features (ElevenLabs TTS, Grok I2V, Gemini stills) require their own API keys. Basic videos work with zero keys using edge-tts and Pollinations."
+      },
+      {
+        "question": "What languages are supported?",
+        "answer": "Video voiceover supports Vietnamese and English with multiple voice options. The UI supports Vietnamese, English, and Japanese."
+      },
+      {
+        "question": "Do I need cloud API keys?",
+        "answer": "Not for basic videos. Edge-tts provides free voiceover, and Pollinations generates stills without a key. Add keys for premium providers like ElevenLabs, Gemini, or Grok."
+      },
+      {
+        "question": "What video format does it produce?",
+        "answer": "1080×1920 MP4 at 30fps — the standard vertical short format for TikTok, Instagram Reels, and YouTube Shorts."
+      },
+      {
+        "question": "Can I use my own images?",
+        "answer": "Yes. Upload face references, location photos, editorial images, or logos through the Studio attachment system. Drama uses face refs for character consistency."
+      },
+      {
+        "question": "Does it work offline?",
+        "answer": "The engine runs locally. TTS and image generation need internet unless you run local providers (ComfyUI, Ollama). FFmpeg rendering is fully offline."
+      }
+    ]
+  },
+  "cta": {
+    "title": "Ready to create your first short?",
+    "subtitle": "No cloud account required. Run locally with the CLI, or open the Studio.",
+    "button": "Open the Studio"
+  }
+}

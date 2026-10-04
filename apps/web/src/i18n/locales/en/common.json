@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "features": "Features",
+    "howItWorks": "How It Works",
+    "demo": "Demo",
+    "faq": "FAQ",
+    "tryStudio": "Try Studio",
+    "backToHome": "Back to Home"
+  },
+  "footer": {
+    "tagline": "Paste a story. Get a short video.",
+    "product": "Product",
+    "resources": "Resources",
+    "documentation": "Documentation",
+    "github": "GitHub",
+    "studio": "Studio",
+    "copyright": "© {{year}} omaishort. Local-first story video engine."
+  },
+  "meta": {
+    "title": "omaishort — AI Story-to-Video Engine",
+    "description": "Paste a story, news URL, or topic — omaishort creates 1080×1920 short videos with AI voiceover, generated stills, and karaoke captions. Local-first, free."
+  }
+}

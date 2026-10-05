@@ -1,0 +1,157 @@
+{
+  "_meta": {
+    "needsReview": false,
+    "status": "verified",
+    "notes": "Natural technical Japanese translation for tech product showcase. Brand names (omaishort, ElevenLabs, edge-tts, Character Bible, Ken Burns, I2V) preserved."
+  },
+  "hero": {
+    "kicker": "ストーリー動画エンジン",
+    "title": "あらゆるストーリーをショート動画に",
+    "subtitle": "スクリプト、ニュースURL、またはトピックを貼り付けるだけ。omaishortがAIナレーション、生成画像、カラオケ字幕付きの1080×1920動画を作成します。",
+    "cta_primary": "Studioを試す",
+    "cta_secondary": "使い方を見る"
+  },
+  "features": {
+    "kicker": "3つのフォーマット",
+    "title": "1つのエンジン、3種類のショート動画",
+    "drama": {
+      "title": "ドラマストーリー",
+      "description": "Character Bibleがシーン間でキャラクターの顔を統一。5ビート構成で、APIキー設定時はI2Vモーション、それ以外はKen Burnsを使用。"
+    },
+    "news": {
+      "title": "ニュースショート",
+      "description": "記事のURLを貼り付けるだけ。5つのエディトリアルビートで記事全体をカバー — ナレーションとKen Burnsスチル付き。"
+    },
+    "knowledge": {
+      "title": "ナレッジ解説",
+      "description": "トピックを入力、またはGitHub READMEを貼り付け。AIがナレーション原稿を執筆し、エディトリアル画像を生成して解説します。"
+    }
+  },
+  "capabilities": {
+    "kicker": "主な機能",
+    "title": "スピード重視のクリエイターのために",
+    "items": [
+      {
+        "title": "Character Bible",
+        "description": "顔、服装、アイデンティティを固定。全シーンで同じパスポートスチルを使用 — ショット間のブレなし。"
+      },
+      {
+        "title": "5ビートストーリーテリング",
+        "description": "フック、対立、上昇、ツイスト、エンディング。すべてのショートが実証済みのドラマ構造に従います。"
+      },
+      {
+        "title": "AIナレーション",
+        "description": "ElevenLabsまたはedge-ttsでベトナム語・英語に対応。ワードレベルのタイミングが動画全体のクロックを制御。"
+      },
+      {
+        "title": "カラオケ字幕",
+        "description": "TTSまたはWhisperによるワードレベルタイムスタンプ。ハイライト付きカラオケASS字幕を動画に焼き込み。"
+      },
+      {
+        "title": "シネマティックモーション",
+        "description": "コサインイーズのKen Burnsズームパン。ドラマシーンではI2V（Grok、HF、WaveSpeed、Pollinations）が利用可能。"
+      },
+      {
+        "title": "ローカルファースト・プライバシー",
+        "description": "お使いのマシンで実行。クラウドへのアップロード不要。ストーリーとAPIキーはローカルに保持。"
+      }
+    ]
+  },
+  "howItWorks": {
+    "kicker": "使い方",
+    "title": "ペーストから動画まで4ステップ",
+    "steps": [
+      {
+        "title": "コンテンツを貼り付け",
+        "description": "スクリプト、ニュース記事URL、トピック、またはGitHub READMEを入力。"
+      },
+      {
+        "title": "AIが分析・プランニング",
+        "description": "エンジンがCharacter Bibleを構築し、5つのドラマビートでシーンをプランニング。"
+      },
+      {
+        "title": "すべてを自動生成",
+        "description": "スチル画像、ナレーション、カラオケ字幕、モーション — すべて自動で組み立て。"
+      },
+      {
+        "title": "ショート動画をダウンロード",
+        "description": "1080×1920 MP4（30fps）1本。TikTok、Reels、Shortsにそのまま投稿可能。"
+      }
+    ]
+  },
+  "demo": {
+    "kicker": "実際の動作",
+    "title": "実際の動画、ローカルでレンダリング",
+    "subtitle": "両方のクリップはkind=knowledge、--language viでCLIレンダリングした実物です。",
+    "items": [
+      {
+        "title": "歴史 — リー・トゥオン・キエット",
+        "description": "ベトナムの将軍についてのナレッジ解説。約97秒。"
+      },
+      {
+        "title": "ハウツー — Agent Skills",
+        "description": "GitHub README（mattpocock/skills）からのナレッジ動画。約106秒。"
+      }
+    ]
+  },
+  "useCases": {
+    "kicker": "ユースケース",
+    "title": "何を作りますか？",
+    "items": [
+      {
+        "title": "バイラルドラマショート",
+        "description": "告白ストーリー、浮気暴露、復讐劇。一貫したキャラクターの顔とシネマティックI2Vモーション。",
+        "example": "ホテルの清掃員。傲慢な客。ロビーでの屈辱 — そしてツイスト。"
+      },
+      {
+        "title": "ニュース動画の自動化",
+        "description": "VnExpressやロイターのURLを貼り付け。記事全体をカバーする5ビート動画を取得。",
+        "example": "記事URL → 5つのエディトリアルビート → ナレーション → 1080×1920 MP4。"
+      },
+      {
+        "title": "教育的な解説動画",
+        "description": "歴史トピック、科学コンセプト、GitHubプロジェクト — すべてエディトリアル画像付きでナレーション。",
+        "example": "'インフレーションについて解説' → Wikimedia画像付きスクリプト解説。"
+      }
+    ]
+  },
+  "faq": {
+    "kicker": "よくある質問",
+    "title": "FAQ",
+    "items": [
+      {
+        "question": "omaishortとは？",
+        "answer": "ローカルで動作する動画エンジンです。ストーリー、ニュース記事、トピックをAIナレーション、生成画像、カラオケ字幕付きの1080×1920ショート動画に変換します。"
+      },
+      {
+        "question": "無料ですか？",
+        "answer": "エンジンは無料でオープンソースです。一部の機能（ElevenLabs TTS、Grok I2V、Geminiスチル）には各サービスのAPIキーが必要です。基本的な動画はedge-ttsとPollinationsでキー不要で作成できます。"
+      },
+      {
+        "question": "対応言語は？",
+        "answer": "動画のナレーションはベトナム語と英語に対応し、複数の音声オプションがあります。UIはベトナム語、英語、日本語に対応しています。"
+      },
+      {
+        "question": "クラウドAPIキーは必要ですか？",
+        "answer": "基本的な動画には不要です。edge-ttsが無料ナレーション、Pollinationsがキー不要で画像生成を提供。ElevenLabs、Gemini、Grokなどのプレミアムプロバイダーにはキーを追加してください。"
+      },
+      {
+        "question": "動画のフォーマットは？",
+        "answer": "1080×1920 MP4（30fps）— TikTok、Instagram Reels、YouTube Shortsの標準的な縦型ショートフォーマットです。"
+      },
+      {
+        "question": "自分の画像を使えますか？",
+        "answer": "はい。Studioのアタッチメントシステムで顔写真、ロケーション写真、エディトリアル画像、ロゴをアップロードできます。ドラマではフェイスリファレンスでキャラクターの一貫性を保ちます。"
+      },
+      {
+        "question": "オフラインで動作しますか？",
+        "answer": "エンジンはローカルで動作します。TTSと画像生成にはインターネットが必要ですが、ローカルプロバイダー（ComfyUI、Ollama）を使えば不要です。FFmpegレンダリングは完全にオフラインです。"
+      }
+    ]
+  },
+  "cta": {
+    "title": "最初のショート動画を作りませんか？",
+    "subtitle": "クラウドアカウント不要。CLIでローカル実行、またはStudioを開いてください。",
+    "button": "Studioを開く"
+  }
+}

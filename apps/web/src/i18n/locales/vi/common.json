@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "features": "Tính năng",
+    "howItWorks": "Cách hoạt động",
+    "demo": "Demo",
+    "faq": "Hỏi đáp",
+    "tryStudio": "Thử Studio",
+    "backToHome": "Về trang chủ"
+  },
+  "footer": {
+    "tagline": "Dán câu chuyện. Nhận video ngắn.",
+    "product": "Sản phẩm",
+    "resources": "Tài nguyên",
+    "documentation": "Tài liệu",
+    "github": "GitHub",
+    "studio": "Studio",
+    "copyright": "© {{year}} omaishort. Công cụ tạo video chạy local."
+  },
+  "meta": {
+    "title": "omaishort — Tạo Video Ngắn Từ Câu Chuyện Bằng AI",
+    "description": "Dán câu chuyện, tin tức hoặc chủ đề — omaishort tạo video ngắn 1080×1920 với giọng đọc AI, hình ảnh và phụ đề karaoke. Chạy local, miễn phí."
+  }
+}

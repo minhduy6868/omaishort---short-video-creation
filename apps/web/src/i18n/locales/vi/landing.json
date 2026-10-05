@@ -1,0 +1,157 @@
+{
+  "_meta": {
+    "needsReview": false,
+    "status": "verified",
+    "notes": "Bản dịch tiếng Việt chuẩn sản phẩm công nghệ."
+  },
+  "hero": {
+    "kicker": "Công cụ tạo video từ câu chuyện",
+    "title": "Biến mọi câu chuyện thành video ngắn",
+    "subtitle": "Dán kịch bản, URL tin tức, hoặc chủ đề. omaishort tạo video 1080×1920 với giọng đọc AI, hình ảnh và phụ đề karaoke.",
+    "cta_primary": "Thử Studio",
+    "cta_secondary": "Xem cách hoạt động"
+  },
+  "features": {
+    "kicker": "Ba định dạng",
+    "title": "Một engine, ba loại video ngắn",
+    "drama": {
+      "title": "Truyện ngắn",
+      "description": "Character Bible giữ khuôn mặt nhất quán qua từng cảnh. Cốt truyện 5 nhịp với chuyển động I2V khi có key, Ken Burns nếu không."
+    },
+    "news": {
+      "title": "Tin tức",
+      "description": "Dán URL bài báo. Năm nhịp editorial bao quát toàn bộ — từ tiêu đề đến kết quả — với giọng đọc và hiệu ứng Ken Burns."
+    },
+    "knowledge": {
+      "title": "Kiến thức",
+      "description": "Nhập chủ đề hoặc dán GitHub README. AI viết kịch bản thuyết minh, tạo hình minh họa và đọc."
+    }
+  },
+  "capabilities": {
+    "kicker": "Tính năng chính",
+    "title": "Xây dựng cho người sáng tạo nhanh",
+    "items": [
+      {
+        "title": "Character Bible",
+        "description": "Khóa khuôn mặt, trang phục và danh tính. Mỗi cảnh dùng cùng passport stills — không nhảy hình giữa các shot."
+      },
+      {
+        "title": "Kể chuyện 5 nhịp",
+        "description": "Hook, xung đột, cao trào, twist, kết thúc. Mỗi video ngắn theo cấu trúc kịch tính đã được chứng minh."
+      },
+      {
+        "title": "Giọng đọc AI",
+        "description": "ElevenLabs hoặc edge-tts bằng tiếng Việt và tiếng Anh. Thời gian đồng bộ theo từng từ điều khiển toàn bộ video."
+      },
+      {
+        "title": "Phụ đề Karaoke",
+        "description": "Timestamp từng từ từ TTS hoặc Whisper. Phụ đề ASS highlight karaoke được ghi trực tiếp vào video."
+      },
+      {
+        "title": "Chuyển động điện ảnh",
+        "description": "Ken Burns zoompan với cosine ease. Cảnh drama có thể dùng I2V (Grok, HF, WaveSpeed, Pollinations) khi có API key."
+      },
+      {
+        "title": "Local-First, riêng tư",
+        "description": "Chạy trên máy bạn. Không cần upload lên cloud. Câu chuyện và API key luôn ở local."
+      }
+    ]
+  },
+  "howItWorks": {
+    "kicker": "Cách hoạt động",
+    "title": "Từ paste đến video trong bốn bước",
+    "steps": [
+      {
+        "title": "Dán nội dung",
+        "description": "Nhập kịch bản, URL tin tức, chủ đề, hoặc GitHub README."
+      },
+      {
+        "title": "AI phân tích và lên kế hoạch",
+        "description": "Engine xây dựng Character Bible và lên kịch bản theo 5 nhịp kịch tính."
+      },
+      {
+        "title": "Tạo mọi thứ tự động",
+        "description": "Hình ảnh, giọng đọc, phụ đề karaoke và chuyển động — tất cả được lắp ráp tự động."
+      },
+      {
+        "title": "Tải video về",
+        "description": "Một file MP4 1080×1920 ở 30fps, sẵn sàng cho TikTok, Reels hoặc Shorts."
+      }
+    ]
+  },
+  "demo": {
+    "kicker": "Xem thực tế",
+    "title": "Video thật, render tại máy",
+    "subtitle": "Cả hai clip đều được render bằng CLI với kind=knowledge và --language vi.",
+    "items": [
+      {
+        "title": "Lịch sử — Lý Thường Kiệt",
+        "description": "Thuyết minh kiến thức về danh tướng Việt Nam. Khoảng 97 giây."
+      },
+      {
+        "title": "Hướng dẫn — Agent Skills",
+        "description": "Video kiến thức từ GitHub README (mattpocock/skills). Khoảng 106 giây."
+      }
+    ]
+  },
+  "useCases": {
+    "kicker": "Ứng dụng",
+    "title": "Bạn sẽ tạo gì?",
+    "items": [
+      {
+        "title": "Video drama viral",
+        "description": "Chuyện tâm sự, ngoại tình, trả thù. Khuôn mặt nhất quán và chuyển động I2V điện ảnh.",
+        "example": "Cô lao công khách sạn. Vị khách kiêu ngạo. Bị sỉ nhục giữa sảnh — rồi twist."
+      },
+      {
+        "title": "Tự động hóa video tin tức",
+        "description": "Dán URL VnExpress hoặc Reuters. Nhận video 5 nhịp bao quát toàn bộ bài viết.",
+        "example": "URL bài báo → 5 nhịp editorial → giọng đọc → MP4 1080×1920."
+      },
+      {
+        "title": "Video giải thích kiến thức",
+        "description": "Lịch sử, khoa học, hướng dẫn GitHub — tất cả được thuyết minh với hình minh họa.",
+        "example": "'Thuyết minh về lạm phát' → video giải thích với hình ảnh Wikimedia."
+      }
+    ]
+  },
+  "faq": {
+    "kicker": "Hỏi đáp",
+    "title": "Câu hỏi thường gặp",
+    "items": [
+      {
+        "question": "omaishort là gì?",
+        "answer": "Một engine tạo video chạy local, biến câu chuyện, bài báo và chủ đề thành video ngắn 1080×1920 với giọng đọc AI, hình ảnh và phụ đề karaoke."
+      },
+      {
+        "question": "Có miễn phí không?",
+        "answer": "Engine miễn phí và mã nguồn mở. Một số tính năng (ElevenLabs TTS, Grok I2V, Gemini stills) cần API key riêng. Video cơ bản hoạt động không cần key với edge-tts và Pollinations."
+      },
+      {
+        "question": "Hỗ trợ ngôn ngữ nào?",
+        "answer": "Giọng đọc hỗ trợ tiếng Việt và tiếng Anh với nhiều giọng. Giao diện hỗ trợ tiếng Việt, tiếng Anh và tiếng Nhật."
+      },
+      {
+        "question": "Có cần API key không?",
+        "answer": "Không bắt buộc cho video cơ bản. Edge-tts cung cấp giọng đọc miễn phí, Pollinations tạo hình không cần key. Thêm key để dùng provider cao cấp như ElevenLabs, Gemini, hoặc Grok."
+      },
+      {
+        "question": "Định dạng video gì?",
+        "answer": "MP4 1080×1920 ở 30fps — định dạng video dọc chuẩn cho TikTok, Instagram Reels và YouTube Shorts."
+      },
+      {
+        "question": "Có dùng ảnh riêng được không?",
+        "answer": "Có. Upload ảnh khuôn mặt, địa điểm, ảnh editorial hoặc logo qua hệ thống đính kèm của Studio. Drama dùng face ref để giữ nhân vật nhất quán."
+      },
+      {
+        "question": "Chạy offline được không?",
+        "answer": "Engine chạy local. TTS và tạo hình cần internet trừ khi bạn chạy provider local (ComfyUI, Ollama). Render FFmpeg hoàn toàn offline."
+      }
+    ]
+  },
+  "cta": {
+    "title": "Sẵn sàng tạo video ngắn đầu tiên?",
+    "subtitle": "Không cần tài khoản cloud. Chạy local với CLI, hoặc mở Studio.",
+    "button": "Mở Studio"
+  }
+}

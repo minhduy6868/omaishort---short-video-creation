@@ -25,7 +25,21 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 WEB_DIST = REPO_ROOT / "apps" / "web" / "dist"
 
 
-_UI_PAGES = ("/login", "/register", "/work", "/drama", "/news", "/knowledge", "/account")
+_UI_PAGES = (
+    "/login",
+    "/register",
+    "/work",
+    "/drama",
+    "/news",
+    "/knowledge",
+    "/account",
+    "/en",
+    "/vi",
+    "/ja",
+    "/en/studio",
+    "/vi/studio",
+    "/ja/studio",
+)
 
 
 def attach_studio(application: FastAPI, dist: Path) -> None:

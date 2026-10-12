@@ -5,7 +5,8 @@
     "demo": "デモ",
     "faq": "よくある質問",
     "tryStudio": "Studioを試す",
-    "backToHome": "ホームに戻る"
+    "backToHome": "ホームに戻る",
+    "skip": "本文へスキップ"
   },
   "footer": {
     "tagline": "ストーリーを貼り付けるだけ。ショート動画が完成。",

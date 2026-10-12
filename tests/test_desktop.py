@@ -26,7 +26,7 @@ def test_attach_studio_serves_index_and_keeps_api(tmp_path: Path) -> None:
     assert "omaishort" in page.text
     assert asset.status_code == 200
     assert health_res.json()["status"] == "ok"
-    for path in ("/login", "/drama", "/knowledge", "/watch/job123"):
+    for path in ("/login", "/drama", "/knowledge", "/watch/job123", "/en", "/vi", "/en/studio"):
         screen = client.get(path)
         assert screen.status_code == 200
         assert "omaishort" in screen.text

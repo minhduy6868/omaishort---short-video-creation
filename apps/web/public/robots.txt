@@ -1,6 +1,16 @@
 User-agent: *
 Allow: /
-Disallow: /studio
+Disallow: /login
+Disallow: /register
+Disallow: /work
+Disallow: /drama
+Disallow: /news
+Disallow: /knowledge
+Disallow: /account
+Disallow: /watch
+Disallow: /en/studio
+Disallow: /vi/studio
+Disallow: /ja/studio
 Disallow: /auth
 Disallow: /jobs
 Disallow: /files

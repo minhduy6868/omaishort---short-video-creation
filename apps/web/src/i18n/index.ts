@@ -28,12 +28,14 @@ void i18n
       ja: { common: jaCommon, landing: jaLanding },
     },
     fallbackLng: 'en',
+    supportedLngs: [...SUPPORTED_LANGS],
+    nonExplicitSupportedLngs: true,
+    load: 'languageOnly',
     defaultNS: 'common',
     ns: ['common', 'landing'],
     interpolation: { escapeValue: false },
     detection: {
-      order: ['path', 'localStorage', 'navigator'],
-      lookupFromPathIndex: 0,
+      order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
     },
   });

@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { SUPPORTED_LANGS, type SupportedLang } from '../../i18n';
 import { LanguageSwitcher } from './LanguageSwitcher';
 
 export function Footer() {
   const { t, i18n } = useTranslation();
-  const lang = i18n.language || 'en';
+  const lang = SUPPORTED_LANGS.includes(i18n.language as SupportedLang) ? i18n.language : 'en';
   const year = new Date().getFullYear();
 
   return (
@@ -21,7 +22,7 @@ export function Footer() {
           <div className="footer-col">
             <h4>{t('footer.product')}</h4>
             <ul>
-              <li><Link to={`/${lang}/studio`}>{t('footer.studio')}</Link></li>
+              <li><Link to="/work">{t('footer.studio')}</Link></li>
               <li><a href="#features">{t('nav.features')}</a></li>
               <li><a href="#demo">{t('nav.demo')}</a></li>
             </ul>

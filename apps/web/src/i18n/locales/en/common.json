@@ -5,7 +5,8 @@
     "demo": "Demo",
     "faq": "FAQ",
     "tryStudio": "Try Studio",
-    "backToHome": "Back to Home"
+    "backToHome": "Back to Home",
+    "skip": "Skip to content"
   },
   "footer": {
     "tagline": "Paste a story. Get a short video.",

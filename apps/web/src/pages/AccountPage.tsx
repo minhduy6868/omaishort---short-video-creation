@@ -6,6 +6,7 @@ import {
   readProviders,
   saveElevenLabs,
   startChatgptLogin,
+  startGrokLogin,
   type AttachmentRow,
   type ElevenLabsHub,
   type ProviderStatus,
@@ -19,6 +20,8 @@ function chips(status: ProviderStatus): { id: string; on: boolean; label: string
   const motion = status.drama_motion ?? "kenburns";
   return [
     { id: "chatgpt", on: Boolean(status.chatgpt_web_authed), label: status.chatgpt_web_authed ? "ChatGPT ready" : "ChatGPT off" },
+    { id: "grok", on: Boolean(status.grok_hub_authed), label: status.grok_hub_authed ? "Grok hub" : "Grok hub off" },
+    { id: "gemini", on: Boolean(image.gemini), label: image.gemini ? "Gemini API" : "Gemini cần key" },
     { id: "motion", on: motion !== "kenburns", label: `motion ${motion}` },
     { id: "tts", on: Object.values(status.tts ?? {}).some(Boolean), label: "TTS" },
     { id: "image", on: Object.values(image).some(Boolean) || Boolean(status.grok_image), label: "Image" },
@@ -50,6 +53,8 @@ export function AccountPage() {
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
   const [chatgptOpening, setChatgptOpening] = useState(false);
   const [chatgptMessage, setChatgptMessage] = useState<string | null>(null);
+  const [grokOpening, setGrokOpening] = useState(false);
+  const [grokMessage, setGrokMessage] = useState<string | null>(null);
   const [eleven, setEleven] = useState<ElevenLabsHub | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [voiceId, setVoiceId] = useState("aN7cv9yXNrfIR87bDmyD");
@@ -74,18 +79,39 @@ export function AccountPage() {
   }, []);
 
   useEffect(() => {
-    if (!chatgptOpening) return;
+    const refresh = () => {
+      if (!document.hidden) void readProviders().then(setProviders);
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!chatgptOpening && !grokOpening) return;
+    const started = Date.now();
     const timer = window.setInterval(() => {
       void readProviders().then((status) => {
         setProviders(status);
-        if (status?.chatgpt_web_authed) {
+        if (chatgptOpening && status?.chatgpt_web_authed) {
           setChatgptOpening(false);
           setChatgptMessage("Đã lưu phiên ChatGPT. Mở cửa sổ để chỉnh nội dung trên hội thoại hôm nay.");
+        }
+        if (grokOpening && status?.grok_hub_authed) {
+          setGrokOpening(false);
+          setGrokMessage("Đã lưu phiên Grok.");
+        }
+        if (Date.now() - started > 10 * 60 * 1000) {
+          setChatgptOpening(false);
+          setGrokOpening(false);
         }
       });
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [chatgptOpening]);
+  }, [chatgptOpening, grokOpening]);
 
   const attachmentCounts = useMemo(() => {
     const kinds = new Map<string, number>();
@@ -119,6 +145,7 @@ export function AccountPage() {
           <div className="hub-actions">
             <button
               type="button"
+              className={providers?.chatgpt_web_authed ? "ghost" : undefined}
               disabled={chatgptOpening}
               onClick={() => {
                 setChatgptMessage(null);
@@ -127,16 +154,17 @@ export function AccountPage() {
                   .then(() => {
                     setChatgptMessage("Chrome đang mở trang đăng nhập ChatGPT. Đăng nhập ở cửa sổ đó. Cửa sổ đóng khi tài khoản đã lưu.");
                   })
-                  .catch((err) => setChatgptMessage(err instanceof Error ? err.message : "Không mở được ChatGPT"))
-                  .finally(() => setChatgptOpening(false));
+                  .catch((err) => {
+                    setChatgptOpening(false);
+                    setChatgptMessage(err instanceof Error ? err.message : "Không mở được ChatGPT");
+                  });
               }}
             >
-              {chatgptOpening ? "Đang chờ ChatGPT…" : "Đăng nhập ChatGPT"}
+              {chatgptOpening ? "Đang chờ ChatGPT…" : providers?.chatgpt_web_authed ? "Đăng nhập lại" : "Đăng nhập ChatGPT"}
             </button>
             {providers?.chatgpt_web_authed ? (
               <button
                 type="button"
-                className="ghost"
                 disabled={chatgptOpening}
                 onClick={() => {
                   setChatgptMessage(null);
@@ -151,6 +179,44 @@ export function AccountPage() {
           </div>
           {providers?.chatgpt_web_chat ? <p className="meta">Hội thoại hôm nay đã có. Cửa sổ hub mở đúng phiên đó.</p> : null}
           {chatgptMessage ? <p className="meta">{chatgptMessage}</p> : null}
+        </section>
+
+        <section className="panel hub-card">
+          <div className="section-head compact">
+            <div>
+              <p className="kicker">Motion</p>
+              <h2>Grok</h2>
+            </div>
+            <StatusPill
+              label={providers?.grok_hub_authed ? "ready" : grokOpening ? "opening" : "off"}
+              tone={providers?.grok_hub_authed ? "done" : "idle"}
+            />
+          </div>
+          <p className="meta">
+            Phiên này chỉ cho drama chuyển động. Ảnh vẫn đi qua API key của Gemini hoặc xAI, không đăng nhập gemini.google.com.
+          </p>
+          <div className="hub-actions">
+            <button
+              type="button"
+              className={providers?.grok_hub_authed ? "ghost" : undefined}
+              disabled={grokOpening}
+              onClick={() => {
+                setGrokMessage(null);
+                setGrokOpening(true);
+                void startGrokLogin()
+                  .then(() => setGrokMessage("Chrome đang mở grok.com/imagine. Đăng nhập ở cửa sổ đó. Phiên lưu khi cookie SSO xuất hiện."))
+                  .catch((err) => {
+                    setGrokOpening(false);
+                    setGrokMessage(err instanceof Error ? err.message : "Không mở được Grok");
+                  });
+              }}
+            >
+              {grokOpening ? "Đang chờ Grok…" : providers?.grok_hub_authed ? "Đăng nhập lại" : "Đăng nhập Grok"}
+            </button>
+          </div>
+          {providers?.grok_hub_authed ? <p className="meta">Đã đăng nhập. Drama sẽ dựng chuyển động qua Grok.</p> : null}
+          {providers?.image?.gemini ? <p className="meta">Gemini API đã có key.</p> : <p className="meta">Gemini: đặt GEMINI_API_KEY. Không có cửa sổ đăng nhập.</p>}
+          {grokMessage ? <p className="meta">{grokMessage}</p> : null}
         </section>
 
         <section className="panel hub-card">
@@ -321,7 +387,7 @@ export function AccountPage() {
           ) : (
             <p className="meta">Đang đọc provider…</p>
           )}
-          <p className="meta">ChatGPT chỉ phục vụ Knowledge. Drama và News không phụ thuộc phiên này.</p>
+          <p className="meta">ChatGPT viết lời Knowledge. Grok hub chỉ chuyển động drama. Gemini là API key.</p>
         </section>
 
         <section className="panel">

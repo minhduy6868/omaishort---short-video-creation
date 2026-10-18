@@ -220,6 +220,10 @@ def test_chatgpt_login_requires_account(client: TestClient):
     assert client.post("/providers/chatgpt-login").status_code == 401
 
 
+def test_grok_login_requires_account(client: TestClient):
+    assert client.post("/providers/grok-login").status_code == 401
+
+
 def test_chatgpt_open_requires_account(client: TestClient):
     assert client.post("/providers/chatgpt-open").status_code == 401
 

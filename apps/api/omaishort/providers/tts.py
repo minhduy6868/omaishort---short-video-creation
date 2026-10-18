@@ -66,6 +66,19 @@ def tts_providers(voice_id: str | None = None) -> list[TTSProvider]:
     return providers
 
 
+def edge_voice_attempts(voice: str) -> list[str]:
+    """Primary edge voice, then a same-language backup. vi-VN-HoaiMy sometimes returns no audio."""
+    backups = {
+        "vi-VN-HoaiMyNeural": ["vi-VN-NamMinhNeural", "en-US-EmmaMultilingualNeural"],
+        "vi-VN-NamMinhNeural": ["vi-VN-HoaiMyNeural", "en-US-EmmaMultilingualNeural"],
+    }
+    voices = [voice]
+    for item in backups.get(voice, []):
+        if item not in voices:
+            voices.append(item)
+    return voices
+
+
 def resolve_edge_voice(language: str = "en", voice_id: str | None = None) -> str:
     if voice_id:
         for row in VOICE_CATALOG:
@@ -89,6 +102,17 @@ class EdgeTTSProvider:
             return None
         dest.parent.mkdir(parents=True, exist_ok=True)
         voice = voice or EDGE_VOICES.get(language[:2], EDGE_VOICES["en"])
+        for candidate in edge_voice_attempts(voice):
+            result = await self._speak_once(text, dest, candidate)
+            if result is not None:
+                return result
+        return None
+
+    async def _speak_once(self, text: str, dest: Path, voice: str) -> TTSResult | None:
+        try:
+            import edge_tts
+        except ImportError:
+            return None
         words: list[WordStamp] = []
         try:
             communicate = edge_tts.Communicate(text, voice, boundary="WordBoundary")

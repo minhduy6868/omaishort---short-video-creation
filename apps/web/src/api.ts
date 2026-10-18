@@ -204,6 +204,12 @@ export async function startChatgptLogin(): Promise<{ status: string }> {
   return (await res.json()) as { status: string };
 }
 
+export async function startGrokLogin(): Promise<{ status: string }> {
+  const res = await request("/providers/grok-login", { method: "POST" });
+  if (!res.ok) throw await parseError(res, "Could not open Grok");
+  return (await res.json()) as { status: string };
+}
+
 export async function openChatgptContent(): Promise<{ status: string }> {
   const res = await request("/providers/chatgpt-open", { method: "POST" });
   if (!res.ok) throw await parseError(res, "Could not open ChatGPT");

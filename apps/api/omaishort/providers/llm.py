@@ -124,7 +124,7 @@ def llm_status() -> dict[str, object]:
         },
         "tts": {
             "edge": True,
-            "elevenlabs": bool(elevenlabs_hub.api_key()),
+            "elevenlabs": bool(elevenlabs_hub.enabled()),
         },
         "drama_motion": motion,
     }

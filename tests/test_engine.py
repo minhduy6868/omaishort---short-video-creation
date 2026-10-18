@@ -663,6 +663,12 @@ def test_resolve_edge_voice_picks_male_and_locale():
     assert resolve_edge_voice("vi", "vi-male") == "vi-VN-NamMinhNeural"
     assert resolve_edge_voice("en", "en-male-uk") == "en-GB-RyanNeural"
     assert resolve_edge_voice("vi", None) == "vi-VN-HoaiMyNeural"
+    from omaishort.providers.tts import edge_voice_attempts
+
+    assert edge_voice_attempts("vi-VN-HoaiMyNeural")[:2] == [
+        "vi-VN-HoaiMyNeural",
+        "vi-VN-NamMinhNeural",
+    ]
     assert {row["id"] for row in list_voices("vi")} == {"vi-female", "vi-male"}
 
 

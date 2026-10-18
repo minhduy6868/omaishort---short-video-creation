@@ -20,8 +20,9 @@ from omaishort.config import (
     CHATGPT_WEB_MODEL,
     CHATGPT_WEB_TIMEOUT_MIN,
     DATA_DIR,
+    HUB_HEADLESS,
 )
-from omaishort.providers.chrome_profile import playwright_ok, system_chrome_exe
+from omaishort.providers.chrome_profile import hub_launch_args, playwright_ok, system_chrome_exe
 
 _CHAT = "https://chatgpt.com"
 _COMPOSER = (
@@ -31,14 +32,15 @@ _COMPOSER = (
     '[contenteditable="true"][data-placeholder], '
     'textarea[name="prompt-textarea"]'
 )
-_STOP = '[data-testid="stop-button"], button[aria-label="Stop streaming"], button[aria-label="Stop generating"]'
-_TURN = '[data-message-author-role="assistant"]'
+_SEND = (
+    '[data-testid="send-button"], button[aria-label="Send prompt"], '
+    'button[aria-label="Send message"], button[aria-label="Gửi"]'
+)
 _AUTH_COOKIES = (
     "__Secure-next-auth.session-token",
     "__Secure-next-auth.session-token.0",
     "__Secure-authjs.session-token",
 )
-_STEALTH = ["--disable-blink-features=AutomationControlled"]
 _CONV = re.compile(r"https://chatgpt\.com/c/([a-zA-Z0-9-]+)", re.I)
 _LOCK = asyncio.Lock()
 
@@ -131,20 +133,7 @@ _HIDE_WEBDRIVER = "Object.defineProperty(navigator, 'webdriver', {get: () => und
 
 
 def _launch_args(*, headed: bool) -> dict:
-    args = list(_STEALTH)
-    if not headed:
-        args.append("--start-minimized")
-    opts: dict = {
-        "user_data_dir": str(profile_dir()),
-        "headless": (not headed) and (not CHATGPT_WEB_HEADED),
-        "viewport": {"width": 1280, "height": 900},
-        "args": args,
-        # Google rejects Playwright's default --enable-automation ("this browser may not be secure").
-        "ignore_default_args": ["--enable-automation"],
-    }
-    if system_chrome_exe() is not None:
-        opts["channel"] = "chrome"
-    return opts
+    return hub_launch_args(profile_dir(), visible=headed or CHATGPT_WEB_HEADED, headless=HUB_HEADLESS)
 
 
 def chrome_launch_error(exc: BaseException) -> str:
@@ -160,17 +149,21 @@ async def _prepare(ctx) -> None:
 
 
 async def _account_live(page) -> bool:
-    """True only when chatgpt.com/backend-api/me returns a real account."""
-    if page.is_closed():
+    """True when /api/auth/session returns a user and an access token.
+
+    /backend-api/me needs the bearer token, so a cookie-only fetch there never sees the account.
+    """
+    if page.is_closed() or not (page.url or "").startswith(_CHAT):
         return False
     try:
         me = await page.evaluate(
             """async () => {
                 try {
-                    const r = await fetch('/backend-api/me', {credentials:'include'});
+                    const r = await fetch('/api/auth/session', {credentials:'include'});
                     if (!r.ok) return null;
                     const j = await r.json();
-                    return {id: j.id || '', email: j.email || '', name: j.name || ''};
+                    const u = j.user || {};
+                    return {id: u.id || '', email: u.email || '', name: u.name || '', token: !!j.accessToken};
                 } catch { return null; }
             }"""
         )
@@ -179,8 +172,21 @@ async def _account_live(page) -> bool:
         return False
     if not isinstance(me, dict):
         return False
-    ident = str(me.get("id") or "")
-    return bool(ident and not ident.startswith("ua-") and (me.get("email") or me.get("name")))
+    return bool(me.get("token") and me.get("id") and (me.get("email") or me.get("name")))
+
+
+async def _blocked_reason(page) -> str:
+    """Name what replaced the composer: a Cloudflare check or the logged-out landing page."""
+    try:
+        title = (await page.title() or "").lower()
+        body = (await page.evaluate("() => (document.body && document.body.innerText || '').slice(0, 600)") or "").lower()
+    except Exception:
+        return ""
+    if "just a moment" in title or "verify you are human" in body or "challenges.cloudflare" in body:
+        return "ChatGPT đang bắt xác minh Cloudflare. Bấm Mở ChatGPT ở Tài khoản, qua bước xác minh, rồi chạy lại."
+    if await page.locator('[data-testid="login-button"]').count():
+        return "Phiên ChatGPT đã hết. Bấm Đăng nhập ChatGPT ở Tài khoản."
+    return ""
 
 
 async def _has_session(ctx, page) -> bool:
@@ -256,9 +262,10 @@ async def login(on_open=None) -> bool:
         deadline = time.monotonic() + 30 * 60
         while time.monotonic() < deadline:
             if page.is_closed() or not ctx.pages:
-                print("ChatGPT login window was closed.", flush=True)
-                return False
-            if await _account_live(page):
+                saved = is_authed()
+                print("ChatGPT login window was closed." + (" Session was saved." if saved else ""), flush=True)
+                return saved
+            if await _has_session(ctx, page):
                 await page.wait_for_timeout(1200)
                 await ctx.close()
                 print(f"Session saved at {profile_dir()}")
@@ -275,49 +282,87 @@ async def _wait_composer(page, timeout_ms: int = 45_000):
     return loc
 
 
-async def _fill_and_wait(page, prompt: str, timeout_ms: int) -> str:
-    box = await _wait_composer(page)
-    before = await page.locator(_TURN).count()
-    await box.click()
-    await page.keyboard.insert_text(prompt)
-    await page.wait_for_timeout(200)
-    await page.keyboard.press("Enter")
-    await page.wait_for_function(
-        """([sel, n]) => document.querySelectorAll(sel).length > n""",
-        arg=[_TURN, before],
-        timeout=max(60_000, min(timeout_ms, 180_000)),
-    )
-    quiet_since: float | None = None
+_READ_REPLY_JS = """async (sentAt) => {
+    const m = location.pathname.match(/\\/c\\/([A-Za-z0-9-]+)/);
+    if (!m) return {state: 'no-conversation'};
+    const s = await fetch('/api/auth/session', {credentials: 'include'});
+    if (!s.ok) return {state: 'no-session'};
+    const token = (await s.json()).accessToken;
+    if (!token) return {state: 'no-session'};
+    const r = await fetch('/backend-api/conversation/' + m[1], {
+        credentials: 'include',
+        headers: {Authorization: 'Bearer ' + token, Accept: 'application/json'},
+    });
+    if (!r.ok) return {state: 'http-' + r.status};
+    const conv = await r.json();
+    const node = conv.mapping && conv.mapping[conv.current_node];
+    const msg = node && node.message;
+    if (!msg || !msg.author || msg.author.role !== 'assistant') return {state: 'waiting'};
+    if ((msg.create_time || 0) < sentAt - 5) return {state: 'waiting'};
+    const parts = (msg.content && msg.content.parts || []).filter((p) => typeof p === 'string');
+    const done = msg.end_turn === true || msg.status === 'finished_successfully';
+    return {state: done ? 'done' : 'streaming', text: parts.join('\\n')};
+}"""
+
+
+async def _read_reply(page, sent_at: float, timeout_ms: int) -> str:
+    """Poll the conversation JSON for the finished assistant turn. The chat DOM changes too often to scrape."""
+    deadline = time.monotonic() + timeout_ms / 1000
+    last: dict = {}
+    while time.monotonic() < deadline:
+        try:
+            last = await page.evaluate(_READ_REPLY_JS, sent_at) or {}
+        except Exception:
+            last = {}
+        if last.get("state") == "done" and (last.get("text") or "").strip():
+            return str(last["text"]).strip()
+        if last.get("state") == "no-session":
+            raise RuntimeError("Phiên ChatGPT đã hết. Bấm Đăng nhập ChatGPT ở Tài khoản.")
+        await page.wait_for_timeout(1500)
+    raise TimeoutError(f"ChatGPT reply did not finish in time ({last.get('state') or 'no reply'})")
+
+
+async def _composer_text(box) -> str:
+    try:
+        return (await box.evaluate("e => e.innerText || e.value || ''")) or ""
+    except Exception:
+        return ""
+
+
+async def _sent(page, box, timeout_ms: int = 10_000) -> bool:
+    """ChatGPT clears the composer once it takes the prompt. That holds across UI redesigns."""
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
-        present = await page.query_selector(_STOP)
-        if present:
-            quiet_since = None
-        else:
-            now = time.monotonic()
-            if quiet_since is None:
-                quiet_since = now
-            elif now - quiet_since >= 5:
-                break
-        await page.wait_for_timeout(500)
-    else:
-        raise TimeoutError("ChatGPT reply did not finish in time")
-    copied = await page.evaluate(
-        """async () => {
-            const turns = document.querySelectorAll('[data-message-author-role="assistant"]');
-            if (!turns.length) return '';
-            const last = turns[turns.length - 1];
-            const section = last.closest('[data-testid^="conversation-turn-"]') || last.parentElement;
-            const btn = section && section.querySelector(
-                '[data-testid="copy-turn-action-button"], button[aria-label="Copy"]'
-            );
-            if (!btn) return last.innerText || '';
-            btn.click();
-            await new Promise((r) => setTimeout(r, 300));
-            try { return await navigator.clipboard.readText(); } catch { return last.innerText || ''; }
-        }"""
-    )
-    return (copied or "").strip()
+        if not (await _composer_text(box)).strip():
+            return True
+        await page.wait_for_timeout(300)
+    return False
+
+
+async def _fill_and_wait(page, prompt: str, timeout_ms: int) -> str:
+    box = await _wait_composer(page)
+    await box.click()
+    # ChatGPT restores an unsent draft from the last run; clear it so the prompt is not doubled.
+    await page.keyboard.press("Control+A")
+    await page.keyboard.press("Delete")
+    await page.keyboard.insert_text(prompt)
+    await page.wait_for_timeout(200)
+    if not (await _composer_text(box)).strip():
+        await box.fill(prompt)
+        await page.wait_for_timeout(200)
+    sent_at = float(await page.evaluate("() => Date.now() / 1000"))
+    await page.keyboard.press("Enter")
+    if not await _sent(page, box):
+        send = page.locator(_SEND).first
+        if await send.count():
+            await send.click()
+        if not await _sent(page, box):
+            raise RuntimeError("ChatGPT did not accept the prompt (send button never fired)")
+    try:
+        await page.wait_for_url("**/c/**", timeout=60_000)
+    except Exception as exc:
+        raise RuntimeError("ChatGPT took the prompt but never opened a conversation") from exc
+    return await _read_reply(page, sent_at, timeout_ms)
 
 
 async def _complete_once(prompt: str, *, headed: bool, timeout_ms: int) -> str:
@@ -330,16 +375,19 @@ async def _complete_once(prompt: str, *, headed: bool, timeout_ms: int) -> str:
         ctx = await pw.chromium.launch_persistent_context(**_launch_args(headed=headed))
         await _prepare(ctx)
         try:
-            await ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=_CHAT)
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
             await page.goto(url, wait_until="domcontentloaded")
             if not await _has_session(ctx, page):
-                raise RuntimeError("not logged in")
+                raise RuntimeError("Phiên ChatGPT đã hết. Bấm Đăng nhập ChatGPT ở Tài khoản.")
             try:
-                await _wait_composer(page)
+                await _wait_composer(page, 20_000)
             except Exception:
                 await page.goto(f"{_CHAT}/", wait_until="domcontentloaded")
-                await _wait_composer(page)
+                try:
+                    await _wait_composer(page)
+                except Exception as exc:
+                    reason = await _blocked_reason(page)
+                    raise RuntimeError(reason or f"ChatGPT composer did not appear: {exc}") from exc
             text = await _fill_and_wait(page, prompt, timeout_ms)
             try:
                 await page.wait_for_url("**/c/**", timeout=8_000)

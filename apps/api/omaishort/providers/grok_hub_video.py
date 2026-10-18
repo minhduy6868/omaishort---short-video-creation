@@ -149,7 +149,7 @@ async def _generate_locked(prompt: str, dest: Path, still: Path, duration: float
                     print("grok hub not logged in (python -m omaishort --grok-login)", flush=True)
                     return None
                 page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-                await page.goto(grok_web.IMAGINE, wait_until="domcontentloaded")
+                await grok_web.open_imagine(page)
                 status, uploaded = await grok_web.page_upload(page, still.read_bytes(), still.name, mime)
                 if status >= 400 or not uploaded:
                     print(f"grok hub upload {status} {uploaded[:160]}", flush=True)

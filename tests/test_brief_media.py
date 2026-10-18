@@ -298,6 +298,68 @@ def test_visual_terms_for_beat_follow_the_vo_not_the_headline():
     assert any("fire" in term or "garage" in term or "flame" in term for term in paired)
 
 
+def test_bach_dang_search_skips_loose_words_and_unrelated_photos():
+    from omaishort.engine.brief_media import editorial_candidate_score, external_terms_for_beat, knowledge_spoken_from_wiki
+
+    vo = "Đại thắng trên sông Bạch Đằng được xem là trận thủy chiến. Có 400 chiến thuyền."
+    terms = [term.lower() for term in external_terms_for_beat(vo, "Trận Bạch Đằng")]
+    assert "thuyền" not in terms
+    assert any("bach dang" in term for term in terms)
+    battle = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/Battle_of_Bach_Dang.jpg",
+        vo,
+        query="Battle of Bach Dang",
+    )
+    scaffold = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/Construction_scaffolding.jpg",
+        vo,
+        query="Battle of Bach Dang",
+    )
+    assert battle >= 0.15
+    assert scaffold < battle
+    spoken = knowledge_spoken_from_wiki(
+        "Trận Bạch Đằng (1288)",
+        "Lãnh thổ Việt Nam xuất hiện con người sinh sống từ thời đại đồ đá cũ.",
+        "vi",
+    )
+    assert "đồ đá" not in spoken.lower()
+    assert "bạch đằng" in spoken.lower()
+
+
+def test_uncaptioned_article_photos_lead_and_related_thumbs_stay_out():
+    from omaishort.engine.brief_media import dedupe_article_photos, editorial_candidate_score
+
+    title = 'Bắt giam chồng cũ của Hằng Du Mục về tội "xâm phạm quyền sở hữu công nghiệp" sản phẩm táo đỏ'
+    vo = "Công an TPHCM khám xét kho hàng của Công ty Dịch Dương, phát hiện 28.794 kg táo đỏ."
+    own = editorial_candidate_score(
+        "http://cloud.tienlenquyetthang.com/thumbnail/CATP-1920-2026-10-18/img-4297.jpeg",
+        vo,
+        article=True,
+        title=title,
+    )
+    related = editorial_candidate_score(
+        "https://cloud.tienlenquyetthang.com/thumbnail/CATP-150-2026-10-17/khoi-to-tgd.jpg",
+        vo,
+        caption="Khởi tố Tổng Giám đốc Công ty CP Cao su Đà Nẵng về tội tham ô tài sản",
+        article=True,
+        title=title,
+    )
+    commons = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/Jujube_fruits.jpg",
+        vo,
+        query="red jujube fruit",
+    )
+    assert own >= 0.15
+    assert related < 0.15
+    assert own > commons
+    urls = [
+        "https://cloud.tienlenquyetthang.com/thumbnail/CATP-480-2026-10-18/img-4302_1433_860_937.jpeg",
+        "http://cloud.tienlenquyetthang.com/thumbnail/CATP-1433-2026-10-18/img-4302_1433_860_937.jpeg",
+        "http://cloud.tienlenquyetthang.com/thumbnail/CATP-711-2026-10-18/img-4301.png",
+    ]
+    assert dedupe_article_photos(urls) == urls[1:]
+
+
 def test_photo_credit_keeps_the_next_sentence_intact():
     html = """
     <html><head>
@@ -691,6 +753,10 @@ def test_chatgpt_launch_can_use_system_chrome(tmp_path, monkeypatch):
     assert opts["channel"] == "chrome"
     assert opts["headless"] is False
     assert "--enable-automation" in opts["ignore_default_args"]
+    background = chatgpt_web._launch_args(headed=False)
+    assert background["headless"] is False
+    assert "--window-position=-32000,-32000" in background["args"]
+    assert "--window-position=-32000,-32000" not in opts["args"]
     assert "cửa sổ" in chatgpt_web.chrome_launch_error(RuntimeError("profile in use by existing browser session")).lower()
 
 

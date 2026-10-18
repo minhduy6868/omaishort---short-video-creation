@@ -8,29 +8,30 @@ Mỗi tuần bám một chương trong đề cương. Làm xong tuần đó rồ
 
 | Tuần | Chương đề cương | Trong repo |
 | --- | --- | --- |
+| 1 | AI trong vòng đời, native/assisted, LLM, ảo giác, ngữ cảnh, hệ sinh thái | `docs/course/chuong-01/` |
 | 2 | Prompt: kỹ thuật, mẫu, ngữ cảnh, JSON, workflow, thực hành | `docs/course/chuong-02/` |
 | 3 | Phân tích yêu cầu, PRD, user story, đặc tả, và file phương pháp 3.0 | `docs/course/chuong-03/` |
 | 4 | User flow, khung UI đang chạy, prototype, chỗ không có AI design review | `docs/course/chuong-04/` |
 | 5 | Tầng, pattern, UML từ schema, bảng, API, mẫu thiết kế | `docs/course/chuong-05/` |
 | 6 | Sửa từ khoá ảnh tin + credit `Ằng`, kèm bài về quy trình lập trình với AI | `brief_media.py`, `tests/test_brief_media.py`, `docs/course/chuong-06/` |
+| 7 | Review diff ảnh tin, smell chưa tách file | `docs/course/chuong-07/` |
+| 8 | pytest, tsc, CI, cách thiết kế một test | `docs/course/chuong-08/` |
+| 9 | Bản đồ tài liệu nộp, không viết lại hợp đồng | `docs/course/chuong-09/` |
+| 10 | Việc mang theo buổi bảo vệ | `docs/course/bao-ve.md` |
 | — | Pipeline drama / tin / kiến thức, auth, studio, test | `apps/api`, `apps/web`, `tests/` |
 
 ## Chưa xong, và đó là phần làm đồ án thật
 
 - Script tin vẫn là bản chép bài khi chưa đăng nhập ChatGPT (`provider` = `wiki`). Login: `python -m omaishort --chatgpt-login`.
 - Chưa render lại một URL VnExpress mới trong phiên chương 6. Pytest đã khoá credit `Ảnh: Minh Bằng` và từ khoá gara/cháy. Job sống vẫn cần mạng.
-- Chương 1, 7–9 chưa có bài nộp. Không bịa cho đủ mục lục.
+- Bài chương 1–9 và tờ bảo vệ đã có trong `docs/course/`. Smell chương 7.3 và job URL sống vẫn để sửa dần.
 - P3 (duyệt từng ảnh), P6 (phim nhiều phần, sửa một câu) nằm ngoài hợp đồng. Không nhét vào đồ án trừ khi giảng viên yêu cầu.
 
 ## Mười tuần
 
 ### Tuần 1 — Chương 1. AI trong vòng đời phần mềm
 
-Việc: viết `docs/course/chuong-01/1-ai-trong-pipeline.md`.
-
-Nêu omaishort là AI-native ở chỗ nào (analyzer, planner, still, TTS) và AI-assisted ở chỗ nào (người dán bài, người đăng nhập ChatGPT). Lấy job gara cháy làm ví dụ hallucination: lời nói cháy xe, ảnh là người lạ. Ghi `script.json` field `note` và `provider`.
-
-Xong khi: một người đọc file đó biết sản phẩm làm gì và chỗ AI nói sai.
+Đã nộp `docs/course/chuong-01/` (mục 1.1–1.6). Native ở script, plan, still, TTS. Assisted ở người dán bài và login ChatGPT. Ảo giác gara cháy ghi qua `script.json` (`provider`, `note`) và test chương 6. Job `8f5115a49cdb` không có trong git.
 
 ### Tuần 2 — Chương 2. Prompt
 
@@ -60,27 +61,16 @@ Xong phần code khi: pytest khoá ba ý trên. Job URL sống chưa chạy tron
 
 ### Tuần 7 — Chương 7. Đọc lại diff tuần 6
 
-Việc: đọc diff từ khóa ảnh. Không thêm màn hình mới. Không biến tin thành drama.
-
-Xong khi: test `test_visual_terms_for_beat_follow_the_vo_not_the_headline` và test cháy gara vẫn xanh.
+Đã nộp `docs/course/chuong-07/`. Không thêm màn hình, không biến tin thành drama. Smell còn để sửa dần nằm ở `7.3-code-smells.md` (file `brief_media.py` quá rộng, `gather_external_for_beat` chưa đi qua bộ lọc tên riêng ngắn).
 
 ### Tuần 8 — Chương 8. Test
 
-Việc: `pytest -q` và `npx tsc --noEmit` trong `apps/web`. Ghi lệnh và số test vào `docs/course/chuong-08/8-kiem-thu.md`. Không gọi Comfy, ElevenLabs, hay ChatGPT sống trong test.
-
-Xong khi: CI `.github/workflows/ci.yml` cùng hai lệnh đó.
+Đã nộp `docs/course/chuong-08/`. `pytest -q`: 135 passed. `npx tsc --noEmit` trong `apps/web`: sạch. CI `.github/workflows/ci.yml` chạy hai lệnh đó. Test không gọi Comfy, ElevenLabs, hay ChatGPT sống.
 
 ### Tuần 9 — Chương 9. Tài liệu nộp
 
-Việc: báo cáo ngắn từ file đã có, không viết lại hợp đồng.
-
-- Chạy: `README.md`
-- Hợp đồng: `docs/REQUIREMENTS.md`, `docs/AUTH.md`
-- Thiếu thật: mục “Báo cáo thiếu hụt” trong `docs/course/chuong-03/README.md`
-- File local: MP4 chỉ trên máy; D1 chỉ metadata
+Đã nộp `docs/course/chuong-09/`. Không viết lại hợp đồng. Chạy: `README.md`. Hợp đồng: `docs/REQUIREMENTS.md`, `docs/AUTH.md`. Thiếu thật: mục “Báo cáo thiếu hụt” trong `docs/course/chuong-03/README.md`. MP4 chỉ trên máy; D1 chỉ metadata.
 
 ### Tuần 10 — Bảo vệ
 
-Mang ba job đã render: một drama, một tin, một kiến thức.
-
-Chỉ ra `render/motion.json`: drama có thể `i2v` hoặc `mixed`; tin và kiến thức là `kenburns`. Mở `script.json` của tin và nói provider nào viết lời. Nếu ảnh vẫn lệch lời, nói thẳng đó là lỗi tuần 6 chưa xong, không gọi là demo cố ý.
+Tờ mang theo: `docs/course/bao-ve.md`. Ba job drama / tin / kiến thức vẫn phải render trên máy. Trong git không có MP4 đó.

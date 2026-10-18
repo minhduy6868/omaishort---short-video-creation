@@ -6,6 +6,7 @@ alwaysApply: true
 # GitHub
 
 - Branch from `main`: `feat/...`, `fix/...`, `docs/...`, `refactor/...`, `test/...`, `chore/...`.
+- Push that branch first. Merge it, then push `dev` and `main`. Do not push straight onto `dev` or `main`.
 - Commits: `type(scope): why` — `feat(planner)`, `fix(compose)`, `docs(requirements)`, `test(engine)`. No “WIP” on `main`.
 - Never `git commit --amend` of a pushed commit. Never `--no-verify`. Never force-push `main`.
 - PRs use `.github/PULL_REQUEST_TEMPLATE.md`. Description says why; test plan is a checklist, not “works on my machine”.

@@ -51,6 +51,7 @@ Goal: do not encode a bad face.
 
 - After `stills` stage, job can sit in `awaiting_review` with a contact sheet (all stills + scores later).
 - API: `POST /jobs/{id}/approve` continues to TTS/render; `POST /jobs/{id}/regenerate` with `{still_id}` or `{character_id}`.
+- October 2026 repos say the same thing and we still do not have it: Printfilm redraws one shot; ReelMimic approves the plan before drawing. See [RESEARCH §J](RESEARCH.md#j-october-2026-short-video-repos). Do not start that work by cloning either repo.
 - Optional vision check: “same person as `refs/wife.png`?” before I2V (FTL). Placeholder path skips the judge.
 - Lock `render_runtime: ffmpeg | remotion` on the storyboard; compose must honor it.
 

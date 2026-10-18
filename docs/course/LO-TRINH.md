@@ -61,7 +61,7 @@ Xong phần code khi: pytest khoá ba ý trên. Job URL sống chưa chạy tron
 
 ### Tuần 7 — Chương 7. Đọc lại diff tuần 6
 
-Đã nộp `docs/course/chuong-07/`. Không thêm màn hình, không biến tin thành drama. Smell còn để sửa dần nằm ở `7.3-code-smells.md` (file `brief_media.py` quá rộng, `gather_external_for_beat` chưa đi qua bộ lọc tên riêng ngắn).
+Đã nộp `docs/course/chuong-07/`. Không thêm màn hình, không biến tin thành drama. `external_terms_for_beat` đã chặn cụm tên riêng. Còn để sau: tách `brief_media.py`, và credit dài hơn sáu từ.
 
 ### Tuần 8 — Chương 8. Test
 

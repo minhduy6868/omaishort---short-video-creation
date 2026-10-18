@@ -16,4 +16,4 @@
 
 1. Không có bot review trên GitHub (CodeQL, review app) trong `.github/workflows`. Review chương này là đọc diff và test.
 2. Không tách `brief_media.py` trong bài này. File vẫn ôm fetch, scrub, search, chấm điểm.
-3. `gather_external_for_beat` vẫn ghép cụm từ `beat_search_nouns` mà không đi qua bộ lọc tên riêng ngắn của `visual_terms_for_beat`. Đó là smell còn mở.
+3. `external_terms_for_beat` đã chặn cụm tên riêng ngắn khi câu đã có alias vật thể. `_EXPLAINER_PACKS` và trần sáu từ của credit vẫn để sau.

@@ -198,6 +198,36 @@ def test_assign_retries_cc_when_article_download_fails(tmp_path, monkeypatch):
     assert out["still_01"] != out["still_02"]
 
 
+def test_editorial_beats_search_together(tmp_path, monkeypatch):
+    class _Scene:
+        def __init__(self, still_id: str, vo: str) -> None:
+            self.still_id = still_id
+            self.dialogue_or_vo = vo
+
+    started: list[str] = []
+
+    async def fake_gather(vo: str, title: str = "", limit: int = 8):
+        started.append(vo)
+        await asyncio.sleep(0.05)
+        started.append(f"done:{vo}")
+        return []
+
+    monkeypatch.setattr("omaishort.engine.brief_media.gather_external_for_beat", fake_gather)
+    from omaishort.engine.brief_media import assign_editorial_stills
+
+    asyncio.run(
+        assign_editorial_stills(
+            scenes=[_Scene("still_01", "alpha beat"), _Scene("still_02", "beta beat")],
+            source_url=None,
+            article_urls=[],
+            dest_dir=tmp_path,
+            title="topic",
+        )
+    )
+    assert started[:2] == ["alpha beat", "beta beat"] or started[:2] == ["beta beat", "alpha beat"]
+    assert all(not item.startswith("done:") for item in started[:2])
+
+
 def test_editorial_score_prefers_the_spoken_place():
     from omaishort.engine.brief_media import editorial_candidate_score
 
@@ -258,6 +288,14 @@ def test_visual_terms_for_beat_follow_the_vo_not_the_headline():
     )]
     assert "phong" not in witness
     assert any("fire" in term or "garage" in term or "flame" in term for term in witness)
+    from omaishort.engine.brief_media import external_terms_for_beat
+
+    paired = [t.lower() for t in external_terms_for_beat(
+        "Anh Phong và chị Minh thấy gara đang cháy.",
+        "Gara cháy",
+    )]
+    assert all("phong" not in term.split() and "minh" not in term.split() for term in paired)
+    assert any("fire" in term or "garage" in term or "flame" in term for term in paired)
 
 
 def test_photo_credit_keeps_the_next_sentence_intact():

@@ -11,6 +11,7 @@ Positioning:
 | Story / short-drama | ArcReel, AIDrama, FTL Studio, AI-Story-To-Movie | Character refs → stills → optional I2V | `kind=drama` — **default** (user facts in viral shape) or **custom** (prompt from scratch). |
 | News / knowledge collage | MoneyPrinter ops + news 5-beat, not HyperFrames | Editorial stills + Ken Burns (ảnh ghép) | `kind=news` / `kind=knowledge`. Steal the **5-beat editorial arc** and per-scene VO. Do **not** fork HyperFrames, use Pexels, or put bible faces on editorial stills. |
 | I2V model APIs | Seedance, Wan, LTX, Veo (Gemini HTTP), Kling | First-frame still → short 9:16 clip | Drama motion only. Map onto `VideoProvider`. Do **not** scrape Flow/Dreamina/ginigen UIs or fork “free Veo/Seedance” wrappers. |
+| Oct 2026 wave | Printfilm, ReelMimic, Lemo-Opuscar, Animate, short-video-maker | Drama studio, style mimic, code-drawn films, YouTube clipper | See [§J](#j-october-2026-short-video-repos). Steal stage order and “redo one shot”. Do **not** vendor them, bake model audio over TTS, or switch stills to Canvas/HyperFrames. |
 
 Canonical product: [REQUIREMENTS.md](REQUIREMENTS.md) (numeric contract + routing). Elevation plan: [ROADMAP.md](ROADMAP.md).
 
@@ -537,3 +538,31 @@ Used in: `StoryInput.kind=news|knowledge` (legacy `brief`→news), `_plan_brief`
 | Wan-Video/Wan2.1–2.2, genmoai/mochi | Apache-2.0 | Weights OK; do not vendor inference apps |
 | AIDC-AI/Pixelle-Video | Apache-2.0 | Ops only; do not fork |
 | deepbeepmeep/Wan2GP | community | Local low-VRAM later; check non-commercial clause |
+| yi1108/printfilm | MIT | Ideas only. Do not vendor the studio, billing, or TokenFree client |
+| edenfunf/reelmimic | MIT | Shot-plan contract only. Do not vendor HyperFrames engines |
+| lemomo-ai/lemo-opuscar | MIT | Style-card idea only. Do not vendor Canvas/WebGL films |
+| cth9191/animate | MIT | No. Procedural canvas films |
+| mushigaite/short-video-maker | check repo | No. YouTube clipper, not a story engine |
+| coracoo/Slate | check repo | `storyboard.json` as the driver — we already do this |
+| maosika-ai/reshot | Apache-2.0 | Control-video idea only. Do not vendor depth/pose models |
+
+## J. October 2026 short-video repos
+
+Checked 2026-10-18 against the public GitHub search `created:>=2026-09-01`, sorted by stars. None of these are cloned into this tree.
+
+| Repo | Created | Stars | What it is | Take | Skip |
+| --- | --- | --- | --- | --- | --- |
+| [yi1108/printfilm](https://github.com/yi1108/printfilm) | 2026-09-10 | 5177 | MIT. Topic or script → storyboard → image → Seedance (voice baked into the clip) → FFmpeg. Drama and marketing share one stack. Redo one shot. | Two lines, one pipeline (we already do drama / news / knowledge). In-process job runner, no Celery. **Redo one still** is the gap: ROADMAP P3, not built. | Do not drop our TTS + ASS step. Printfilm lets Seedance speak; our duration is the probed VO, and `conform_clip` strips clip audio (`-an`) before mux. No billing, Redis, admin, or episode series. |
+| [edenfunf/reelmimic](https://github.com/edenfunf/reelmimic) | 2026-09-28 | 3551 | MIT. A reference video is broken into shot lengths, framing, and camera moves. A plan is approved, then agents draw a new film. Style files are Markdown. | Plan before render, and do not copy the reference footage or its people. Camera + action already live in `engine/motion_prompt.py`. | The drawing engines include HyperFrames. Do not fork them. Do not add “paste a YouTube URL and mimic it” as a kind. |
+| [lemomo-ai/lemo-opuscar](https://github.com/lemomo-ai/lemo-opuscar) | 2026-09-26 | 2924 | MIT. 51 film styles. Each demo is Canvas/WebGL rendered frame by frame, plus TTS. No video model. | A style is a prompt card, not a new renderer. Our cards are already `prompts/*.txt`. | Do not replace photographic stills or Ken Burns with a code-drawn film. |
+| [cth9191/animate](https://github.com/cth9191/animate) | 2026-10-04 | 794 | MIT. One-file canvas shorts for a coding agent, with storyboard check-ins. | Same skip as Opuscar. | Do not add a canvas renderer. |
+| [mushigaite/short-video-maker](https://github.com/mushigaite/short-video-maker) | 2026-10-05 | 625 | YouTube URL → faster-whisper → LLM ranks viral moments → 9:16 crops. OpusClip-shaped. | Nothing for this product. A short here is one story, not slices of someone else’s video. | Do not download YouTube or score “viral moments”. |
+| [coracoo/Slate](https://github.com/coracoo/Slate) | 2026-09-20 | 47 | Local previs. One `storyboard.json` drives script, shots, assets, then an I2V reference pack. | Confirms our contract: Remotion/FFmpeg read `timeline.json`; the planner does not import a vendor SDK. | Gray-model previs, Blender, and scraping ChatGPT for stills. |
+| [maosika-ai/reshot](https://github.com/maosika-ai/reshot) | 2026-09-11 | 51 | Apache-2.0. Reference clip → depth, skeleton, or canny so a video model copies the move, not the face. | Motion stays camera + action on our still. Identity stays the passport still. | Do not vendor Video Depth Anything or DWPose. |
+
+Already in this repo, so these sources do not add a second pipeline:
+
+- Shared stack for drama and editorial: `pipeline.py`, `is_editorial`.
+- Storyboard file on disk: `storyboard.json` / `timeline.json`.
+- I2V clip audio is dropped in `engine/kenburns.py` `conform_clip` (`-an`). The mux uses `audio/voiceover.mp3`.
+- News and knowledge stay Ken Burns. ReelMimic and Opuscar do not move them onto cartoon renderers.

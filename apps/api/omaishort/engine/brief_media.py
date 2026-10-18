@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import html as html_lib
 import re
 from dataclasses import dataclass, field
@@ -1000,23 +1001,22 @@ def visual_terms_for_beat(vo: str, title: str = "") -> list[str]:
 
     aliased = False
     for pattern, query in _VISUAL_ALIASES:
-        if re.search(pattern, vo, flags=re.I):
-            generic = bool(re.search(r"lạm phát|\binflation\b", pattern, flags=re.I))
-            if generic:
-                continue
-            add(query)
-            aliased = True
+        if not re.search(pattern, vo, flags=re.I):
+            continue
+        aliased = True
+        if _GENERIC_ALIAS.search(pattern):
+            continue
+        add(query)
     for pattern, query in _VISUAL_ALIASES:
-        if re.search(pattern, vo, flags=re.I):
+        if _GENERIC_ALIAS.search(pattern) and re.search(pattern, vo, flags=re.I):
             add(query)
-            aliased = True
     for pattern, query, _wiki in _QUERY_ALIASES:
         if re.search(pattern, vo, flags=re.I):
             add(query)
             aliased = True
     for noun in beat_search_nouns(vo):
         # A lone short name ("Phong") pulls portraits once the beat already has an object query.
-        if aliased and re.fullmatch(r"[A-ZÀ-Ỹ][\wÀ-ỹ]{1,5}", noun):
+        if aliased and _short_proper_name(noun):
             continue
         add(noun)
     if not terms:
@@ -1024,6 +1024,32 @@ def visual_terms_for_beat(vo: str, title: str = "") -> list[str]:
             add(term)
             if len(terms) >= 4:
                 break
+    return terms[:6]
+
+
+_GENERIC_ALIAS = re.compile(r"lạm phát|\binflation\b", re.I)
+
+
+def _short_proper_name(token: str) -> bool:
+    return bool(re.fullmatch(r"[A-ZÀ-Ỹ][\wÀ-ỹ]{1,5}", token or ""))
+
+
+def external_terms_for_beat(vo: str, title: str = "") -> list[str]:
+    """Queries gather_external_for_beat actually searches. Drops a short-name phrase once an object alias exists."""
+    terms = visual_terms_for_beat(vo, title)
+    aliased = any(
+        re.search(pattern, vo or "", flags=re.I)
+        for pattern, _query in (*_VISUAL_ALIASES, *((item[0], item[1]) for item in _QUERY_ALIASES))
+    )
+    nouns = [
+        noun
+        for noun in beat_search_nouns(vo)
+        if not (aliased and _short_proper_name(noun))
+    ]
+    if len(nouns) >= 2:
+        phrase = " ".join(nouns[:3])
+        if phrase.lower() not in {term.lower() for term in terms}:
+            terms = [phrase, *terms]
     return terms[:6]
 
 
@@ -1089,13 +1115,7 @@ async def gather_external_for_beat(vo: str, title: str, limit: int = 8) -> list[
     """More Wikimedia / Wikipedia / Openverse hits for this beat. Each row is url, source, query."""
     found: list[tuple[str, str, str]] = []
     seen: set[str] = set()
-    terms = visual_terms_for_beat(vo, title)
-    nouns = beat_search_nouns(vo)
-    if len(nouns) >= 2:
-        phrase = " ".join(nouns[:3])
-        if phrase.lower() not in {term.lower() for term in terms}:
-            terms = [phrase, *terms]
-    terms = terms[:6]
+    terms = external_terms_for_beat(vo, title)
 
     def push(urls: list[str], tag: str, query: str) -> None:
         for url in unique_image_urls(urls):
@@ -1634,6 +1654,18 @@ async def assign_editorial_stills(
     tried: set[str] = set()
     used: set[str] = set()
     locals_ready = [path for path in (local_paths or []) if path.is_file()]
+    local_n = len(locals_ready)
+    external_for: list[list[tuple[str, str, str]]] = [[] for _ in scenes]
+    search_slots = asyncio.Semaphore(3)
+
+    async def _prefetch(scene_index: int, scene) -> None:
+        vo = getattr(scene, "dialogue_or_vo", "") or ""
+        async with search_slots:
+            external_for[scene_index] = await gather_external_for_beat(vo, title)
+
+    await asyncio.gather(
+        *[_prefetch(i, scene) for i, scene in enumerate(scenes) if i >= local_n]
+    )
 
     async def _save(url: str) -> Path | None:
         nonlocal index
@@ -1674,7 +1706,7 @@ async def assign_editorial_stills(
                     "article",
                 )
             )
-        for url, tag, query in await gather_external_for_beat(vo, title):
+        for url, tag, query in external_for[scene_index]:
             if url in used:
                 continue
             ranked.append((editorial_candidate_score(url, vo, caption=caps.get(url, ""), query=query), url, tag))

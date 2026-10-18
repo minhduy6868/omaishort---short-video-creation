@@ -112,11 +112,12 @@ _VISUAL_ALIASES: tuple[tuple[str, str], ...] = (
     (r"vua hùng|hùng vương|các vua hùng", "Hung Kings temple Vietnam"),
     (r"sự tích|đền hùng|giỗ tổ", "Den Hung festival Phu Tho"),
     (r"lạc long|âu cơ|trăm trứng", "Lac Long Quan Au Co Vietnam legend"),
-    (r"bạch đằng", "Bach Dang river wooden stakes"),
+    (r"bạch đằng", "Battle of Bach Dang"),
     (r"nguyên mông|mông cổ", "Mongol cavalry horde"),
     (r"kiếp bạc|đền thờ", "Kiep Bac temple Vietnam"),
-    (r"cọc gỗ|cọc ngầm", "wooden river stakes"),
-    (r"thủy triều", "tidal river estuary"),
+    (r"cọc gỗ|cọc ngầm|cắm cọc", "Battle of Bach Dang"),
+    (r"chiến thuyền|thủy chiến", "Bach Dang naval battle"),
+    (r"nước triều|thủy triều", "tidal river estuary"),
     (r"lãi suất|interest rate", "central bank interest rate"),
     (r"tiền giấy|banknotes|currency", "banknotes currency stack"),
     (r"mâu thuẫn|cãi vã", "tense doorway argument still"),
@@ -509,6 +510,25 @@ _EXPLAINER_PACKS: tuple[tuple[str, dict[str, dict[str, str]]], ...] = (
                 "rising": "It runs when demand outruns supply, costs jump, or money grows faster than goods.",
                 "twist": "A spike in gas is not inflation. Watch the whole grocery basket.",
                 "ending": "Measure it with a price index over time. Central banks slow demand with rates.",
+            },
+        },
+    ),
+    (
+        r"bạch đằng|bach dang",
+        {
+            "vi": {
+                "hook": "Năm 1288, quân Nguyên theo sông Bạch Đằng rút khỏi Đại Việt. Trần Hưng Đạo đã cho đóng cọc và chờ họ ở khúc sông đó.",
+                "conflict": "Hạm đội Nguyên đông thuyền và muốn ra biển. Đại Việt không chặn được họ bằng một trận đánh trên bộ.",
+                "rising": "Quân Trần nhử thuyền địch vào đúng lòng sông đã cắm cọc. Thủy triều còn lên, nên cọc nằm dưới mặt nước.",
+                "twist": "Khi nước triều rút, thuyền Nguyên mắc vào cọc. Đó là một cái bẫy, không phải phép màu trên sông.",
+                "ending": "Trận Bạch Đằng 1288 phá đoàn thuyền rút lui. Người ta nhớ cọc gỗ, con nước, và tên Trần Hưng Đạo.",
+            },
+            "en": {
+                "hook": "In 1288 the Yuan fleet tried to leave Dai Viet down the Bach Dang river. Tran Hung Dao was waiting.",
+                "conflict": "The Yuan had the boats. Dai Viet could not stop that retreat with a land battle.",
+                "rising": "Tran soldiers drew the fleet into a channel planted with stakes. The tide was still high, so the wood sat underwater.",
+                "twist": "When the tide fell, the boats stuck. It was a trap, not a miracle.",
+                "ending": "Bach Dang in 1288 broke the retreating fleet. Remember the stakes, the tide, and Tran Hung Dao.",
             },
         },
     ),
@@ -1035,22 +1055,20 @@ def _short_proper_name(token: str) -> bool:
 
 
 def external_terms_for_beat(vo: str, title: str = "") -> list[str]:
-    """Queries gather_external_for_beat actually searches. Drops a short-name phrase once an object alias exists."""
+    """Queries gather_external_for_beat actually searches.
+
+    Once an object alias exists, raw VO tokens are not searched. "thuyền" and a mashed
+    name like "Tiếp Trần" pull unrelated Commons photos.
+    """
     terms = visual_terms_for_beat(vo, title)
     aliased = any(
         re.search(pattern, vo or "", flags=re.I)
         for pattern, _query in (*_VISUAL_ALIASES, *((item[0], item[1]) for item in _QUERY_ALIASES))
     )
-    nouns = [
-        noun
-        for noun in beat_search_nouns(vo)
-        if not (aliased and _short_proper_name(noun))
-    ]
-    if len(nouns) >= 2:
-        phrase = " ".join(nouns[:3])
-        if phrase.lower() not in {term.lower() for term in terms}:
-            terms = [phrase, *terms]
-    return terms[:6]
+    if not aliased:
+        return terms[:6]
+    raw = {noun.lower() for noun in beat_search_nouns(vo)}
+    return [term for term in terms if term.lower() not in raw][:6]
 
 
 _BEAT_STOP = {
@@ -1083,6 +1101,17 @@ def beat_search_nouns(vo: str) -> list[str]:
 
 
 STILL_OVERLAP = 0.15
+ARTICLE_BASE = 0.3
+
+
+def dedupe_article_photos(urls: list[str]) -> list[str]:
+    """One URL per file name. og:image is usually a smaller copy of a body photo, so keep the later one."""
+    last: dict[str, int] = {}
+    for i, url in enumerate(urls):
+        name = urlparse(url).path.rsplit("/", 1)[-1].lower()
+        last[name if len(name) >= 8 else url] = i
+    keep = set(last.values())
+    return [url for i, url in enumerate(urls) if i in keep]
 
 
 def overlap_score(caption: str, vo: str) -> float:
@@ -1100,14 +1129,25 @@ def editorial_candidate_score(
     caption: str = "",
     query: str = "",
     article: bool = False,
+    title: str = "",
 ) -> float:
-    """Rank a photo against one beat's VO. Article photos lead only when the caption agrees."""
+    """Rank a photo against one beat's VO.
+
+    An article's own photo with no caption still belongs to the story, so it ranks above
+    weak Commons hits. A captioned article photo that matches neither the beat nor the
+    headline is a related-story thumbnail and keeps its raw score.
+    """
     path = urlparse(url).path.replace("_", " ").replace("-", " ")
-    score = overlap_score(f"{caption} {path}", vo)
-    if query:
-        score = max(score, 0.22 + overlap_score(query, vo))
-    if article and score >= STILL_OVERLAP:
-        score += 0.18
+    photo = f"{caption} {path}"
+    vo_score = overlap_score(photo, vo)
+    query_score = overlap_score(photo, query) if query else 0.0
+    score = max(vo_score, query_score)
+    if not article:
+        return score
+    if vo_score >= STILL_OVERLAP:
+        return vo_score + 0.18
+    if not caption.strip() or (title and overlap_score(caption, title) >= STILL_OVERLAP):
+        return max(score, ARTICLE_BASE)
     return score
 
 
@@ -1126,7 +1166,7 @@ async def gather_external_for_beat(vo: str, title: str, limit: int = 8) -> list[
             seen.add(url)
             found.append((url, tag, query))
 
-    for page in wikipedia_titles(vo)[:2]:
+    for page in wikipedia_titles(title, vo)[:2]:
         push(await search_wikipedia_original(page), "wikipedia", page)
         if len(found) >= limit:
             return found
@@ -1157,8 +1197,9 @@ def extract_image_captions(html: str, page_url: str) -> dict[str, str]:
 def wikipedia_titles(title: str, text: str = "") -> list[str]:
     found: list[str] = []
     seen: set[str] = set()
+    blob = f"{title or ''}\n{text or ''}"
     for pattern, _query, wiki in _QUERY_ALIASES:
-        if not wiki or not re.search(pattern, title, flags=re.I):
+        if not wiki or not re.search(pattern, blob, flags=re.I):
             continue
         key = wiki.lower()
         if key in seen:
@@ -1321,6 +1362,10 @@ async def _wiki_json(host: str, params: dict) -> dict:
 
 
 _RELATED_WIKI: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        r"bạch đằng",
+        ("Trận Bạch Đằng (1288)", "Trận Bạch Đằng (938)", "Trần Hưng Đạo"),
+    ),
     (
         r"hùng vương|vua hùng|đền hùng|sự tích vua hùng",
         ("Hùng Vương", "Lạc Long Quân", "Âu Cơ", "Đền Hùng", "Ngày Giỗ Tổ Hùng Vương"),
@@ -1646,7 +1691,7 @@ async def assign_editorial_stills(
 ) -> tuple[dict[str, Path], str]:
     """One still per beat from article/CC photos. Never Pollinations faces."""
     dest_dir.mkdir(parents=True, exist_ok=True)
-    unused = unique_image_urls(list(article_urls or []))
+    unused = dedupe_article_photos(unique_image_urls(list(article_urls or [])))
     caps = captions or {}
     out: dict[str, Path] = {}
     tags: list[str] = []
@@ -1701,7 +1746,7 @@ async def assign_editorial_stills(
                 continue
             ranked.append(
                 (
-                    editorial_candidate_score(url, vo, caption=caps.get(url, ""), article=True),
+                    editorial_candidate_score(url, vo, caption=caps.get(url, ""), article=True, title=title),
                     url,
                     "article",
                 )
@@ -1711,7 +1756,9 @@ async def assign_editorial_stills(
                 continue
             ranked.append((editorial_candidate_score(url, vo, caption=caps.get(url, ""), query=query), url, tag))
         ranked.sort(key=lambda row: row[0], reverse=True)
-        for _score, url, tag in ranked:
+        for score, url, tag in ranked:
+            if score < STILL_OVERLAP:
+                continue
             path = await _save(url)
             if not path:
                 continue

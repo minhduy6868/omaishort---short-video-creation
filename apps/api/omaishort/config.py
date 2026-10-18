@@ -52,6 +52,7 @@ XAI_VIDEO_MODEL = _env("XAI_VIDEO_MODEL", "grok-imagine-video-1.5") or "grok-ima
 XAI_VIDEO_RESOLUTION = _env("XAI_VIDEO_RESOLUTION", "720p") or "720p"
 GROK_WEB_ENABLED = _env_bool("GROK_WEB_ENABLED", True)
 GROK_WEB_HEADED = _env_bool("GROK_WEB_HEADED", False)
+HUB_HEADLESS = _env_bool("HUB_HEADLESS", False)
 GROK_WEB_VIDEO_ENABLED = _env_bool("GROK_WEB_VIDEO_ENABLED", True)
 GROK_WEB_TIMEOUT_MIN = _env_int("GROK_WEB_TIMEOUT_MIN", 12)
 COMFYUI_URL = _env("COMFYUI_URL", "http://127.0.0.1:8188").rstrip("/")

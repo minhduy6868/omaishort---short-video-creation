@@ -14,12 +14,11 @@ import re
 import time
 from pathlib import Path
 
-from omaishort.config import DATA_DIR, GROK_WEB_ENABLED, GROK_WEB_HEADED
-from omaishort.providers.chrome_profile import playwright_ok, system_chrome_exe
+from omaishort.config import DATA_DIR, GROK_WEB_ENABLED, GROK_WEB_HEADED, HUB_HEADLESS
+from omaishort.providers.chrome_profile import hub_launch_args, playwright_ok, system_chrome_exe
 
 IMAGINE = "https://grok.com/imagine"
 _AUTH_COOKIES = {"sso", "sso-rw"}
-_STEALTH = ["--disable-blink-features=AutomationControlled"]
 session_lock = asyncio.Lock()
 
 
@@ -75,18 +74,7 @@ def clear_authed() -> None:
 
 
 def launch_args(*, headed: bool) -> dict:
-    args = list(_STEALTH)
-    if not headed:
-        args.append("--start-minimized")
-    opts: dict = {
-        "user_data_dir": str(profile_dir()),
-        "headless": (not headed) and (not GROK_WEB_HEADED),
-        "viewport": {"width": 1280, "height": 900},
-        "args": args,
-    }
-    if system_chrome_exe() is not None:
-        opts["channel"] = "chrome"
-    return opts
+    return hub_launch_args(profile_dir(), visible=headed or GROK_WEB_HEADED, headless=HUB_HEADLESS)
 
 
 def cookies_have_sso(cookies: list[dict]) -> bool:
@@ -176,6 +164,15 @@ async def login() -> bool:
         await ctx.close()
         print("Grok login timed out.")
         return False
+
+
+async def open_imagine(page) -> None:
+    """grok.com/imagine reloads itself once after domcontentloaded; an in-page fetch during that dies."""
+    await page.goto(IMAGINE, wait_until="load")
+    await page.wait_for_timeout(2500)
+    if not page.url.startswith(IMAGINE):
+        await page.goto(IMAGINE, wait_until="load")
+        await page.wait_for_timeout(1500)
 
 
 async def page_fetch(page, url: str, *, method: str = "POST", body: str | None = None, timeout_ms: int = 60_000) -> tuple[int, str]:

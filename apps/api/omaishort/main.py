@@ -77,6 +77,8 @@ def health() -> dict[str, str]:
 
 _chatgpt_gate = threading.Lock()
 _chatgpt_opening = False
+_grok_gate = threading.Lock()
+_grok_opening = False
 
 
 @app.get("/providers")
@@ -93,6 +95,10 @@ def start_chatgpt_login(_user: CurrentUser) -> dict[str, str]:
 
     if not playwright_ok():
         raise HTTPException(status_code=503, detail="Playwright Chromium is not installed")
+    from omaishort.providers import chatgpt_web
+
+    if chatgpt_web._LOCK.locked():
+        raise HTTPException(status_code=409, detail="Một job đang dùng phiên ChatGPT. Chờ job viết lời xong rồi bấm lại.")
 
     opened = threading.Event()
     box: dict[str, str] = {}
@@ -151,6 +157,35 @@ def open_chatgpt_content(_user: CurrentUser) -> dict[str, str]:
             raise HTTPException(status_code=409, detail="Cửa sổ ChatGPT đang mở. Đăng nhập trên cửa sổ đó, hoặc đóng rồi bấm lại.")
         _chatgpt_opening = True
     threading.Thread(target=_run, name="chatgpt-content", daemon=True).start()
+    return {"status": "opening"}
+
+
+@app.post("/providers/grok-login")
+def start_grok_login(_user: CurrentUser) -> dict[str, str]:
+    """Open headed Chrome on this PC until a Grok SSO cookie exists. Drama motion only."""
+    global _grok_opening
+    from omaishort.providers.chrome_profile import playwright_ok
+    from omaishort.providers.grok_web import login as grok_login
+    from omaishort.providers.grok_web import session_lock as grok_busy
+
+    if not playwright_ok():
+        raise HTTPException(status_code=503, detail="Playwright Chromium is not installed")
+    if grok_busy.locked():
+        raise HTTPException(status_code=409, detail="Một job đang dùng phiên Grok để dựng chuyển động. Chờ cảnh đó xong rồi bấm lại.")
+
+    def _run() -> None:
+        global _grok_opening
+        try:
+            asyncio.run(grok_login())
+        finally:
+            with _grok_gate:
+                _grok_opening = False
+
+    with _grok_gate:
+        if _grok_opening:
+            raise HTTPException(status_code=409, detail="Cửa sổ Grok đang mở. Đăng nhập trên cửa sổ đó, hoặc đóng rồi bấm lại.")
+        _grok_opening = True
+    threading.Thread(target=_run, name="grok-login", daemon=True).start()
     return {"status": "opening"}
 
 

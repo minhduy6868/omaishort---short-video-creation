@@ -5,6 +5,7 @@ import {
   readProviders,
   readVoices,
   startChatgptLogin,
+  startGrokLogin,
   uploadAttachment,
   type AttachmentRow,
   type ProviderStatus,
@@ -113,6 +114,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
   const [picked, setPicked] = useState<PickedAttachment[]>([]);
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
   const [chatgptOpening, setChatgptOpening] = useState(false);
+  const [grokOpening, setGrokOpening] = useState(false);
   const copy = COPY[kind];
   const attachChoices = editorial ? ["editorial", "logo", "script"] : ["face", "location", "prop", "logo", "script"];
 
@@ -357,6 +359,37 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
               </div>
               {kind === "drama" ? (
                 <p className="meta">Motion hiển thị đúng theo provider: kenburns, i2v hoặc mixed khi backend trả về.</p>
+              ) : null}
+              {kind === "drama" && providers && !providers.grok_hub_authed ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={grokOpening}
+                  onClick={() => {
+                    setMessage(null);
+                    setGrokOpening(true);
+                    void startGrokLogin()
+                      .then(() => {
+                        setMessage("Chrome đang mở Grok. Đăng nhập. Phiên lưu khi cookie SSO xuất hiện.");
+                        const timer = window.setInterval(() => {
+                          void readProviders().then((status) => {
+                            setProviders(status);
+                            if (status?.grok_hub_authed) {
+                              window.clearInterval(timer);
+                              setGrokOpening(false);
+                              setMessage("Đã lưu phiên Grok.");
+                            }
+                          });
+                        }, 3000);
+                      })
+                      .catch((err) => {
+                        setGrokOpening(false);
+                        setMessage(err instanceof Error ? err.message : "Could not open Grok");
+                      });
+                  }}
+                >
+                  {grokOpening ? "Đang chờ Grok…" : "Đăng nhập Grok"}
+                </button>
               ) : null}
               {kind === "knowledge" && providers && !providers.chatgpt_web_authed ? (
                 <button

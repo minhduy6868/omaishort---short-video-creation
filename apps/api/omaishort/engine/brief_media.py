@@ -79,6 +79,9 @@ _VISUAL_ALIASES: tuple[tuple[str, str], ...] = (
     (r"rổ hàng|siêu thị|giá hàng", "grocery supermarket food prices"),
     (r"sức mua|túi tiền|tiền trong túi", "wallet cash buying power"),
     (r"cầu vượt cung|lượng tiền", "busy marketplace demand"),
+    (r"xe chữa cháy|cảnh sát pccc|lính cứu hỏa|vòi rồng", "firefighters fire truck"),
+    (r"gara|xưởng sửa xe", "car repair garage"),
+    (r"cháy|hỏa hoạn|đám cháy|chập điện", "vehicle fire flames"),
     (r"xăng|gas station", "gas station fuel pump"),
     (r"chỉ số giá|\bcpi\b|lãi suất", "consumer price index chart"),
     (r"ly hôn|divorce", "divorce empty house"),
@@ -840,7 +843,17 @@ def strip_glued_related(text: str) -> str:
 
 
 def strip_photo_credit(text: str) -> str:
-    cleaned = re.sub(r"\s*(?:Ảnh|Photo|Nguồn)\s*:\s*[A-Za-z0-9 .,&/-]{2,40}", " ", text or "", flags=re.I)
+    """Drop a photo credit without clipping a Vietnamese name down to a broken syllable.
+
+    The old class was ASCII-only, so "Ảnh: Minh Bằng" became "Ằng" and glued onto
+    the next sentence ("Ằng Ít phút sau").
+    """
+    cleaned = re.sub(
+        r"\s*(?:Ảnh|Photo|Nguồn)\s*:\s*\*?\s*[\wÀ-ỹ'’-]+(?:\s+[\wÀ-ỹ'’-]+){0,5}\s*\*?",
+        " ",
+        text or "",
+        flags=re.I,
+    )
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
@@ -985,19 +998,26 @@ def visual_terms_for_beat(vo: str, title: str = "") -> list[str]:
         seen.add(key)
         terms.append(cleaned)
 
+    aliased = False
     for pattern, query in _VISUAL_ALIASES:
         if re.search(pattern, vo, flags=re.I):
             generic = bool(re.search(r"lạm phát|\binflation\b", pattern, flags=re.I))
             if generic:
                 continue
             add(query)
+            aliased = True
     for pattern, query in _VISUAL_ALIASES:
         if re.search(pattern, vo, flags=re.I):
             add(query)
+            aliased = True
     for pattern, query, _wiki in _QUERY_ALIASES:
         if re.search(pattern, vo, flags=re.I):
             add(query)
+            aliased = True
     for noun in beat_search_nouns(vo):
+        # A lone short name ("Phong") pulls portraits once the beat already has an object query.
+        if aliased and re.fullmatch(r"[A-ZÀ-Ỹ][\wÀ-ỹ]{1,5}", noun):
+            continue
         add(noun)
     if not terms:
         for term in brief_search_queries(title, vo):
@@ -1014,6 +1034,9 @@ _BEAT_STOP = {
     "không", "được", "này", "đó", "còn", "đã", "là", "ở", "từ", "đến", "theo",
     "người", "việc", "rằng", "nhưng", "cũng", "rất", "để", "hay", "nên",
     "khách", "chuyện",
+    "khoảng", "nguyên", "nhân", "chiến", "phường", "đường", "nhiều",
+    "chữa", "sống", "gần", "hiện", "trường", "biết", "bùng",
+    "hoạn", "ngụt", "phút", "sau", "bên", "lúc",
 }
 
 

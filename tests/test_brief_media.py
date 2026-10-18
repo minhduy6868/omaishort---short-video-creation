@@ -241,6 +241,63 @@ def test_visual_terms_for_beat_follow_the_vo_not_the_headline():
 
     nouns = [n.lower() for n in beat_search_nouns("Một lead bị bỏ quên. Khách mất lịch sử.")]
     assert "khách" not in nouns
+    fire = " ".join(
+        visual_terms_for_beat(
+            "Nguyên nhân ban đầu do chập điện. Hỏa hoạn bao trùm ôtô trong gara.",
+            "Gara ôtô cháy",
+        )
+    ).lower()
+    assert "fire" in fire or "flame" in fire or "garage" in fire
+    assert "nguyên" not in [n.lower() for n in beat_search_nouns("Nguyên nhân do chập điện.")]
+    assert "khoảng" not in [
+        n.lower() for n in beat_search_nouns("Bên trong có khoảng 5 xe đang chờ sửa chữa.")
+    ]
+    witness = [t.lower() for t in visual_terms_for_beat(
+        "Anh Phong, sống gần hiện trường cho biết hỏa hoạn bùng lên tại gara.",
+        "Gara ôtô cháy",
+    )]
+    assert "phong" not in witness
+    assert any("fire" in term or "garage" in term or "flame" in term for term in witness)
+
+
+def test_photo_credit_keeps_the_next_sentence_intact():
+    html = """
+    <html><head>
+    <title>Gara ôtô ở TP HCM cháy ngùn ngụt - Báo VnExpress</title>
+    <meta name="description" content="Hỏa hoạn bùng lên tại gara ôtô, một ôtô bị thiêu rụi.">
+    </head><body>
+    <article class="fck_detail">
+    <p>Ôtô trong gara cháy ngùn ngụt. Ảnh: Minh Bằng</p>
+    <p>Ít phút sau, hỏa hoạn bùng lên dữ dội bao trùm ôtô Mercedes đỗ bên trong.</p>
+    <p>Ba xe chữa cháy được điều đến. Ảnh: *Đình Văn*</p>
+    </article>
+    </body></html>
+    """
+    text = extract_article_text(html)
+    assert "Ằng" not in text
+    assert "ằng" not in text
+    assert "Ảnh:" not in text
+    assert "Ít phút sau" in text
+    assert "Mercedes" in text
+    assert "xe chữa cháy" in text
+
+
+def test_article_caption_match_beats_an_unrelated_wiki_query():
+    from omaishort.engine.brief_media import editorial_candidate_score
+
+    vo = "Hỏa hoạn bao trùm ôtô trong gara. Xe chữa cháy kéo vòi rồng."
+    article = editorial_candidate_score(
+        "https://vcdn.vnecdn.net/garage-fire.jpg",
+        vo,
+        caption="Ôtô trong gara cháy ngùn ngụt",
+        article=True,
+    )
+    wiki = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/portrait.jpg",
+        vo,
+        query="portrait flowers calligraphy",
+    )
+    assert article > wiki
 
 
 def test_extract_keeps_article_ending():

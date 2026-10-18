@@ -6,17 +6,22 @@ type StageRailProps = {
 };
 
 const STAGE_LABELS: Record<Stage, string> = {
-  queued: "Queued",
-  analyze: "Analyze",
-  plan: "Plan",
-  refs: "Refs",
-  stills: "Stills",
-  tts: "TTS",
-  captions: "Captions",
+  queued: "Hàng đợi",
+  analyze: "Phân tích",
+  plan: "Chia cảnh",
+  refs: "Ảnh mẫu",
+  stills: "Still",
+  tts: "Giọng đọc",
+  captions: "Phụ đề",
   render: "Render",
-  done: "Done",
-  failed: "Failed",
+  done: "Xong",
+  failed: "Lỗi",
 };
+
+export function stageLabel(stage?: string): string {
+  if (!stage) return "";
+  return STAGE_LABELS[stage as Stage] || stage;
+}
 
 function stageClass(stage: Stage, current?: string, status?: string): string {
   const currentIndex = PIPELINE_STAGES.indexOf(current as Stage);

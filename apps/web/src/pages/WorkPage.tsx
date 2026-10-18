@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listJobs } from "../api";
-import { CounterCard, PageHeader, ProgressBar, StatusPill, progressFromJob, toneForStatus } from "../components";
+import { CounterCard, PageHeader, ProgressBar, StatusPill, progressCopy, progressFromJob, stageLabel, toneForStatus } from "../components";
 import { useNav } from "../nav";
 import type { Job, VideoKind } from "../types";
 
@@ -48,25 +48,39 @@ export function WorkPage() {
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const rows = await listJobs();
-    setJobs(rows);
-    setLastUpdated(new Date());
+    try {
+      const rows = await listJobs();
+      setJobs(rows);
+      setLastUpdated(new Date());
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Không tải được danh sách job");
+    }
   }, []);
 
   useEffect(() => {
-    let stop = false;
-    void listJobs().then((rows) => {
-      if (!stop) {
-        setJobs(rows);
-        setLastUpdated(new Date());
-      }
-    });
-    return () => {
-      stop = true;
+    void refresh();
+  }, [refresh]);
+
+  const running = (jobs ?? []).some(isRunning);
+
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 4000);
+    const onVisible = () => {
+      if (!document.hidden) void refresh();
     };
-  }, []);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh, running]);
 
   const counts = useMemo(() => {
     const rows = jobs ?? [];
@@ -142,7 +156,8 @@ export function WorkPage() {
           </div>
         </div>
 
-        {jobs === null ? <p className="meta">Đang tải job…</p> : null}
+        {jobs === null && !loadError ? <p className="meta">Đang tải job…</p> : null}
+        {loadError ? <p className="err">{loadError}</p> : null}
         {jobs && jobs.length === 0 ? (
           <div className="empty-panel">
             <strong>Chưa có job.</strong>
@@ -173,7 +188,7 @@ export function WorkPage() {
               <tbody>
                 {filteredJobs.map((job) => {
                   const motion = job.artifacts?.motion_mode || "pending";
-                  const progress = progressFromJob(job.progress, job.status);
+                  const progress = progressFromJob(job.progress, job.status, job.stage);
                   return (
                     <tr key={job.id}>
                       <td>
@@ -183,12 +198,12 @@ export function WorkPage() {
                         </button>
                       </td>
                       <td>{jobKind(job)}</td>
-                      <td>{job.stage}</td>
+                      <td>{stageLabel(job.stage)}</td>
                       <td>
                         <StatusPill label={job.status} tone={toneForStatus(job.status)} />
                       </td>
                       <td>
-                        <ProgressBar value={progress} label={job.progress || `${Math.round(progress)}%`} />
+                        <ProgressBar value={progress} label={progressCopy(job.progress, job.stage)} />
                       </td>
                       <td>{formatDate(job.updated_at || job.created_at)}</td>
                       <td>{motion}</td>

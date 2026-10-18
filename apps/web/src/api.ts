@@ -150,7 +150,7 @@ export async function createJob(draft: StoryDraft): Promise<{ id: string }> {
 
 export async function listJobs(): Promise<Job[]> {
   const res = await request("/jobs");
-  if (!res.ok) return [];
+  if (!res.ok) throw await parseError(res, "Không tải được danh sách job");
   const data = (await res.json()) as { jobs?: Job[] };
   return Array.isArray(data.jobs) ? data.jobs : [];
 }

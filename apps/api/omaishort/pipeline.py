@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import traceback
 from pathlib import Path
@@ -61,6 +63,18 @@ def _attachment_records(story: StoryInput, user_id: str | None) -> list[dict]:
     return rows
 
 
+async def _speak_voiceover(job_id: str, story: StoryInput, vo: str):
+    """TTS can run while stills are fetched. A miss becomes silence, same as before."""
+    voice_path = audio_dir(job_id) / "voiceover.mp3"
+    try:
+        tts = await synthesize_speech(vo, voice_path, story.language, story.voice_id)
+        return tts.path, tts.provider, tts.words
+    except Exception:
+        seconds = max(story.target_seconds, len(vo.split()) / 2.5)
+        path = await silence_audio(audio_dir(job_id) / "voiceover.mp3", seconds)
+        return path, "silence", None
+
+
 def _dump(job_id: str, name: str, payload) -> Path:
     path = job_dir(job_id) / name
     if hasattr(payload, "model_dump"):
@@ -80,6 +94,9 @@ async def run_job(job_id: str) -> None:
     providers: dict[str, str] = {}
     article_urls: list[str] | None = None
     article_captions: dict[str, str] = {}
+    speak_task: asyncio.Task | None = None
+    writes_open = True
+    write_lock = asyncio.Lock()
     try:
         if not story.source_url and looks_like_url(story.text.strip()):
             story = story.model_copy(update={"source_url": story.text.strip()})
@@ -230,6 +247,8 @@ async def run_job(job_id: str) -> None:
             clamp_brief_storyboard(board, story.target_seconds, story.language)
         _dump(job_id, "storyboard.json", board)
         db.update_job(job_id, storyboard_json=board.model_dump_json(), stage=JobStage.refs.value, progress="refs")
+        vo = join_scene_narration([scene.dialogue_or_vo for scene in board.scenes])
+        speak_task = asyncio.create_task(_speak_voiceover(job_id, story, vo))
 
         applied = apply_attachment_files(
             job_id,
@@ -248,19 +267,30 @@ async def run_job(job_id: str) -> None:
         rdir = refs_dir(job_id)
         loc_dir = location_refs_dir(job_id)
         prop_dir = prop_refs_dir(job_id)
+        image_slots = asyncio.Semaphore(2)
         if not is_editorial(story.kind):
-            for char in bible.characters:
+
+            async def _one_passport(char) -> None:
                 dest = rdir / f"{char.id}.png"
                 if char.id in applied.faces and dest.exists():
                     char.reference_image = dest.as_posix()
-                    artifacts[f"ref_{char.id}"] = dest.as_posix()
-                    providers[f"ref_{char.id}"] = "attachment"
-                    continue
+                    async with write_lock:
+                        if not writes_open:
+                            return
+                        artifacts[f"ref_{char.id}"] = dest.as_posix()
+                        providers[f"ref_{char.id}"] = "attachment"
+                    return
                 prompt = build_ref_prompt(char)
-                path, pname = await generate_image(prompt, dest, photo=True)
-                providers[f"ref_{char.id}"] = pname
+                async with image_slots:
+                    path, pname = await generate_image(prompt, dest, photo=True)
                 char.reference_image = path.as_posix()
-                artifacts[f"ref_{char.id}"] = path.as_posix()
+                async with write_lock:
+                    if not writes_open:
+                        return
+                    providers[f"ref_{char.id}"] = pname
+                    artifacts[f"ref_{char.id}"] = path.as_posix()
+
+            await asyncio.gather(*[_one_passport(char) for char in bible.characters])
             for loc in bible.locations:
                 dest = loc_dir / f"{loc.id}.png"
                 if loc.id in applied.locations and dest.exists():
@@ -303,6 +333,7 @@ async def run_job(job_id: str) -> None:
         sourced_by_id: dict[str, Path] = {}
         source_kind = "generated"
         if is_editorial(story.kind):
+            db.update_job(job_id, progress="stills:search")
             sourced_by_id, source_kind = await assign_editorial_stills(
                 scenes=board.scenes,
                 source_url=story.source_url,
@@ -313,7 +344,11 @@ async def run_job(job_id: str) -> None:
                 local_paths=applied.editorial,
             )
             providers["brief_stills"] = source_kind
-        for scene in board.scenes:
+        total_stills = max(1, len(board.scenes))
+        done_stills = 0
+
+        async def _one_still(scene) -> None:
+            nonlocal done_stills
             dest = sdir / f"{scene.still_id}.png"
             src = sourced_by_id.get(scene.still_id)
             if src:
@@ -325,25 +360,27 @@ async def run_job(job_id: str) -> None:
                 refs = scene_still_refs(
                     scene, refs_dir=rdir, location_dir=loc_dir, prop_dir=prop_dir
                 )
-                path, pname = await generate_image(scene.image_prompt, dest, refs, photo=True)
-            providers[f"still_{scene.still_id}"] = pname
-            stills[scene.still_id] = path
-            artifacts[scene.still_id] = path.as_posix()
-            db.update_job(job_id, artifacts_json=json.dumps(artifacts), progress=f"stills:{scene.still_id}")
+                async with image_slots:
+                    path, pname = await generate_image(scene.image_prompt, dest, refs, photo=True)
+            async with write_lock:
+                if not writes_open:
+                    return
+                providers[f"still_{scene.still_id}"] = pname
+                stills[scene.still_id] = path
+                artifacts[scene.still_id] = path.as_posix()
+                done_stills += 1
+                db.update_job(
+                    job_id,
+                    artifacts_json=json.dumps(artifacts),
+                    progress=f"stills:{done_stills}/{total_stills}",
+                )
 
-        db.update_job(job_id, stage=JobStage.tts.value, progress="tts")
-        vo = join_scene_narration([scene.dialogue_or_vo for scene in board.scenes])
-        voice_path = audio_dir(job_id) / "voiceover.mp3"
-        edge_words = None
-        try:
-            tts = await synthesize_speech(vo, voice_path, story.language, story.voice_id)
-            voice_path = tts.path
-            providers["tts"] = tts.provider
-            edge_words = tts.words
-        except Exception:
-            seconds = max(story.target_seconds, len(vo.split()) / 2.5)
-            voice_path = await silence_audio(audio_dir(job_id) / "voiceover.mp3", seconds)
-            providers["tts"] = "silence"
+        await asyncio.gather(*[_one_still(scene) for scene in board.scenes])
+
+        if speak_task is not None and not speak_task.done():
+            db.update_job(job_id, stage=JobStage.tts.value, progress="tts")
+        voice_path, tts_name, edge_words = await speak_task
+        providers["tts"] = tts_name
         duration = probe_duration(voice_path) or float(story.target_seconds)
         board = rescale_to_audio(board, duration)
         _dump(job_id, "storyboard.json", board)
@@ -396,10 +433,16 @@ async def run_job(job_id: str) -> None:
             error=None,
         )
     except Exception as exc:
+        writes_open = False
+        async with write_lock:
+            pass
+        if speak_task is not None and not speak_task.done():
+            speak_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await speak_task
         db.update_job(
             job_id,
             status=JobStatus.failed.value,
-            stage=JobStage.failed.value,
             progress="failed",
             error=f"{exc}\n{traceback.format_exc()[-2000:]}",
         )

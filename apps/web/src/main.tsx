@@ -5,6 +5,7 @@ import App from "./App";
 import { SUPPORTED_LANGS, type SupportedLang } from "./i18n";
 import "./i18n";
 import "./index.css";
+import "./App.css";
 import { useNav, NavProvider } from "./nav";
 import { LandingPage } from "./pages/LandingPage";
 import { SessionProvider } from "./session";
@@ -32,14 +33,14 @@ function AppRouter() {
     <BrowserRouter>
       <NavSync />
       <Routes>
-        <Route path="/" element={<App />} />
+        <Route path="/" element={<Navigate to="/vi" replace />} />
         {STUDIO_PATHS.map((path) => (
           <Route key={path} path={path} element={<App />} />
         ))}
         <Route path="/watch/:id" element={<App />} />
         <Route path="/:lang/studio" element={<Navigate to="/work" replace />} />
         <Route path="/:lang" element={<LandingRoute />} />
-        <Route path="*" element={<Navigate to="/work" replace />} />
+        <Route path="*" element={<Navigate to="/vi" replace />} />
       </Routes>
     </BrowserRouter>
   );

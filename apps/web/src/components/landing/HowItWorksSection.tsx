@@ -9,12 +9,17 @@ export function HowItWorksSection() {
   return (
     <section id="how-it-works" className="section how-it-works" aria-labelledby="how-title" ref={ref}>
       <div className="section-inner">
-        <p className="kicker">{t('howItWorks.kicker')}</p>
-        <h2 id="how-title" className="section-title">{t('howItWorks.title')}</h2>
+        <div className="section-header-block">
+          <p className="kicker">{t('howItWorks.kicker')}</p>
+          <h2 id="how-title" className="section-title">{t('howItWorks.title')}</h2>
+        </div>
+
         <div className="steps-grid">
           {steps.map((step, i) => (
             <article key={i} className="step-card">
-              <div className="step-number" aria-hidden="true">{String(i + 1).padStart(2, '0')}</div>
+              <div className="step-number" aria-hidden="true">
+                {String(i + 1).padStart(2, '0')}
+              </div>
               <h3>{step.title}</h3>
               <p>{step.description}</p>
             </article>

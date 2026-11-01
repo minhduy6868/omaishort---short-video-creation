@@ -21,9 +21,12 @@ export function DemoSection() {
   return (
     <section id="demo" className="section demo" aria-labelledby="demo-title" ref={ref}>
       <div className="section-inner">
-        <p className="kicker">{t('demo.kicker')}</p>
-        <h2 id="demo-title" className="section-title">{t('demo.title')}</h2>
-        <p className="section-subtitle">{t('demo.subtitle')}</p>
+        <div className="section-header-block">
+          <p className="kicker">{t('demo.kicker')}</p>
+          <h2 id="demo-title" className="section-title">{t('demo.title')}</h2>
+          <p className="section-subtitle">{t('demo.subtitle')}</p>
+        </div>
+
         <div className="demo-grid">
           {items.map((item, i) => {
             const demoAsset = demos[i] || demos[0];

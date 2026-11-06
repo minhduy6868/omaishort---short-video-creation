@@ -36,6 +36,8 @@ When the task matches, **read the Cursor `SKILL.md` now** and follow it. Pointer
 | `scene-planner` | Storyboard, shots, beat lenses |
 | `render-short` | Compose, Ken Burns, captions, `timeline.json` |
 | `frontend-ui` | Vite studio |
+| `landing-page-design` | Landing `/:lang`, `components/landing/*`, `landing.css` |
+| `design-to-motion` | Animated product previews, stage showcases, micro-interactions |
 | `source-research` | Learn from MoneyPrinter / OpenMontage / HyperFrames — **do not clone** |
 | `refactor` | Dọn dẹp without changing the contract |
 | `test` | pytest, `tsc`, dry-run |

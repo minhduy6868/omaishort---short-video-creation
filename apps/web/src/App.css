@@ -2,8 +2,9 @@
 /*
  * Design System Principles:
  * - Zero radial-gradient glow blobs, zero linear-gradient panel fills, zero pill-overload.
- * - Clean Public Sans UI hierarchy (12px, 13px, 14px, 16px, 20px, 28px) + Fraunces only for brand mark.
- * - Crisp 1px borders (var(--surface-3) / var(--line)), flat dark architectural surfaces (var(--surface-0), var(--surface-1), var(--surface-2)).
+ * - Type scale (12px, 13px, 14px, 16px, 20px, 28px) on var(--font-ui) / var(--font-display).
+ * - Base layout with 1px var(--line) borders and flat surfaces; styles/skins.css gives each
+ *   theme (brutal, soft) its borders and depth.
  * - Proper enterprise table, segmented filter tabs, and compact navigation rail.
  */
 

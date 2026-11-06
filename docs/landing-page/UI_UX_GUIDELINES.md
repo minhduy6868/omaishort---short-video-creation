@@ -4,43 +4,26 @@
 
 ### Color Palette
 
-omaishort sử dụng dark theme với tone ấm (warm charcoal + terracotta).
+Màu và font là token theo theme trong `apps/web/src/index.css`, gắn bằng `data-theme` trên `<html>`. Admin (role `operator`) chọn theme cho toàn site ở trang Tài khoản (`PUT /site/theme`); mọi người đọc `GET /site/theme`. `?theme=soft` chỉ xem thử, không lưu. Viền, bóng và độ nổi của từng theme nằm ở `apps/web/src/styles/skins.css`. CSS chỉ đọc token, không ghi hex trực tiếp (trừ khung video luôn tối). Nền phẳng, không gradient.
 
-#### Existing Tokens (giữ nguyên)
+| Theme | Mặc định | Nền / khối | Accent | Font | Chiều sâu |
+| --- | --- | --- | --- | --- | --- |
+| `brutal` (Khối thô) | có | `#fff4d6` kem / `#ffffff`, nhấn `#ffe14d` vàng | `#ff5c39` cam | Space Grotesk | viền đen 2–3px, bóng cứng 4px |
+| `soft` (Gối mềm) | | `#e4e8ee` một màu xám | `#2f5bea` xanh | Manrope | bóng mềm hai chiều, ô nhập lõm |
 
-| Token | Hex | Vai trò |
-| --- | --- | --- |
-| `--bg` | `#14110e` | Nền chính (deep charcoal) |
-| `--panel` | `#1c1814` | Nền panel/card |
-| `--line` | `#3a3229` | Border, divider |
-| `--ink` | `#f3ece3` | Text chính (warm white) |
-| `--muted` | `#b7a99a` | Text phụ |
-| `--accent` | `#c45c26` | Terracotta orange (CTA, links) |
-| `--ok` | `#c9d4a3` | Success state |
-
-#### Extended Tokens (mới cho Landing Page)
-
-| Token | Hex | Vai trò |
-| --- | --- | --- |
-| `--accent-hover` | `#d96a2f` | Accent hover state |
-| `--accent-light` | `rgba(196, 92, 38, 0.12)` | Subtle accent background |
-| `--surface` | `#1f1a16` | Elevated surface |
-| `--surface-hover` | `#2a241e` | Surface hover |
-| `--gradient-start` | `#14110e` | Hero gradient |
-| `--gradient-end` | `#1c1410` | Hero gradient end |
-| `--error` | `#d46a6a` | Error state (existing) |
+Token dùng chung: `--bg`, `--surface-0` (trang, ô nhập), `--surface-1` (panel), `--surface-2` (hover, badge), `--surface-3` (active), `--line`, `--line-strong`, `--ink`, `--muted`, `--muted-2`, `--accent`, `--accent-ink`, `--on-accent`, `--ok`, `--ok-strong`, `--warn`, `--danger`, `--hero-from`, `--hero-to`, `--font-display`, `--font-ui`, `--font-mono`.
 
 ### Typography
 
 | Element | Font | Weight | Size | Letter-spacing |
 | --- | --- | --- | --- | --- |
-| H1 (Hero) | Fraunces | 500 | 56px (desktop) / 40px (mobile) | -0.03em |
-| H2 (Section) | Fraunces | 500 | 40px / 32px | -0.02em |
-| H3 (Card) | Fraunces | 500 | 24px / 20px | -0.01em |
-| Kicker | Public Sans | 500 | 12px | 0.18em (uppercase) |
-| Body | Public Sans | 400 | 16px / 15px | normal |
-| Small / Meta | Public Sans | 400 | 13px | normal |
-| Button | Public Sans | 500 | 14px | 0.02em |
+| H1 (Hero) | `--font-display` | 500 | 56px (desktop) / 40px (mobile) | -0.03em |
+| H2 (Section) | `--font-display` | 500 | 40px / 32px | -0.02em |
+| H3 (Card) | `--font-display` | 500 | 24px / 20px | -0.01em |
+| Kicker | `--font-ui` | 500 | 12px | 0.18em (uppercase) |
+| Body | `--font-ui` | 400 | 16px / 15px | normal |
+| Small / Meta | `--font-ui` | 400 | 13px | normal |
+| Button | `--font-ui` | 500 (`brutal`: 700) | 14px | 0.02em |
 
 Cả hai font đều hỗ trợ tiếng Việt (dấu) tốt.
 

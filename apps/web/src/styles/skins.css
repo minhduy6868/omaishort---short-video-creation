@@ -1,0 +1,339 @@
+/*
+ * Structural skin per theme. index.css holds the tokens; this file decides how
+ * blocks, insets, chips and buttons get their depth. The video frame stays dark.
+ *
+ * Blocks = raised containers. Insets = wells inside a block. Chips = small labels.
+ */
+
+.step-number {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+}
+
+.capability-icon {
+  padding: 4px;
+}
+
+/* ===================== Khối thô (neo-brutalism) ===================== */
+
+[data-theme="brutal"] :is(
+    .panel, .counter-card, .quick-create-card, .mix-card, .provider-card, .library-picks,
+    .provider-tile, .phone-preview, .mobile-action-bar, .error-panel,
+    .feature-card, .capability-card, .step-card, .use-case-card, .faq-item,
+    .video-demo-card, .console-card, .hero-console-outer, .cta-outer-frame,
+    .lang-menu, .theme-picker
+  ) {
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--hard);
+}
+
+[data-theme="brutal"] :is(.feature-card, .hero-console-outer, .cta-outer-frame) {
+  border-width: 3px;
+  box-shadow: var(--hard-lg);
+}
+
+[data-theme="brutal"] :is(
+    .feature-card-inner, .hero-console-inner, .cta-inner, .console-viewport,
+    .empty-panel, .job-table-wrap, .attachment-table-wrap, .picked-card, .scene-card,
+    .upload-box, .segmented, .progress-track
+  ) {
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+[data-theme="brutal"] .upload-box {
+  border-style: dashed;
+}
+
+[data-theme="brutal"] :is(.status-pill, .library-chip, .console-tag, .table-badge, .chips li, .topbar-badge, .topbar-role, .topbar-job-id) {
+  border: 2px solid var(--line);
+  border-radius: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+[data-theme="brutal"] :is(.user-avatar, .quick-card-icon, .empty-icon, .brand-mark, .capability-icon, .feature-icon, .step-number, .identity-avatar) {
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--ink);
+  box-shadow: var(--hard-sm);
+}
+
+[data-theme="brutal"] :is(.feature-card, .capability-card, .step-card, .use-case-card, .quick-create-card):hover {
+  border-color: var(--line);
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 var(--line);
+}
+
+[data-theme="brutal"] :is(.capability-card.bento-wide, .counter-card:first-child, .step-card:nth-child(odd)) {
+  background: var(--surface-2);
+}
+
+[data-theme="brutal"] :is(.rail, .site-header) {
+  background: var(--surface-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme="brutal"] .rail {
+  border-right: 3px solid var(--line);
+}
+
+[data-theme="brutal"] :is(.topbar, .site-header) {
+  border-bottom: 3px solid var(--line);
+}
+
+[data-theme="brutal"] .site-footer {
+  border-top: 3px solid var(--line);
+  background: var(--surface-2);
+}
+
+[data-theme="brutal"] .rail a.on {
+  background: var(--surface-1);
+  border: 2px solid var(--line);
+  box-shadow: var(--hard-sm);
+}
+
+[data-theme="brutal"] .rail a:hover:not(.on) {
+  background: var(--surface-3);
+}
+
+[data-theme="brutal"] :is(input, select, textarea) {
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+}
+
+[data-theme="brutal"] :is(input, select, textarea):focus {
+  border-color: var(--line);
+  box-shadow: var(--hard-sm);
+}
+
+[data-theme="brutal"] :is(
+    :where(.app, .gate) button:not([role="radio"]):not(.segmented button),
+    .button, .btn, .header-cta, .gate-home-link
+  ) {
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--hard-sm);
+  font-weight: 700;
+  transition:
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-theme="brutal"] :is(
+    :where(.app, .gate) button:not([role="radio"]):not(.segmented button),
+    .button, .btn, .header-cta, .gate-home-link
+  ):hover:not(:disabled) {
+  opacity: 1;
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--line);
+}
+
+[data-theme="brutal"] :is(
+    :where(.app, .gate) button:not([role="radio"]):not(.segmented button),
+    .button, .btn, .header-cta
+  ):active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 var(--line);
+}
+
+[data-theme="brutal"] :is(button.ghost, .button.ghost, .btn-secondary, .gate-home-link) {
+  background: var(--surface-1);
+  color: var(--ink);
+}
+
+[data-theme="brutal"] .segmented button.on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+[data-theme="brutal"] .theme-picker .theme-option.on {
+  background: var(--surface-2);
+  border: 2px solid var(--line);
+  box-shadow: var(--hard-sm);
+}
+
+[data-theme="brutal"] :is(.hero-title, .section-title, .cta-title, .page-title, .gate h1) {
+  color: var(--ink);
+  background: none;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
+
+[data-theme="brutal"] .hero-title {
+  font-size: 64px;
+  line-height: 1;
+}
+
+[data-theme="brutal"] :is(.kicker, .hero-kicker-text) {
+  display: inline-block;
+  padding: 4px 8px;
+  border: 2px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  box-shadow: var(--hard-sm);
+}
+
+[data-theme="brutal"] .stage-dot {
+  border: 2px solid var(--line);
+}
+
+[data-theme="brutal"] .job-table th {
+  background: var(--surface-2);
+  border-bottom: 2px solid var(--line);
+}
+
+[data-theme="brutal"] .job-table td {
+  border-bottom: 2px solid var(--line);
+}
+
+/* ===================== Gối mềm (soft UI) ===================== */
+
+[data-theme="soft"] :is(
+    .panel, .counter-card, .quick-create-card, .mix-card, .provider-card, .library-picks,
+    .provider-tile, .phone-preview, .mobile-action-bar, .error-panel,
+    .feature-card, .capability-card, .step-card, .use-case-card, .faq-item,
+    .video-demo-card, .console-card, .hero-console-outer, .cta-outer-frame,
+    .lang-menu, .theme-picker
+  ) {
+  border-color: transparent;
+  border-radius: var(--radius);
+  box-shadow: var(--soft-out);
+}
+
+[data-theme="soft"] :is(
+    .feature-card-inner, .hero-console-inner, .cta-inner, .console-viewport,
+    .empty-panel, .job-table-wrap, .attachment-table-wrap, .picked-card, .scene-card,
+    .upload-box, .segmented, .progress-track
+  ) {
+  border-color: transparent;
+  box-shadow: var(--soft-in);
+}
+
+[data-theme="soft"] :is(.feature-card-inner, .hero-console-inner, .cta-inner) {
+  border-radius: calc(var(--radius) - 8px);
+}
+
+[data-theme="soft"] :is(.status-pill, .library-chip, .console-tag, .table-badge, .chips li, .topbar-badge, .topbar-role, .topbar-job-id) {
+  border-color: transparent;
+  border-radius: 9999px;
+  box-shadow: var(--soft-out-sm);
+}
+
+[data-theme="soft"] :is(.user-avatar, .quick-card-icon, .empty-icon, .capability-icon, .feature-icon, .step-number, .identity-avatar) {
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--accent);
+  box-shadow: var(--soft-in);
+}
+
+[data-theme="soft"] .brand-mark {
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--soft-out-sm);
+}
+
+[data-theme="soft"] :is(.feature-card, .capability-card, .step-card, .use-case-card, .quick-create-card):hover {
+  border-color: transparent;
+  box-shadow: var(--soft-out-lg);
+}
+
+[data-theme="soft"] :is(.rail, .topbar, .site-header) {
+  background: var(--surface-0);
+  border-color: transparent;
+  box-shadow: var(--soft-out-sm);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+[data-theme="soft"] .site-footer {
+  border-color: transparent;
+  box-shadow: var(--soft-in);
+}
+
+[data-theme="soft"] .rail a.on {
+  background: var(--surface-0);
+  border-color: transparent;
+  box-shadow: var(--soft-in);
+  color: var(--accent-ink);
+}
+
+[data-theme="soft"] .rail a:hover:not(.on) {
+  background: transparent;
+  box-shadow: var(--soft-out-sm);
+}
+
+[data-theme="soft"] :is(input, select, textarea) {
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  box-shadow: var(--soft-in);
+}
+
+[data-theme="soft"] :is(input, select, textarea):focus {
+  border-color: transparent;
+  box-shadow: var(--soft-in), 0 0 0 2px var(--accent);
+}
+
+[data-theme="soft"] :is(
+    :where(.app, .gate) button:not([role="radio"]):not(.segmented button),
+    .button, .btn, .header-cta, .gate-home-link
+  ) {
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--soft-out-sm);
+  font-weight: 600;
+}
+
+[data-theme="soft"] :is(button.ghost, .button.ghost, .btn-secondary, .gate-home-link) {
+  background: var(--surface-0);
+  color: var(--ink);
+}
+
+[data-theme="soft"] :is(
+    :where(.app, .gate) button:not([role="radio"]):not(.segmented button),
+    .button, .btn, .header-cta
+  ):active:not(:disabled) {
+  box-shadow: var(--soft-in);
+  transform: none;
+}
+
+[data-theme="soft"] :is(.segmented button.on, .theme-picker .theme-option.on) {
+  background: var(--surface-0);
+  border-color: transparent;
+  box-shadow: var(--soft-out-sm);
+  color: var(--accent-ink);
+}
+
+[data-theme="soft"] .job-table th {
+  background: transparent;
+}
+
+[data-theme="soft"] :is(.hero-title, .section-title, .cta-title, .page-title, .gate h1) {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+[data-theme="soft"] .kicker {
+  color: var(--accent-ink);
+}
+
+@media (max-width: 720px) {
+  [data-theme="brutal"] .hero-title {
+    font-size: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="brutal"] :is(.feature-card, .capability-card, .step-card, .use-case-card, .quick-create-card, button, .button, .btn, .header-cta):hover {
+    transform: none;
+  }
+}

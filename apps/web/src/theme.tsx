@@ -1,57 +1,81 @@
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 export const THEMES = [
   {
-    id: "darkroom",
-    label: "Phòng tối",
-    note: "Than ấm, terracotta, tiêu đề Fraunces",
-    swatch: ["#14110e", "#c45c26", "#f3ece3"],
+    id: "brutal",
+    label: "Khối thô",
+    note: "Neo-brutalism: viền đen dày, bóng cứng, vàng và cam",
+    swatch: ["#fff4d6", "#ff5c39", "#111111"],
   },
   {
-    id: "paper",
-    label: "Giấy báo",
-    note: "Nền giấy sáng, mực đen, hợp tin tức",
-    swatch: ["#f3eee5", "#a8461a", "#1f1b16"],
-  },
-  {
-    id: "bay",
-    label: "Bàn dựng",
-    note: "Graphite lạnh, hổ phách, tiêu đề sans",
-    swatch: ["#0e1012", "#e3a33b", "#e6eaee"],
+    id: "soft",
+    label: "Gối mềm",
+    note: "Soft UI: khối nổi, ô nhập lõm, bóng mềm hai chiều",
+    swatch: ["#e4e8ee", "#2f5bea", "#1f2633"],
   },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]["id"];
 
-const KEY = "omaishort.theme";
+const DEFAULT_THEME: ThemeId = "brutal";
+const CACHE_KEY = "omaishort.site-theme";
 const listeners = new Set<() => void>();
 
-function isTheme(value: string | null): value is ThemeId {
+function isTheme(value: unknown): value is ThemeId {
   return THEMES.some((theme) => theme.id === value);
 }
 
-function stored(): ThemeId {
+function cached(): ThemeId {
   try {
-    const value = localStorage.getItem(KEY);
-    return isTheme(value) ? value : "darkroom";
+    const value = localStorage.getItem(CACHE_KEY);
+    return isTheme(value) ? value : DEFAULT_THEME;
   } catch {
-    return "darkroom";
+    return DEFAULT_THEME;
   }
 }
 
-export function setTheme(id: ThemeId): void {
+function apply(id: ThemeId): void {
   document.documentElement.dataset.theme = id;
-  try {
-    localStorage.setItem(KEY, id);
-  } catch {
-    /* private mode: theme still applies for this tab */
-  }
   listeners.forEach((listener) => listener());
 }
 
+function remember(id: ThemeId): void {
+  apply(id);
+  try {
+    localStorage.setItem(CACHE_KEY, id);
+  } catch {
+    /* private mode: theme still applies for this tab */
+  }
+}
+
+/** The admin picks the site theme on the server; `?theme=` previews one without saving. */
 export function initTheme(): void {
-  const fromUrl = new URLSearchParams(window.location.search).get("theme");
-  setTheme(isTheme(fromUrl) ? fromUrl : stored());
+  const preview = new URLSearchParams(window.location.search).get("theme");
+  if (isTheme(preview)) {
+    apply(preview);
+    return;
+  }
+  apply(cached());
+  void fetch("/site/theme")
+    .then((res) => (res.ok ? res.json() : null))
+    .then((body: { theme?: unknown } | null) => {
+      if (isTheme(body?.theme)) remember(body.theme);
+    })
+    .catch(() => undefined);
+}
+
+export async function saveSiteTheme(id: ThemeId): Promise<void> {
+  const res = await fetch("/site/theme", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ theme: id }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail || `Không lưu được giao diện (${res.status})`);
+  }
+  remember(id);
 }
 
 function subscribe(listener: () => void): () => void {
@@ -61,42 +85,54 @@ function subscribe(listener: () => void): () => void {
 
 function current(): ThemeId {
   const value = document.documentElement.dataset.theme ?? null;
-  return isTheme(value) ? value : "darkroom";
+  return isTheme(value) ? value : DEFAULT_THEME;
 }
 
 export function useTheme(): ThemeId {
   return useSyncExternalStore(subscribe, current, current);
 }
 
-export function ThemePicker({ withLabels = false }: { withLabels?: boolean }) {
+export function SiteThemePicker({ editable }: { editable: boolean }) {
   const active = useTheme();
+  const [saving, setSaving] = useState<ThemeId | null>(null);
+  const [error, setError] = useState("");
+
+  const choose = (id: ThemeId) => {
+    if (!editable || saving || id === active) return;
+    setSaving(id);
+    setError("");
+    saveSiteTheme(id)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setSaving(null));
+  };
+
   return (
-    <div className={`theme-picker${withLabels ? " labeled" : ""}`} role="radiogroup" aria-label="Giao diện">
-      {THEMES.map((theme) => (
-        <button
-          key={theme.id}
-          type="button"
-          role="radio"
-          aria-checked={active === theme.id}
-          className={`theme-option${active === theme.id ? " on" : ""}`}
-          title={`${theme.label}: ${theme.note}`}
-          onClick={() => setTheme(theme.id)}
-        >
-          <span className="theme-swatch" aria-hidden="true">
-            {theme.swatch.map((color) => (
-              <span key={color} style={{ background: color }} />
-            ))}
-          </span>
-          {withLabels ? (
+    <>
+      <div className="theme-picker labeled" role="radiogroup" aria-label="Giao diện toàn site">
+        {THEMES.map((theme) => (
+          <button
+            key={theme.id}
+            type="button"
+            role="radio"
+            aria-checked={active === theme.id}
+            disabled={!editable || saving !== null}
+            className={`theme-option${active === theme.id ? " on" : ""}`}
+            title={`${theme.label}: ${theme.note}`}
+            onClick={() => choose(theme.id)}
+          >
+            <span className="theme-swatch" aria-hidden="true">
+              {theme.swatch.map((color) => (
+                <span key={color} style={{ background: color }} />
+              ))}
+            </span>
             <span className="theme-text">
               <strong>{theme.label}</strong>
-              <small>{theme.note}</small>
+              <small>{saving === theme.id ? "Đang lưu…" : theme.note}</small>
             </span>
-          ) : (
-            <span className="sr-only">{theme.label}</span>
-          )}
-        </button>
-      ))}
-    </div>
+          </button>
+        ))}
+      </div>
+      {error ? <p className="err">{error}</p> : null}
+    </>
   );
 }

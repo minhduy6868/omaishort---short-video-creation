@@ -2,10 +2,10 @@
 /*
  * Design System Rules:
  * - Zero AI tropes: No `01 //` prefixes, no pill-badge overload, no decorative code tags on every card.
- * - Typography: Public Sans for clean, high-trust UI hierarchy; Fraunces only for brand logo & main display titles.
+ * - Typography: var(--font-ui) / var(--font-display) from the active theme.
  * - Spacing: 13-step scale (0, 2, 4, 8, 12, 16, 24, 32, 40, 48, 64, 80, 96).
  * - Nested Radius Formula: Outer 24px -> 8px padding -> Inner 16px.
- * - Flat dark surfaces (var(--surface-0), var(--surface-1), var(--surface-2)) with crisp 1px borders.
+ * - Flat surfaces (var(--surface-0..2)); styles/skins.css adds per-theme borders and depth.
  */
 
 /* --- Skip Link --- */

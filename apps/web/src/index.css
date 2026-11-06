@@ -1,87 +1,76 @@
 /*
- * Themes swap tokens only. Every theme keeps Part B: flat surfaces, full borders,
- * the same type and spacing scale. surface-0 = page and insets, surface-1 = panels,
- * surface-2 = hover and badges, surface-3 = active state.
+ * Two site themes, chosen by the admin (GET/PUT /site/theme).
+ *   brutal = neo-brutalism: cream page, white blocks, thick black borders, hard offset shadows.
+ *   soft   = soft UI: one grey surface, depth from paired light/dark shadows, inset inputs.
+ * Tokens only here. Structural moves per theme live in styles/skins.css.
+ * surface-0 = page and insets, surface-1 = panels, surface-2 = hover and badges, surface-3 = active.
  */
 :root,
-[data-theme="darkroom"] {
-  color-scheme: dark;
-  --bg: #14110e;
-  --panel: #1c1814;
-  --surface-0: #11100e;
-  --surface-1: #161412;
-  --surface-2: #1c1917;
-  --surface-3: #24201c;
-  --line: #3a3229;
-  --line-strong: #554b41;
-  --ink: #f3ece3;
-  --muted: #b7a99a;
-  --muted-2: #7c7267;
-  --accent: #c45c26;
-  --accent-ink: #e7a16f;
-  --on-accent: #ffffff;
-  --ok: #c9d4a3;
-  --ok-strong: #a3e635;
-  --warn: #fbbf24;
-  --danger: #f87171;
-  --hero-from: #f3ece3;
-  --hero-to: #9b9b9b;
-  --font-display: Fraunces, serif;
-  --font-ui: "Public Sans", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --radius: 16px;
-  --radius-sm: 12px;
-  --shadow: 0 20px 70px rgba(0, 0, 0, 0.24);
-}
-
-[data-theme="paper"] {
+[data-theme="brutal"] {
   color-scheme: light;
-  --bg: #f3eee5;
-  --panel: #fbf8f2;
-  --surface-0: #f3eee5;
-  --surface-1: #fbf8f2;
-  --surface-2: #ebe4d8;
-  --surface-3: #e0d6c6;
-  --line: #d6cbba;
-  --line-strong: #b3a690;
-  --ink: #1f1b16;
-  --muted: #5f564c;
-  --muted-2: #8a7f72;
-  --accent: #a8461a;
-  --accent-ink: #8a3812;
-  --on-accent: #ffffff;
-  --ok: #4d6b1f;
-  --ok-strong: #4d7c0f;
-  --warn: #a16207;
-  --danger: #b91c1c;
-  --hero-from: #1f1b16;
-  --hero-to: #7a7066;
-  --shadow: 0 12px 40px rgba(60, 40, 20, 0.08);
+  --bg: #fff4d6;
+  --panel: #ffffff;
+  --surface-0: #fff4d6;
+  --surface-1: #ffffff;
+  --surface-2: #ffe14d;
+  --surface-3: #ffd000;
+  --line: #111111;
+  --line-strong: #000000;
+  --ink: #111111;
+  --muted: #3a3a3a;
+  --muted-2: #5c5c5c;
+  --accent: #ff5c39;
+  --accent-ink: #c2310f;
+  --on-accent: #111111;
+  --ok: #0f7a3d;
+  --ok-strong: #16a34a;
+  --warn: #b45309;
+  --danger: #d4111e;
+  --hero-from: #111111;
+  --hero-to: #111111;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-ui: "Space Grotesk", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --shadow: 4px 4px 0 #111111;
+  --hard: 4px 4px 0 #111111;
+  --hard-sm: 3px 3px 0 #111111;
+  --hard-lg: 6px 6px 0 #111111;
 }
 
-[data-theme="bay"] {
-  color-scheme: dark;
-  --bg: #0e1012;
-  --panel: #15181b;
-  --surface-0: #0e1012;
-  --surface-1: #14171a;
-  --surface-2: #1b1f23;
-  --surface-3: #242a30;
-  --line: #2a3037;
-  --line-strong: #46505a;
-  --ink: #e6eaee;
-  --muted: #98a2ad;
-  --muted-2: #66707b;
-  --accent: #e3a33b;
-  --accent-ink: #f0c47a;
-  --on-accent: #1a1206;
-  --ok: #9fd3b5;
-  --ok-strong: #4ade80;
-  --warn: #facc15;
-  --danger: #f87171;
-  --hero-from: #e6eaee;
-  --hero-to: #7d8791;
-  --font-display: "Public Sans", sans-serif;
+[data-theme="soft"] {
+  color-scheme: light;
+  --bg: #e4e8ee;
+  --panel: #e4e8ee;
+  --surface-0: #e4e8ee;
+  --surface-1: #e4e8ee;
+  --surface-2: #dde2e9;
+  --surface-3: #d3d9e2;
+  --line: #cfd5de;
+  --line-strong: #b4bcc8;
+  --ink: #1f2633;
+  --muted: #4c5768;
+  --muted-2: #6a7485;
+  --accent: #2f5bea;
+  --accent-ink: #2448c4;
+  --on-accent: #ffffff;
+  --ok: #1f7a4d;
+  --ok-strong: #22a565;
+  --warn: #a15c07;
+  --danger: #c62828;
+  --hero-from: #1f2633;
+  --hero-to: #4c5768;
+  --font-display: Manrope, sans-serif;
+  --font-ui: Manrope, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius: 22px;
+  --radius-sm: 14px;
+  --shadow: 10px 10px 24px #c2c8d2, -10px -10px 24px #ffffff;
+  --soft-out: 8px 8px 18px #c2c8d2, -8px -8px 18px #ffffff;
+  --soft-out-sm: 4px 4px 10px #c2c8d2, -4px -4px 10px #ffffff;
+  --soft-out-lg: 12px 12px 26px #c2c8d2, -12px -12px 26px #ffffff;
+  --soft-in: inset 4px 4px 8px #c2c8d2, inset -4px -4px 8px #ffffff;
 }
 
 * {
@@ -111,4 +100,9 @@ input {
 
 a {
   color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

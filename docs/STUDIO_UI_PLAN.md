@@ -85,7 +85,7 @@ Use a fixed left rail with:
 - Secondary links: Work, Account.
 - User/session block at the bottom.
 
-Keep the current charcoal/terracotta/Fraunces identity. Do not copy `videoai`'s blue gradient desktop palette. Use full-height layouts, table density, and inspectors from the desktop app pattern.
+Use the theme tokens in `apps/web/src/index.css` (`brutal` default, `soft`; the admin picks one via `/site/theme`) and the per-theme skin in `styles/skins.css`. Do not copy `videoai`'s blue gradient desktop palette. Use full-height layouts, table density, and inspectors from the desktop app pattern.
 
 ### Work page
 

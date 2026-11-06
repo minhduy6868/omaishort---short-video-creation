@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from 'react-router-dom';
 import { SUPPORTED_LANGS, type SupportedLang } from '../../i18n';
-import { ThemePicker } from '../../theme';
 import { LanguageSwitcher } from './LanguageSwitcher';
 
 export function Header() {
@@ -54,7 +53,6 @@ export function Header() {
         </nav>
 
         <div className="header-actions">
-          <ThemePicker />
           <LanguageSwitcher />
           <Link to="/work" className="header-cta">
             {t('nav.tryStudio')}

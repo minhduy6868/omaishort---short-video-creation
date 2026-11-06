@@ -134,6 +134,7 @@ export async function logout(): Promise<void> {
 export async function readMe(): Promise<AuthUser | null> {
   // retry=true so a reload after the 15-min access cookie expires refreshes from the refresh cookie.
   const res = await request("/auth/me");
+  if (res.status >= 500) throw new Error(`API unavailable (${res.status})`);
   if (!res.ok) return null;
   return (await res.json()) as AuthUser;
 }

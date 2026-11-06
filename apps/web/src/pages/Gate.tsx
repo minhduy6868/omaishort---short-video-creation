@@ -28,7 +28,12 @@ export function Gate({ mode }: { mode: "login" | "register" }) {
 
   return (
     <main className="gate">
-      <p className="kicker">omaishort</p>
+      <div className="gate-top">
+        <p className="kicker">omaishort</p>
+        <a href="/vi" className="gate-home-link">
+          ← Landing Page
+        </a>
+      </div>
       <h1>{registering ? "Đăng ký" : "Đăng nhập"}</h1>
       <p className="lede">Tài khoản giữ job và file của bạn. Video vẫn render trên máy này.</p>
       <form className="panel narrow" onSubmit={(event) => void onSubmit(event)}>

@@ -19,9 +19,15 @@ function Redirect({ to }: { to: string }) {
 
 export default function App() {
   const { route } = useNav();
-  const { user, ready } = useSession();
+  const { user, ready, offline } = useSession();
 
-  if (!ready) return <p className="boot">Đang mở studio…</p>;
+  if (!ready) {
+    return (
+      <p className="boot">
+        {offline ? "Chưa kết nối được API (cổng 8765), đang thử lại…" : "Đang mở studio…"}
+      </p>
+    );
+  }
 
   const gate = route.name === "login" || route.name === "register";
   if (!user && !gate) return <Redirect to="/login" />;

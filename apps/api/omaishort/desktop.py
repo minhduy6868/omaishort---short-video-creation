@@ -109,7 +109,7 @@ def run() -> None:
 
     attach_studio(app, WEB_DIST)
     host = API_HOST or "127.0.0.1"
-    url = f"http://{host}:{API_PORT}/"
+    url = f"http://{host}:{API_PORT}/work"
 
     def _open_when_ready() -> None:
         _wait_until_up(f"http://{host}:{API_PORT}/health")

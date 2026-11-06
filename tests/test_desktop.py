@@ -32,6 +32,34 @@ def test_attach_studio_serves_index_and_keeps_api(tmp_path: Path) -> None:
         assert "omaishort" in screen.text
 
 
+def test_desktop_window_opens_the_studio_not_the_landing(monkeypatch) -> None:
+    import threading
+
+    import uvicorn
+
+    from omaishort import desktop
+
+    opened: list[str] = []
+
+    class InlineThread:
+        def __init__(self, target, **_kwargs) -> None:
+            self._target = target
+
+        def start(self) -> None:
+            self._target()
+
+    monkeypatch.setattr(desktop, "attach_studio", lambda *_args: None)
+    monkeypatch.setattr(desktop, "_wait_until_up", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(desktop, "open_studio_window", opened.append)
+    monkeypatch.setattr(threading, "Thread", InlineThread)
+    monkeypatch.setattr(uvicorn, "run", lambda *_args, **_kwargs: None)
+
+    desktop.run()
+
+    assert len(opened) == 1
+    assert opened[0].endswith("/work"), "/ redirects to the /vi landing since fix/remake-ui"
+
+
 def test_d1_result_reads_rows() -> None:
     result = D1Result([{"n": 2}, {"n": 3}])
     assert result.fetchone() == {"n": 2}

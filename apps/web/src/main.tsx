@@ -14,7 +14,7 @@ import { SessionProvider } from "./session";
 import { initTheme } from "./theme";
 
 initTheme();
-const STUDIO_PATHS = ["/login", "/register", "/work", "/drama", "/news", "/knowledge", "/account"];
+const STUDIO_PATHS = ["/login", "/register", "/work", "/drama", "/news", "/knowledge", "/account", "/admin"];
 
 function NavSync() {
   const location = useLocation();

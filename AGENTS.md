@@ -35,6 +35,7 @@ When the task matches, **read the Cursor `SKILL.md` now** and follow it. Pointer
 | `character-bible` | Passport stills, face-ref, identity |
 | `scene-planner` | Storyboard, shots, beat lenses |
 | `render-short` | Compose, Ken Burns, captions, `timeline.json` |
+| `local-video-storage` | Local MP4 storage, compaction, orphan cleanup, D1 storage sync |
 | `frontend-ui` | Vite studio |
 | `landing-page-design` | Landing `/:lang`, `components/landing/*`, `landing.css` |
 | `design-to-motion` | Animated product previews, stage showcases, micro-interactions |

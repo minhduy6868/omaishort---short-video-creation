@@ -1,4 +1,4 @@
-import type { Job, StoryDraft } from "./types";
+import type { Job, JobStorageInfo, StoryDraft } from "./types";
 
 export type VoiceOption = { id: string; language: string; label: string };
 
@@ -257,4 +257,176 @@ export async function readProviders(): Promise<ProviderStatus | null> {
   const res = await request("/providers");
   if (!res.ok) return null;
   return (await res.json()) as ProviderStatus;
+}
+
+export type StorageSummary = {
+  data_dir: string;
+  jobs_bytes: number;
+  jobs_files: number;
+  job_dirs_count: number;
+  mp4_count: number;
+  mp4_bytes: number;
+  attachments_local_bytes: number;
+  attachments_local_files: number;
+  total_local_bytes: number;
+  orphan_job_ids: string[];
+};
+
+export type LocalVideoEntry = {
+  id: string;
+  title: string;
+  kind: string;
+  status: string;
+  stage: string;
+  progress?: string;
+  user_id?: string | null;
+  user_email?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  download_url?: string | null;
+  watch_url: string;
+  storage: JobStorageInfo;
+};
+
+export type AdminStats = {
+  users_total: number;
+  operators_total: number;
+  jobs_total: number;
+  jobs_by_status: Record<string, number>;
+  attachments_total: number;
+  attachments_bytes: number;
+  db_backend: string;
+};
+
+export type AdminSettings = {
+  site_theme: string;
+  themes: string[];
+  signup_enabled: boolean;
+};
+
+export type AdminOverview = {
+  stats: AdminStats;
+  storage: StorageSummary;
+  settings: AdminSettings;
+  providers: ProviderStatus;
+};
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  role: "operator" | "creator" | string;
+  locked: boolean;
+  locked_until: string | null;
+  failed_logins: number;
+  jobs_count: number;
+  attachments_count: number;
+  attachments_bytes: number;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export async function compactJobStorage(jobId: string): Promise<JobStorageInfo> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/compact`, { method: "POST" });
+  if (!res.ok) throw await parseError(res, "Không dọn được file tạm của job");
+  return (await res.json()) as JobStorageInfo;
+}
+
+export async function deleteJob(jobId: string, keepDb = false): Promise<{ freed_bytes: number }> {
+  const q = keepDb ? "?keep_db=true" : "";
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}${q}`, { method: "DELETE" });
+  if (!res.ok) throw await parseError(res, "Không xóa được job");
+  return (await res.json()) as { freed_bytes: number };
+}
+
+export async function listLocalVideos(allUsers = false): Promise<{ videos: LocalVideoEntry[]; summary: StorageSummary | null }> {
+  const q = allUsers ? "?all_users=true" : "";
+  const res = await request(`/storage/videos${q}`);
+  if (!res.ok) throw await parseError(res, "Không tải được danh sách video local");
+  return (await res.json()) as { videos: LocalVideoEntry[]; summary: StorageSummary | null };
+}
+
+export async function readAdminOverview(): Promise<AdminOverview> {
+  const res = await request("/admin/overview");
+  if (!res.ok) throw await parseError(res, "Không tải được tổng quan admin");
+  return (await res.json()) as AdminOverview;
+}
+
+export async function listAdminUsers(): Promise<AdminUserRow[]> {
+  const res = await request("/admin/users");
+  if (!res.ok) throw await parseError(res, "Không tải được danh sách người dùng");
+  const data = (await res.json()) as { users?: AdminUserRow[] };
+  return Array.isArray(data.users) ? data.users : [];
+}
+
+export async function patchAdminUser(
+  userId: string,
+  body: { role?: string; locked?: boolean; display_name?: string; revoke_sessions?: boolean },
+): Promise<AdminUserRow> {
+  const res = await request(`/admin/users/${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không cập nhật được người dùng");
+  const data = (await res.json()) as { user: AdminUserRow };
+  return data.user;
+}
+
+export async function listAdminJobs(statusFilter?: string): Promise<Job[]> {
+  const q = statusFilter && statusFilter !== "all" ? `?status=${encodeURIComponent(statusFilter)}` : "";
+  const res = await request(`/admin/jobs${q}`);
+  if (!res.ok) throw await parseError(res, "Không tải được danh sách job toàn hệ thống");
+  const data = (await res.json()) as { jobs?: Job[] };
+  return Array.isArray(data.jobs) ? data.jobs : [];
+}
+
+export async function retryAdminJob(jobId: string): Promise<{ id: string; status: string }> {
+  const res = await request(`/admin/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
+  if (!res.ok) throw await parseError(res, "Không chạy lại được job");
+  return (await res.json()) as { id: string; status: string };
+}
+
+export async function deleteAdminJob(jobId: string, keepDb = false): Promise<{ freed_bytes: number }> {
+  const q = keepDb ? "?keep_db=true" : "";
+  const res = await request(`/admin/jobs/${encodeURIComponent(jobId)}${q}`, { method: "DELETE" });
+  if (!res.ok) throw await parseError(res, "Không xóa được job");
+  return (await res.json()) as { freed_bytes: number };
+}
+
+export async function readAdminStorage(): Promise<{ summary: StorageSummary; videos: LocalVideoEntry[] }> {
+  const res = await request("/admin/storage");
+  if (!res.ok) throw await parseError(res, "Không đọc được thông tin lưu trữ local");
+  return (await res.json()) as { summary: StorageSummary; videos: LocalVideoEntry[] };
+}
+
+export async function cleanupAdminStorage(body: {
+  remove_orphans?: boolean;
+  compact_done?: boolean;
+}): Promise<{ freed_bytes: number; removed_orphans: string[]; compacted_jobs: string[]; summary: StorageSummary }> {
+  const res = await request("/admin/storage/cleanup", {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không dọn dẹp được ổ đĩa local");
+  return (await res.json()) as {
+    freed_bytes: number;
+    removed_orphans: string[];
+    compacted_jobs: string[];
+    summary: StorageSummary;
+  };
+}
+
+export async function saveAdminSettings(body: {
+  site_theme?: string;
+  signup_enabled?: boolean;
+}): Promise<AdminSettings> {
+  const res = await request("/admin/settings", {
+    method: "PUT",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không lưu được cài đặt hệ thống");
+  return (await res.json()) as AdminSettings;
 }

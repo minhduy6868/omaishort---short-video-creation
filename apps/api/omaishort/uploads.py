@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import re
 import secrets
@@ -99,6 +100,7 @@ async def save_upload(user_id: str, kind: AttachmentKind, upload: UploadFile) ->
     dest = config.DATA_DIR / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(data)
+    content_b64 = base64.b64encode(data).decode("ascii") if len(data) <= 600 * 1024 else None
     return db.insert_attachment(
         attachment_id,
         user_id,
@@ -108,11 +110,22 @@ async def save_upload(user_id: str, kind: AttachmentKind, upload: UploadFile) ->
         len(data),
         digest,
         rel.as_posix(),
+        content_b64=content_b64,
     )
 
 
 def disk_path(row: dict) -> Path:
-    return (config.DATA_DIR / str(row["rel_path"])).resolve()
+    path = (config.DATA_DIR / str(row["rel_path"])).resolve()
+    if not path.is_file() and row.get("content_b64"):
+        root = config.DATA_DIR.resolve()
+        try:
+            path.relative_to(root)
+            raw = base64.b64decode(str(row["content_b64"]))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(raw)
+        except Exception:
+            pass
+    return path
 
 
 def attachment_abs(row: dict) -> Path:

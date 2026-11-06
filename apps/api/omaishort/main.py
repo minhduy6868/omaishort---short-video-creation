@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from omaishort import config, db, uploads
+from omaishort import admin, config, db, storage, uploads
 from omaishort.auth import (
     CurrentUser,
     LoginBody,
@@ -57,6 +57,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="omaishort", version="0.1.0", lifespan=lifespan)
+app.include_router(admin.router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -319,12 +320,20 @@ async def create_job(story: StoryInput, background: BackgroundTasks, user: Curre
 
 @app.get("/jobs")
 def list_job_rows(user: CurrentUser, limit: int = Query(20, ge=1, le=50)) -> dict:
-    return {"jobs": [db.public_job(row) for row in db.list_jobs(user["id"], limit)]}
+    out = []
+    for row in db.list_jobs(user["id"], limit):
+        pub = db.public_job(row)
+        pub["storage"] = storage.inspect_job_storage(str(row["id"]), row)
+        out.append(pub)
+    return {"jobs": out}
 
 
 @app.get("/jobs/{job_id}")
 def read_job(job_id: str, user: CurrentUser) -> dict:
-    return db.public_job(require_job(job_id, user))
+    row = require_job(job_id, user)
+    pub = db.public_job(row)
+    pub["storage"] = storage.inspect_job_storage(job_id, row)
+    return pub
 
 
 @app.get("/jobs/{job_id}/artifacts")

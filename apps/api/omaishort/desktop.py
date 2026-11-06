@@ -33,6 +33,7 @@ _UI_PAGES = (
     "/news",
     "/knowledge",
     "/account",
+    "/admin",
     "/en",
     "/vi",
     "/ja",

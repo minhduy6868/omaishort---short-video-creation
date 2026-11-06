@@ -98,11 +98,13 @@ def test_root_lands_on_vi_and_studio_needs_login(studio_url, browser):
     page = browser.new_page()
     page.goto(f"{studio_url}/")
     page.wait_for_url("**/vi")
+    page.locator("h1").first.wait_for()
     assert page.locator("h1").first.is_visible()
     assert _theme(page) == "brutal"
 
     page.goto(f"{studio_url}/work")
     page.wait_for_url("**/login")
+    page.get_by_role("heading", name="Đăng nhập").wait_for()
     assert page.get_by_role("heading", name="Đăng nhập").is_visible()
     page.close()
 
@@ -150,3 +152,37 @@ def test_only_the_operator_can_click_the_site_theme(studio_url, browser):
         assert radios.nth(index).is_disabled()
     assert page.get_by_text("Admin (operator) chọn giao diện cho toàn site.").is_visible()
     context.close()
+
+
+def test_operator_can_open_admin_console_and_tabs(studio_url, browser):
+    admin = browser.new_context()
+    page = admin.new_page()
+    page.goto(f"{studio_url}/vi")
+    res = page.request.post(
+        f"{studio_url}/auth/login",
+        data={"email": "admin@example.com", "password": "password1"},
+    )
+    if res.status != 200:
+        res = page.request.post(
+            f"{studio_url}/auth/login",
+            data={"email": "owner@example.com", "password": "password1"},
+        )
+    assert res.status == 200, res.text()
+
+    page.goto(f"{studio_url}/admin")
+    heading = page.get_by_role("heading", name="Quản trị Hệ thống")
+    heading.wait_for()
+    assert heading.is_visible()
+    tablist = page.get_by_role("tablist", name="Phân hệ quản trị")
+    assert tablist.is_visible()
+
+    tablist.get_by_role("tab", name="Người dùng").click()
+    users_h = page.get_by_role("heading", name="Quản lý Người dùng", exact=False)
+    users_h.wait_for()
+    assert users_h.is_visible()
+
+    tablist.get_by_role("tab", name="Lưu trữ Video Local").click()
+    storage_h = page.get_by_role("heading", name="Quản lý Lưu trữ Video Local", exact=False)
+    storage_h.wait_for()
+    assert storage_h.is_visible()
+    admin.close()

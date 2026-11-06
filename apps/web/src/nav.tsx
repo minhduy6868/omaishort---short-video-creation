@@ -8,9 +8,10 @@ export type Route =
   | { name: "news" }
   | { name: "knowledge" }
   | { name: "account" }
+  | { name: "admin" }
   | { name: "watch"; id: string };
 
-const NAMES = new Set(["login", "register", "work", "drama", "news", "knowledge", "account"]);
+const NAMES = new Set(["login", "register", "work", "drama", "news", "knowledge", "account", "admin"]);
 
 export function parsePath(path: string): Route {
   const clean = path.split("?")[0].replace(/\/+$/, "") || "/";

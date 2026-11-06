@@ -85,6 +85,8 @@ export default defineConfig({
       "/providers": "http://127.0.0.1:8765",
       "/auth": "http://127.0.0.1:8765",
       "/attachments": "http://127.0.0.1:8765",
+      "/admin": "http://127.0.0.1:8765",
+      "/storage": "http://127.0.0.1:8765",
     },
   },
 });

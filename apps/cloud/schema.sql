@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     storyboard_json TEXT,
     timeline_json TEXT,
     artifacts_json TEXT,
+    storage_json TEXT,
     progress TEXT,
     user_id TEXT
 );
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     byte_size INTEGER NOT NULL,
     sha256 TEXT NOT NULL,
     rel_path TEXT NOT NULL,
+    content_b64 TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -56,4 +58,6 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_attachments_user ON attachments(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, created_at);

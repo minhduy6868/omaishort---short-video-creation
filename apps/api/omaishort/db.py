@@ -154,12 +154,14 @@ def init_db() -> None:
                     storyboard_json TEXT,
                     timeline_json TEXT,
                     artifacts_json TEXT,
+                    storage_json TEXT,
                     progress TEXT,
                     user_id TEXT
                 )
                 """
             )
             _ensure_column(conn, "jobs", "user_id", "TEXT")
+            _ensure_column(conn, "jobs", "storage_json", "TEXT")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS users (
@@ -199,10 +201,12 @@ def init_db() -> None:
                     byte_size INTEGER NOT NULL,
                     sha256 TEXT NOT NULL,
                     rel_path TEXT NOT NULL,
+                    content_b64 TEXT,
                     created_at TEXT NOT NULL
                 )
                 """
             )
+            _ensure_column(conn, "attachments", "content_b64", "TEXT")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS settings (
@@ -213,9 +217,11 @@ def init_db() -> None:
                 """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at)")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_attachments_user ON attachments(user_id, created_at)"
             )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, created_at)")
             conn.commit()
         finally:
             conn.close()
@@ -495,6 +501,7 @@ def insert_attachment(
     byte_size: int,
     sha256: str,
     rel_path: str,
+    content_b64: str | None = None,
 ) -> dict[str, Any]:
     with _lock:
         conn = connect()
@@ -503,12 +510,12 @@ def insert_attachment(
                 _sql(
                     """
                     INSERT INTO attachments (
-                        id, user_id, kind, filename, mime, byte_size, sha256, rel_path, created_at
+                        id, user_id, kind, filename, mime, byte_size, sha256, rel_path, content_b64, created_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                 ),
-                (attachment_id, user_id, kind, filename, mime, byte_size, sha256, rel_path, _now()),
+                (attachment_id, user_id, kind, filename, mime, byte_size, sha256, rel_path, content_b64, _now()),
             )
             conn.commit()
         finally:
@@ -624,6 +631,7 @@ _JSON_FIELDS = {
     "storyboard_json": "storyboard",
     "timeline_json": "timeline",
     "artifacts_json": "artifacts",
+    "storage_json": "storage",
 }
 
 
@@ -647,6 +655,116 @@ def artifacts_of(row: dict[str, Any]) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def storage_of(row: dict[str, Any]) -> dict[str, Any]:
+    raw = row.get("storage_json") or "{}"
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def list_all_jobs(
+    limit: int = 50,
+    status: str | None = None,
+    user_id: str | None = None,
+) -> list[dict[str, Any]]:
+    cap = min(200, max(1, limit))
+    clauses: list[str] = []
+    params: list[Any] = []
+    if status:
+        clauses.append("status = ?")
+        params.append(status)
+    if user_id:
+        clauses.append("user_id = ?")
+        params.append(user_id)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    params.append(cap)
+    with _lock:
+        conn = connect()
+        try:
+            rows = conn.execute(
+                _sql(f"SELECT * FROM jobs {where} ORDER BY created_at DESC LIMIT ?"),
+                params,
+            ).fetchall()
+            return [item for item in (_row(row) for row in rows) if item]
+        finally:
+            conn.close()
+
+
+def delete_job(job_id: str) -> dict[str, Any] | None:
+    row = get_job(job_id)
+    if not row:
+        return None
+    with _lock:
+        conn = connect()
+        try:
+            conn.execute(_sql("DELETE FROM jobs WHERE id = ?"), (job_id,))
+            conn.commit()
+        finally:
+            conn.close()
+    return row
+
+
+def count_operators() -> int:
+    with _lock:
+        conn = connect()
+        try:
+            row = conn.execute(_sql("SELECT COUNT(*) AS n FROM users WHERE role = ?"), ("operator",)).fetchone()
+            data = _row(row) or {}
+            return int(data.get("n") or 0)
+        finally:
+            conn.close()
+
+
+def admin_stats() -> dict[str, Any]:
+    with _lock:
+        conn = connect()
+        try:
+            u_row = _row(conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()) or {}
+            op_row = (
+                _row(conn.execute(_sql("SELECT COUNT(*) AS n FROM users WHERE role = ?"), ("operator",)).fetchone())
+                or {}
+            )
+            j_rows = conn.execute("SELECT status, COUNT(*) AS n FROM jobs GROUP BY status").fetchall()
+            att_row = (
+                _row(
+                    conn.execute(
+                        "SELECT COUNT(*) AS n, COALESCE(SUM(byte_size), 0) AS bytes FROM attachments"
+                    ).fetchone()
+                )
+                or {}
+            )
+        finally:
+            conn.close()
+    by_status: dict[str, int] = {"queued": 0, "running": 0, "done": 0, "failed": 0}
+    total_jobs = 0
+    for r in j_rows:
+        item = _row(r) or {}
+        st = str(item.get("status") or "")
+        n = int(item.get("n") or 0)
+        total_jobs += n
+        if st:
+            by_status[st] = n
+    return {
+        "users_total": int(u_row.get("n") or 0),
+        "operators_total": int(op_row.get("n") or 0),
+        "jobs_total": total_jobs,
+        "jobs_by_status": by_status,
+        "attachments_total": int(att_row.get("n") or 0),
+        "attachments_bytes": int(att_row.get("bytes") or 0),
+        "db_backend": "cloudflare-d1" if is_d1() else ("postgres" if is_postgres() else "sqlite"),
+    }
+
+
+def signup_enabled() -> bool:
+    stored = get_setting("signup_enabled")
+    if stored is not None:
+        return stored.strip().lower() not in ("0", "false", "no", "off")
+    raw = os.environ.get("AUTH_SIGNUP", "1" if config.AUTH_SIGNUP else "0").strip().lower()
+    return raw not in ("0", "false", "no", "off")
 
 
 def dump_json(path: Path, payload: Any) -> None:

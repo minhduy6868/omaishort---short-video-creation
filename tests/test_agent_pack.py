@@ -14,6 +14,7 @@ def test_cursor_skills_have_matching_codex_and_claude_pointers():
         "design-to-motion",
         "frontend-ui",
         "landing-page-design",
+        "local-video-storage",
         "refactor",
         "render-short",
         "scene-planner",

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Shell } from "./Shell";
 import { useNav } from "./nav";
 import { AccountPage } from "./pages/AccountPage";
+import { AdminPage } from "./pages/AdminPage";
 import { ComposePage } from "./pages/ComposePage";
 import { Gate } from "./pages/Gate";
 import { JobPage } from "./pages/JobPage";
@@ -40,6 +41,7 @@ export default function App() {
     page = <ComposePage key={route.name} kind={route.name} />;
   }
   if (route.name === "account") page = <AccountPage />;
+  if (route.name === "admin") page = <AdminPage />;
   if (route.name === "watch") page = <JobPage key={route.id} id={route.id} />;
 
   return <Shell>{page}</Shell>;

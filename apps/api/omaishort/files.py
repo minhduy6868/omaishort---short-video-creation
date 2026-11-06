@@ -24,13 +24,19 @@ def resolve_public_file(rel: str, user: dict) -> Path:
         path.relative_to(root)
     except (OSError, ValueError):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found") from None
-    if not path.is_file():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found")
     parts = path.relative_to(root).parts
     name = parts[-1]
     if name in _BLOCK_NAMES or name.startswith(".auth"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found")
     if parts and parts[0] in _BLOCK_PREFIXES:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found")
+    if not path.is_file() and len(parts) >= 3 and parts[0] == "attachments":
+        from omaishort import uploads
+
+        att = db.get_attachment(Path(name).stem)
+        if att:
+            uploads.disk_path(att)
+    if not path.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found")
     if parts[0] == "jobs" and len(parts) >= 2:
         row = db.get_job(parts[1])

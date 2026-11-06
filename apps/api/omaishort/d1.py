@@ -30,16 +30,22 @@ class D1Result:
 
 class D1Connection:
     def __init__(self, url: str, key: str) -> None:
-        self._url = url.rstrip("/") + "/query"
+        base = url.rstrip("/")
+        self._base = base
+        self._url = base + "/query"
+        self._batch_url = base + "/batch"
         self._key = key
 
-    def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> D1Result:
-        payload = {"sql": sql, "params": list(params)}
-        headers = {
+    def _headers(self) -> dict[str, str]:
+        return {
             "content-type": "application/json",
             "user-agent": "omaishort-desktop/0.1",
             "x-omaishort-key": self._key,
         }
+
+    def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> D1Result:
+        payload = {"sql": sql, "params": list(params)}
+        headers = self._headers()
         last: Exception | None = None
         for attempt in range(3):
             try:
@@ -65,6 +71,29 @@ class D1Connection:
             raise RuntimeError(str(body.get("error") or "d1 query failed"))
         rows = body.get("rows") or []
         return D1Result([dict(row) for row in rows])
+
+    def execute_batch(self, queries: list[tuple[str, tuple[Any, ...] | list[Any]]]) -> list[D1Result]:
+        if not queries:
+            return []
+        payload = {"queries": [{"sql": sql, "params": list(params)} for sql, params in queries]}
+        try:
+            response = httpx.post(
+                self._batch_url,
+                json=payload,
+                headers=self._headers(),
+                timeout=30.0,
+                verify=certifi.where(),
+            )
+            if response.status_code == 404:
+                return [self.execute(sql, params) for sql, params in queries]
+            response.raise_for_status()
+            body = response.json()
+            if not body.get("ok"):
+                raise RuntimeError(str(body.get("error") or "d1 batch failed"))
+            results = body.get("results") or []
+            return [D1Result([dict(r) for r in (item.get("rows") or [])]) for item in results]
+        except httpx.HTTPError:
+            return [self.execute(sql, params) for sql, params in queries]
 
     def commit(self) -> None:
         return None

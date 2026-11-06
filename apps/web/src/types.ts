@@ -36,12 +36,35 @@ export type ScenePreview = {
   shots: ShotPreview[];
 };
 
+export type JobStorageInfo = {
+  job_id?: string;
+  local_exists?: boolean;
+  mp4_ready?: boolean;
+  mp4_path?: string | null;
+  mp4_bytes?: number;
+  stills_bytes?: number;
+  sourced_bytes?: number;
+  refs_bytes?: number;
+  audio_bytes?: number;
+  other_bytes?: number;
+  total_bytes?: number;
+  file_count?: number;
+  compacted?: boolean;
+  compacted_at?: string;
+  freed_bytes?: number;
+  duration_sec?: number;
+  width?: number;
+  height?: number;
+};
+
 export type Job = {
   id: string;
   status: string;
   stage: Stage | string;
   error?: string | null;
   progress?: string;
+  user_id?: string | null;
+  user_email?: string | null;
   created_at?: string;
   updated_at?: string;
   input?: Partial<StoryDraft> & Record<string, unknown>;
@@ -58,6 +81,7 @@ export type Job = {
     scenes: ScenePreview[];
   };
   artifacts?: Record<string, string>;
+  storage?: JobStorageInfo;
 };
 
 export type VideoKind = "drama" | "news" | "knowledge";

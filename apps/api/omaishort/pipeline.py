@@ -423,6 +423,13 @@ async def run_job(job_id: str) -> None:
         artifacts["timeline"] = timeline_path.as_posix()
         artifacts["providers"] = json.dumps(providers)
 
+        from omaishort.storage import inspect_job_storage
+
+        storage_info = inspect_job_storage(job_id, row)
+        storage_info["duration_sec"] = round(float(duration), 2)
+        storage_info["width"] = size[0]
+        storage_info["height"] = size[1]
+
         db.update_job(
             job_id,
             status=JobStatus.done.value,
@@ -430,6 +437,7 @@ async def run_job(job_id: str) -> None:
             progress="done",
             timeline_json=timeline.model_dump_json(),
             artifacts_json=json.dumps(artifacts),
+            storage_json=json.dumps(storage_info),
             error=None,
         )
     except Exception as exc:

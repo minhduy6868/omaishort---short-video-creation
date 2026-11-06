@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { listJobs } from "../api";
+import { deleteJob, listJobs } from "../api";
 import { CounterCard, PageHeader, ProgressBar, StatusPill, progressCopy, progressFromJob, stageLabel, toneForStatus } from "../components";
 import { useNav } from "../nav";
 import type { Job, VideoKind } from "../types";
@@ -59,6 +59,14 @@ function jobKind(job: Job): string {
 
 function jobTitle(job: Job): string {
   return job.storyboard?.title || (typeof job.input?.genre === "string" ? `${jobKind(job)} · ${job.input.genre}` : job.id);
+}
+
+function formatBytes(bytes?: number): string {
+  const val = bytes ?? 0;
+  if (!val) return "—";
+  if (val < 1024) return `${val} B`;
+  if (val < 1024 * 1024) return `${Math.round(val / 1024)} KB`;
+  return `${(val / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function WorkPage() {
@@ -223,7 +231,7 @@ export function WorkPage() {
                   <th>Trạng thái</th>
                   <th>Tiến độ</th>
                   <th>Cập nhật</th>
-                  <th>Chuyển động</th>
+                  <th>Chuyển động / MP4</th>
                   <th>Thao tác</th>
                 </tr>
               </thead>
@@ -231,6 +239,7 @@ export function WorkPage() {
                 {filteredJobs.map((job) => {
                   const motion = job.artifacts?.motion_mode || "pending";
                   const progress = progressFromJob(job.progress, job.status, job.stage);
+                  const mp4Bytes = job.storage?.mp4_bytes;
                   return (
                     <tr key={job.id}>
                       <td>
@@ -251,18 +260,34 @@ export function WorkPage() {
                       </td>
                       <td>{formatDate(job.updated_at || job.created_at)}</td>
                       <td>
-                        <span className="table-mono">{motion}</span>
+                        <span className="table-mono">
+                          {motion}
+                          {mp4Bytes ? ` · ${formatBytes(mp4Bytes)}` : ""}
+                        </span>
                       </td>
                       <td>
-                        {job.status === "done" ? (
-                          <a className="button ghost" href={`/jobs/${encodeURIComponent(job.id)}/download`} download>
-                            Tải MP4
-                          </a>
-                        ) : (
-                          <button type="button" className="ghost" onClick={() => go(`/watch/${job.id}`)}>
-                            Xem
+                        <div className="hub-actions">
+                          {job.status === "done" ? (
+                            <a className="button ghost" href={`/jobs/${encodeURIComponent(job.id)}/download`} download>
+                              Tải MP4
+                            </a>
+                          ) : (
+                            <button type="button" className="ghost" onClick={() => go(`/watch/${job.id}`)}>
+                              Xem
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="ghost"
+                            onClick={() => {
+                              void deleteJob(job.id, false)
+                                .then(() => refresh())
+                                .catch((err) => setLoadError(err instanceof Error ? err.message : "Không xóa được job"));
+                            }}
+                          >
+                            Xóa
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );

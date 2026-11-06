@@ -295,8 +295,7 @@ def register_user(body: RegisterBody) -> dict[str, Any]:
     if db.count_users() == 0:
         role = "operator"
     else:
-        raw = os.environ.get("AUTH_SIGNUP", "1" if config.AUTH_SIGNUP else "0").strip().lower()
-        if raw in ("0", "false", "no", "off"):
+        if not db.signup_enabled():
             raise HTTPException(status.HTTP_403_FORBIDDEN, "signup closed")
         role = "creator"
     name = (body.display_name or "").strip() or email.split("@", 1)[0]
@@ -367,11 +366,20 @@ async def get_current_user(
 CurrentUser = Annotated[dict[str, Any], Depends(get_current_user)]
 
 
+def require_operator(user: CurrentUser) -> dict[str, Any]:
+    if user.get("role") != "operator":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Chỉ admin (operator) mới có quyền thực hiện thao tác này.")
+    return user
+
+
+OperatorUser = Annotated[dict[str, Any], Depends(require_operator)]
+
+
 def can_read_job(row: dict[str, Any], user: dict[str, Any]) -> bool:
+    if user.get("role") == "operator":
+        return True
     owner = row.get("user_id")
     if owner and owner == user["id"]:
-        return True
-    if not owner and user.get("role") == "operator":
         return True
     return False
 

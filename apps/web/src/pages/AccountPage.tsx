@@ -12,6 +12,7 @@ import {
   type ProviderStatus,
 } from "../api";
 import { CounterCard, PageHeader, StatusPill } from "../components";
+import { ThemePicker } from "../theme";
 import { useSession } from "../session";
 
 function chips(status: ProviderStatus): { id: string; on: boolean; label: string }[] {
@@ -126,6 +127,16 @@ export function AccountPage() {
         title={user?.display_name || user?.email || "Account"}
         lede={user ? `${user.email} · ${user.role}` : "Phiên đăng nhập hiện tại"}
       />
+
+      <section className="panel">
+        <div className="section-head compact">
+          <div>
+            <p className="kicker">Giao diện</p>
+            <h2>Chọn bộ UI</h2>
+          </div>
+        </div>
+        <ThemePicker withLabels />
+      </section>
 
       <div className="hub-grid">
         <section className="panel hub-card">

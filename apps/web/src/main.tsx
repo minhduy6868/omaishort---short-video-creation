@@ -6,9 +6,13 @@ import { SUPPORTED_LANGS, type SupportedLang } from "./i18n";
 import "./i18n";
 import "./index.css";
 import "./App.css";
+import "./styles/theme.css";
 import { useNav, NavProvider } from "./nav";
 import { LandingPage } from "./pages/LandingPage";
 import { SessionProvider } from "./session";
+import { initTheme } from "./theme";
+
+initTheme();
 const STUDIO_PATHS = ["/login", "/register", "/work", "/drama", "/news", "/knowledge", "/account"];
 
 function NavSync() {

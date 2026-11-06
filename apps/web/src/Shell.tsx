@@ -1,6 +1,7 @@
 import { logout } from "./api";
 import { useNav } from "./nav";
 import { useSession } from "./session";
+import { ThemePicker } from "./theme";
 import type { ReactNode } from "react";
 
 const LINKS = [
@@ -128,6 +129,7 @@ export function Shell({ children }: { children: ReactNode }) {
             ) : null}
           </div>
           <div className="topbar-status">
+            <ThemePicker />
             <span className="topbar-badge">
               <span className="topbar-dot" aria-hidden="true" />
               Local Engine

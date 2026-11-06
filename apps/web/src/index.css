@@ -1,16 +1,87 @@
-:root {
+/*
+ * Themes swap tokens only. Every theme keeps Part B: flat surfaces, full borders,
+ * the same type and spacing scale. surface-0 = page and insets, surface-1 = panels,
+ * surface-2 = hover and badges, surface-3 = active state.
+ */
+:root,
+[data-theme="darkroom"] {
   color-scheme: dark;
   --bg: #14110e;
   --panel: #1c1814;
+  --surface-0: #11100e;
+  --surface-1: #161412;
+  --surface-2: #1c1917;
+  --surface-3: #24201c;
   --line: #3a3229;
+  --line-strong: #554b41;
   --ink: #f3ece3;
   --muted: #b7a99a;
+  --muted-2: #7c7267;
   --accent: #c45c26;
   --accent-ink: #e7a16f;
+  --on-accent: #ffffff;
   --ok: #c9d4a3;
-  --radius: 18px;
+  --ok-strong: #a3e635;
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --hero-from: #f3ece3;
+  --hero-to: #9b9b9b;
+  --font-display: Fraunces, serif;
+  --font-ui: "Public Sans", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius: 16px;
   --radius-sm: 12px;
   --shadow: 0 20px 70px rgba(0, 0, 0, 0.24);
+}
+
+[data-theme="paper"] {
+  color-scheme: light;
+  --bg: #f3eee5;
+  --panel: #fbf8f2;
+  --surface-0: #f3eee5;
+  --surface-1: #fbf8f2;
+  --surface-2: #ebe4d8;
+  --surface-3: #e0d6c6;
+  --line: #d6cbba;
+  --line-strong: #b3a690;
+  --ink: #1f1b16;
+  --muted: #5f564c;
+  --muted-2: #8a7f72;
+  --accent: #a8461a;
+  --accent-ink: #8a3812;
+  --on-accent: #ffffff;
+  --ok: #4d6b1f;
+  --ok-strong: #4d7c0f;
+  --warn: #a16207;
+  --danger: #b91c1c;
+  --hero-from: #1f1b16;
+  --hero-to: #7a7066;
+  --shadow: 0 12px 40px rgba(60, 40, 20, 0.08);
+}
+
+[data-theme="bay"] {
+  color-scheme: dark;
+  --bg: #0e1012;
+  --panel: #15181b;
+  --surface-0: #0e1012;
+  --surface-1: #14171a;
+  --surface-2: #1b1f23;
+  --surface-3: #242a30;
+  --line: #2a3037;
+  --line-strong: #46505a;
+  --ink: #e6eaee;
+  --muted: #98a2ad;
+  --muted-2: #66707b;
+  --accent: #e3a33b;
+  --accent-ink: #f0c47a;
+  --on-accent: #1a1206;
+  --ok: #9fd3b5;
+  --ok-strong: #4ade80;
+  --warn: #facc15;
+  --danger: #f87171;
+  --hero-from: #e6eaee;
+  --hero-to: #7d8791;
+  --font-display: "Public Sans", sans-serif;
 }
 
 * {
@@ -24,7 +95,7 @@ body,
   min-height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
 }
 
 body {

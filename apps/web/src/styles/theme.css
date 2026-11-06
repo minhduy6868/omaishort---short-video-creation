@@ -1,0 +1,116 @@
+.theme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.theme-picker .theme-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.theme-picker .theme-option:hover {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.theme-picker .theme-option.on {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+
+.theme-swatch {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+}
+
+.theme-swatch span {
+  width: 8px;
+  height: 16px;
+}
+
+.theme-picker.labeled {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+  border-radius: 16px;
+}
+
+.theme-picker.labeled .theme-option {
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-color: var(--line);
+}
+
+.theme-picker.labeled .theme-option.on {
+  border-color: var(--accent);
+}
+
+.theme-picker.labeled .theme-swatch span {
+  width: 12px;
+  height: 32px;
+}
+
+.theme-text {
+  display: grid;
+  gap: 4px;
+}
+
+.theme-text strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.theme-text small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .theme-picker.labeled {
+    grid-template-columns: 1fr;
+  }
+
+  .header-actions .theme-picker {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-picker .theme-option {
+    transition: none;
+  }
+}

@@ -1,16 +1,76 @@
-:root {
-  color-scheme: dark;
-  --bg: #14110e;
-  --panel: #1c1814;
-  --line: #3a3229;
-  --ink: #f3ece3;
-  --muted: #b7a99a;
-  --accent: #c45c26;
-  --accent-ink: #e7a16f;
-  --ok: #c9d4a3;
-  --radius: 18px;
-  --radius-sm: 12px;
-  --shadow: 0 20px 70px rgba(0, 0, 0, 0.24);
+/*
+ * Two site themes, chosen by the admin (GET/PUT /site/theme).
+ *   brutal = neo-brutalism: cream page, white blocks, thick black borders, hard offset shadows.
+ *   soft   = soft UI: one grey surface, depth from paired light/dark shadows, inset inputs.
+ * Tokens only here. Structural moves per theme live in styles/skins.css.
+ * surface-0 = page and insets, surface-1 = panels, surface-2 = hover and badges, surface-3 = active.
+ */
+:root,
+[data-theme="brutal"] {
+  color-scheme: light;
+  --bg: #fff4d6;
+  --panel: #ffffff;
+  --surface-0: #fff4d6;
+  --surface-1: #ffffff;
+  --surface-2: #ffe14d;
+  --surface-3: #ffd000;
+  --line: #111111;
+  --line-strong: #000000;
+  --ink: #111111;
+  --muted: #3a3a3a;
+  --muted-2: #5c5c5c;
+  --accent: #ff5c39;
+  --accent-ink: #c2310f;
+  --on-accent: #111111;
+  --ok: #0f7a3d;
+  --ok-strong: #16a34a;
+  --warn: #b45309;
+  --danger: #d4111e;
+  --hero-from: #111111;
+  --hero-to: #111111;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-ui: "Space Grotesk", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --shadow: 4px 4px 0 #111111;
+  --hard: 4px 4px 0 #111111;
+  --hard-sm: 3px 3px 0 #111111;
+  --hard-lg: 6px 6px 0 #111111;
+}
+
+[data-theme="soft"] {
+  color-scheme: light;
+  --bg: #e4e8ee;
+  --panel: #e4e8ee;
+  --surface-0: #e4e8ee;
+  --surface-1: #e4e8ee;
+  --surface-2: #dde2e9;
+  --surface-3: #d3d9e2;
+  --line: #cfd5de;
+  --line-strong: #b4bcc8;
+  --ink: #1f2633;
+  --muted: #4c5768;
+  --muted-2: #6a7485;
+  --accent: #2f5bea;
+  --accent-ink: #2448c4;
+  --on-accent: #ffffff;
+  --ok: #1f7a4d;
+  --ok-strong: #22a565;
+  --warn: #a15c07;
+  --danger: #c62828;
+  --hero-from: #1f2633;
+  --hero-to: #4c5768;
+  --font-display: Manrope, sans-serif;
+  --font-ui: Manrope, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --radius: 22px;
+  --radius-sm: 14px;
+  --shadow: 10px 10px 24px #c2c8d2, -10px -10px 24px #ffffff;
+  --soft-out: 8px 8px 18px #c2c8d2, -8px -8px 18px #ffffff;
+  --soft-out-sm: 4px 4px 10px #c2c8d2, -4px -4px 10px #ffffff;
+  --soft-out-lg: 12px 12px 26px #c2c8d2, -12px -12px 26px #ffffff;
+  --soft-in: inset 4px 4px 8px #c2c8d2, inset -4px -4px 8px #ffffff;
 }
 
 * {
@@ -24,7 +84,7 @@ body,
   min-height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
 }
 
 body {
@@ -40,4 +100,9 @@ input {
 
 a {
   color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

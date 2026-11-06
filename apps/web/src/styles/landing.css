@@ -2,10 +2,10 @@
 /*
  * Design System Rules:
  * - Zero AI tropes: No `01 //` prefixes, no pill-badge overload, no decorative code tags on every card.
- * - Typography: Public Sans for clean, high-trust UI hierarchy; Fraunces only for brand logo & main display titles.
+ * - Typography: var(--font-ui) / var(--font-display) from the active theme.
  * - Spacing: 13-step scale (0, 2, 4, 8, 12, 16, 24, 32, 40, 48, 64, 80, 96).
  * - Nested Radius Formula: Outer 24px -> 8px padding -> Inner 16px.
- * - Flat dark surfaces (#11100e, #161412, #1c1917) with crisp 1px borders.
+ * - Flat surfaces (var(--surface-0..2)); styles/skins.css adds per-theme borders and depth.
  */
 
 /* --- Skip Link --- */
@@ -16,7 +16,7 @@
   z-index: 1000;
   padding: 8px 16px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   text-decoration: none;
   border-radius: 8px;
   font-size: 14px;
@@ -42,7 +42,7 @@
   padding: 0 24px;
   display: flex;
   align-items: center;
-  background: rgba(17, 16, 14, 0.9);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line);
@@ -56,7 +56,7 @@
   gap: 32px;
 }
 .logo {
-  font-family: Fraunces, serif;
+  font-family: var(--font-display);
   font-size: 22px;
   font-weight: 500;
   color: var(--ink);
@@ -80,7 +80,7 @@
 }
 .nav-link:hover {
   color: var(--ink);
-  background: #1c1917;
+  background: var(--surface-2);
 }
 .header-actions {
   display: flex;
@@ -93,7 +93,7 @@
   align-items: center;
   padding: 8px 16px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
@@ -114,7 +114,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 8px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 8px;
   cursor: pointer;
@@ -131,7 +131,7 @@
   position: relative;
 }
 .lang-trigger {
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--muted);
@@ -151,7 +151,7 @@
   top: calc(100% + 4px);
   right: 0;
   min-width: 140px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 12px;
   list-style: none;
@@ -176,7 +176,7 @@
   transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .lang-menu button:hover {
-  background: #26221e;
+  background: var(--surface-3);
   color: var(--ink);
 }
 .lang-menu button.active {
@@ -216,7 +216,7 @@
   font-weight: 600;
 }
 .section-title {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 32px;
   font-weight: 600;
   line-height: 1.2;
@@ -235,7 +235,7 @@
 
 /* --- Flagship Hero Section --- */
 .hero {
-  background: #11100e;
+  background: var(--surface-0);
   border-bottom: 1px solid var(--line);
   padding: 96px 24px 80px;
 }
@@ -263,16 +263,16 @@
   color: var(--accent);
   margin: 0 0 16px;
 }
-/* B5 Hero heading left-to-right gradient (#FFFFFF -> #9B9B9B on dark theme) + max-width 680px */
+/* B5 Hero heading left-to-right gradient (--hero-from -> --hero-to) + max-width 680px */
 .hero-title {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 48px;
   font-weight: 600;
   margin: 0 0 24px;
   letter-spacing: -0.03em;
   line-height: 1.12;
   max-width: 680px;
-  background: linear-gradient(90deg, #ffffff 0%, #9b9b9b 100%);
+  background: linear-gradient(90deg, var(--hero-from) 0%, var(--hero-to) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -295,13 +295,13 @@
 /* --- Enterprise Product Console (Part B3 Nested Radius: Outer 24px - 8px pad = Inner 16px) --- */
 .hero-console-outer {
   width: 100%;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 24px;
   padding: 8px;
 }
 .hero-console-inner {
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 16px;
   overflow: hidden;
@@ -312,7 +312,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 12px 24px;
-  background: #161412;
+  background: var(--surface-1);
   border-bottom: 1px solid var(--line);
 }
 .console-brand-group {
@@ -353,7 +353,7 @@
   gap: 16px;
 }
 .console-card {
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 16px;
@@ -378,7 +378,7 @@
 .console-tag {
   font-size: 12px;
   padding: 2px 8px;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 4px;
   color: var(--muted);
@@ -399,7 +399,7 @@
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -407,7 +407,7 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: #1c1917;
+  background: var(--surface-2);
   border: 1px solid var(--line);
   display: flex;
   align-items: center;
@@ -446,14 +446,14 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--ink);
 }
 .console-stage-item.active {
   border-color: var(--accent);
-  background: #1c1917;
+  background: var(--surface-2);
 }
 .stage-text {
   display: flex;
@@ -485,7 +485,7 @@
   flex-direction: column;
   justify-content: space-between;
   padding: 16px;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 8px;
   min-height: 280px;
@@ -511,7 +511,7 @@
   height: 40px;
   padding: 8px;
   border-radius: 8px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   color: var(--accent);
 }
@@ -521,7 +521,7 @@
 }
 .viewport-caption-bar {
   padding: 12px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 8px;
   text-align: center;
@@ -532,7 +532,7 @@
   color: var(--muted);
 }
 .viewport-word.highlighted {
-  color: #ffffff;
+  color: var(--ink);
   background: var(--accent);
   padding: 2px 4px;
   border-radius: 4px;
@@ -558,7 +558,7 @@
 }
 .btn-primary {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 .btn-primary:hover {
@@ -566,13 +566,13 @@
   opacity: 0.94;
 }
 .btn-secondary {
-  background: #161412;
+  background: var(--surface-1);
   color: var(--ink);
   border: 1px solid var(--line);
 }
 .btn-secondary:hover {
   transform: translateY(-2px);
-  background: #221e1a;
+  background: var(--surface-3);
 }
 .btn-lg {
   padding: 12px 24px;
@@ -581,7 +581,7 @@
 
 /* --- Three Formats Grid (Part B3 Nested Radius: 24px outer -> 8px pad -> 16px inner) --- */
 .features {
-  background: #11100e;
+  background: var(--surface-0);
   border-bottom: 1px solid var(--line);
 }
 .features-grid {
@@ -590,7 +590,7 @@
   gap: 24px;
 }
 .feature-card {
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 24px;
   padding: 8px;
@@ -609,7 +609,7 @@
   justify-content: space-between;
   gap: 24px;
   padding: 24px;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 16px;
 }
@@ -617,7 +617,7 @@
   width: 40px;
   height: 40px;
   padding: 8px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--accent);
@@ -627,7 +627,7 @@
   height: 100%;
 }
 .feature-card h3 {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 20px;
   font-weight: 600;
   margin: 0 0 8px;
@@ -644,7 +644,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 14px;
@@ -664,7 +664,7 @@
 
 /* --- Enterprise Bento Capabilities Grid --- */
 .capabilities {
-  background: #141210;
+  background: var(--surface-1);
   border-bottom: 1px solid var(--line);
 }
 .capabilities-bento-grid {
@@ -673,7 +673,7 @@
   gap: 24px;
 }
 .capability-card {
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 24px;
@@ -687,7 +687,7 @@
 }
 .capability-card.bento-wide {
   grid-column: span 2;
-  background: #161412;
+  background: var(--surface-1);
 }
 .capability-card:hover {
   border-color: var(--accent);
@@ -703,7 +703,7 @@
   height: 100%;
 }
 .capability-card h3 {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 8px;
@@ -718,7 +718,7 @@
 
 /* --- How It Works --- */
 .how-it-works {
-  background: #11100e;
+  background: var(--surface-0);
   border-bottom: 1px solid var(--line);
 }
 .steps-grid {
@@ -731,7 +731,7 @@
   display: flex;
   flex-direction: column;
   padding: 24px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 16px;
   transition:
@@ -749,7 +749,7 @@
   margin-bottom: 16px;
 }
 .step-card h3 {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 8px;
@@ -764,7 +764,7 @@
 
 /* --- Demo & VideoDemo Component --- */
 .demo {
-  background: #141210;
+  background: var(--surface-1);
   border-bottom: 1px solid var(--line);
 }
 .demo-grid {
@@ -777,7 +777,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 24px;
   padding: 24px;
@@ -872,7 +872,7 @@
 .video-demo-progress-track {
   flex: 1;
   height: 4px;
-  background: #272727;
+  background: var(--surface-3);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -884,7 +884,7 @@
   margin-top: 4px;
 }
 .video-demo-title {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 600;
   color: var(--ink);
@@ -899,7 +899,7 @@
 
 /* --- Use Cases --- */
 .use-cases {
-  background: #11100e;
+  background: var(--surface-0);
   border-bottom: 1px solid var(--line);
 }
 .use-cases-grid {
@@ -911,7 +911,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 24px;
@@ -924,7 +924,7 @@
   transform: translateY(-2px);
 }
 .use-case-card h3 {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 8px;
@@ -937,7 +937,7 @@
   margin: 0 0 16px;
 }
 .use-case-example-box {
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
@@ -952,7 +952,7 @@
 
 /* --- FAQ Split Layout --- */
 .faq {
-  background: #141210;
+  background: var(--surface-1);
   border-bottom: 1px solid var(--line);
 }
 .faq-split-layout {
@@ -967,7 +967,7 @@
   gap: 12px;
 }
 .faq-item {
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0 24px;
@@ -1019,10 +1019,10 @@ details[open] .faq-chevron {
 /* --- CTA Section (Nested Radius: 24px outer -> 8px pad -> 16px inner) --- */
 .cta-section {
   text-align: center;
-  background: #11100e;
+  background: var(--surface-0);
 }
 .cta-outer-frame {
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 24px;
   padding: 8px;
@@ -1031,13 +1031,13 @@ details[open] .faq-chevron {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 64px 32px;
 }
 .cta-title {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 32px;
   font-weight: 600;
   margin: 0 0 12px;
@@ -1061,7 +1061,7 @@ details[open] .faq-chevron {
 
 /* --- Footer --- */
 .site-footer {
-  background: #11100e;
+  background: var(--surface-0);
   border-top: 1px solid var(--line);
   padding: 0 24px;
 }
@@ -1074,7 +1074,7 @@ details[open] .faq-chevron {
   margin-bottom: 40px;
 }
 .footer-logo {
-  font-family: Fraunces, serif;
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 500;
   color: var(--ink);
@@ -1159,7 +1159,7 @@ details[open] .faq-chevron {
     top: 64px;
     left: 0;
     right: 0;
-    background: #161412;
+    background: var(--surface-1);
     flex-direction: column;
     padding: 24px;
     gap: 16px;

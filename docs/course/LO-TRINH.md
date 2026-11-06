@@ -15,7 +15,7 @@ Mỗi tuần bám một chương trong đề cương. Làm xong tuần đó rồ
 | 5 | Tầng, pattern, UML từ schema, bảng, API, mẫu thiết kế | `docs/course/chuong-05/` |
 | 6 | Sửa từ khoá ảnh tin + credit `Ằng`, kèm bài về quy trình lập trình với AI | `brief_media.py`, `tests/test_brief_media.py`, `docs/course/chuong-06/` |
 | 7 | Review diff ảnh tin, smell chưa tách file | `docs/course/chuong-07/` |
-| 8 | pytest, tsc, CI, cách thiết kế một test | `docs/course/chuong-08/` |
+| 8 | pytest, tsc, CI, test trình duyệt Playwright, cách thiết kế một test | `docs/course/chuong-08/`, `tests/test_studio_e2e.py` |
 | 9 | Bản đồ tài liệu nộp, không viết lại hợp đồng | `docs/course/chuong-09/` |
 | 10 | Việc mang theo buổi bảo vệ | `docs/course/bao-ve.md` |
 | — | Pipeline drama / tin / kiến thức, auth, studio, test | `apps/api`, `apps/web`, `tests/` |
@@ -43,7 +43,7 @@ Mỗi tuần bám một chương trong đề cương. Làm xong tuần đó rồ
 
 ### Tuần 4 — Chương 4. Thiết kế sản phẩm
 
-Đã nộp `docs/course/chuong-04/`. Luồng thật: `/en` landing, CTA `/work`, chưa session thì `App.tsx` đẩy `/login`, rồi `/news` → `/watch/{id}`. Desktop mở `/`. Không có mockup mới.
+Đã nộp `docs/course/chuong-04/`. Luồng thật: `/en` landing, CTA `/work`, chưa session thì `App.tsx` đẩy `/login`, rồi `/news` → `/watch/{id}`. Desktop mở `/work` (`/` giờ về landing `/vi`). Không có mockup mới.
 
 ### Tuần 5 — Chương 5. Kiến trúc và dữ liệu
 
@@ -65,7 +65,9 @@ Xong phần code khi: pytest khoá ba ý trên. Job URL sống chưa chạy tron
 
 ### Tuần 8 — Chương 8. Test
 
-Đã nộp `docs/course/chuong-08/`. `pytest -q`: 135 passed. `npx tsc --noEmit` trong `apps/web`: sạch. CI `.github/workflows/ci.yml` chạy hai lệnh đó. Test không gọi Comfy, ElevenLabs, hay ChatGPT sống.
+Đã nộp `docs/course/chuong-08/`, cập nhật 06/11/2026. `pytest -q`: 144 passed. `npx tsc --noEmit` trong `apps/web`: sạch. CI `.github/workflows/ci.yml` chạy hai lệnh đó. Test không gọi Comfy, ElevenLabs, hay ChatGPT sống.
+
+Thêm trong tuần: `tests/test_studio_e2e.py` (Playwright + Chrome headless trên bản build studio: `/` về `/vi`, `/work` đòi login, theme admin lan sang người khác, `creator` không đổi được theme) và test cửa sổ desktop mở `/work`. Test trình duyệt skip trên CI vì CI không build web.
 
 ### Tuần 9 — Chương 9. Tài liệu nộp
 

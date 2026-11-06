@@ -7,9 +7,9 @@ alwaysApply: false
 # Frontend
 
 - Studio pages: `/login`, `/register`, then a rail (`/work`, `/drama`, `/news`, `/knowledge`, `/account`) and `/watch/{id}` for a job. Types in `src/types.ts`, HTTP in `src/api.ts`. Do not put UI routes on `/jobs` (that prefix is the API).
-- Fonts: Fraunces (display) + Public Sans (UI). Colors from CSS variables in `index.css` (`--bg`, `--accent`). No Inter, no purple AI gradient.
+- Two site themes: `brutal` (Khối thô, Space Grotesk, default) and `soft` (Gối mềm, Manrope). The admin (`operator`) sets it via `PUT /site/theme`; everyone reads `GET /site/theme`. Tokens in `index.css`, per-theme borders/shadows in `styles/skins.css`. CSS reads tokens, never raw hex (video frame excepted). No Inter, no purple AI gradient.
 - Poll `/jobs/{id}` every 1.5s until `done` or `failed`. Stills use `dataFileUrl()` → `/files/...` (cookie-authenticated).
 - `fetch` with `credentials: "include"`. Proxy `/auth` and `/attachments` too.
 - Never label Ken Burns as I2V. If `artifacts.motion` exists, show that mode.
-- Vite proxy: `/jobs`, `/health`, `/files` → `http://127.0.0.1:8765`. Bind `server.host` to `127.0.0.1`.
+- Vite proxy: `/jobs`, `/health`, `/files`, `/site` → `http://127.0.0.1:8765`. Bind `server.host` to `127.0.0.1`.
 - Do not add a UI library unless the page truly needs it.

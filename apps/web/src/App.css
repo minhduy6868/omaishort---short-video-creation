@@ -2,8 +2,9 @@
 /*
  * Design System Principles:
  * - Zero radial-gradient glow blobs, zero linear-gradient panel fills, zero pill-overload.
- * - Clean Public Sans UI hierarchy (12px, 13px, 14px, 16px, 20px, 28px) + Fraunces only for brand mark.
- * - Crisp 1px borders (#272420 / var(--line)), flat dark architectural surfaces (#11100e, #161412, #1c1917).
+ * - Type scale (12px, 13px, 14px, 16px, 20px, 28px) on var(--font-ui) / var(--font-display).
+ * - Base layout with 1px var(--line) borders and flat surfaces; styles/skins.css gives each
+ *   theme (brutal, soft) its borders and depth.
  * - Proper enterprise table, segmented filter tabs, and compact navigation rail.
  */
 
@@ -16,7 +17,7 @@
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
-  background: #11100e;
+  background: var(--surface-0);
   color: var(--ink);
 }
 
@@ -30,7 +31,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  background: #141210;
+  background: var(--surface-1);
 }
 
 .brand-block {
@@ -49,8 +50,8 @@
   height: 32px;
   border-radius: 8px;
   background: var(--accent);
-  color: #ffffff;
-  font-family: Fraunces, serif;
+  color: var(--on-accent);
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 600;
   display: inline-flex;
@@ -60,7 +61,7 @@
 }
 
 .brand {
-  font-family: Fraunces, serif;
+  font-family: var(--font-display);
   font-size: 20px;
   font-weight: 500;
   line-height: 1.1;
@@ -87,7 +88,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #7c7267;
+  color: var(--muted-2);
 }
 
 .rail nav {
@@ -119,12 +120,12 @@
 
 .rail a:hover {
   color: var(--ink);
-  background: #1c1917;
+  background: var(--surface-2);
 }
 
 .rail a.on {
   color: var(--ink);
-  background: #221e1a;
+  background: var(--surface-3);
   border-color: var(--line);
   font-weight: 600;
 }
@@ -154,7 +155,7 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: #221e1a;
+  background: var(--surface-3);
   border: 1px solid var(--line);
   color: var(--ink);
   font-size: 13px;
@@ -201,7 +202,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .topbar {
@@ -212,7 +213,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: #141210;
+  background: var(--surface-1);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -231,7 +232,7 @@
 }
 
 .topbar-sep {
-  color: #5c5349;
+  color: var(--line-strong);
 }
 
 .topbar-breadcrumbs strong {
@@ -240,10 +241,10 @@
 }
 
 .topbar-job-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   padding: 2px 6px;
-  background: #1c1917;
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: 4px;
   color: var(--muted);
@@ -260,7 +261,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background: #1c1917;
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 12px;
@@ -271,15 +272,15 @@
   width: 6px;
   height: 6px;
   border-radius: 9999px;
-  background: #84cc16;
+  background: var(--ok-strong);
 }
 
 .topbar-role {
   padding: 4px 10px;
-  background: #1c1917;
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: 6px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   color: var(--muted);
 }
@@ -335,7 +336,7 @@
 
 /* Enterprise Typography inside Workspace (No giant 60px serif headers) */
 .stage h1 {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 28px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -345,7 +346,7 @@
 }
 
 .stage h2 {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -354,7 +355,7 @@
 }
 
 .stage h3 {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 600;
   margin: 0;
@@ -388,7 +389,7 @@
 
 /* --- Flat Enterprise Panels (No gradients, no heavy drop shadows) --- */
 .panel {
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 20px;
@@ -410,7 +411,7 @@
 }
 
 .gate h1 {
-  font-family: Fraunces, serif;
+  font-family: var(--font-display);
   font-size: 32px;
   font-weight: 500;
   margin: 0 0 8px;
@@ -439,7 +440,7 @@
   color: var(--muted);
   text-decoration: none;
   padding: 6px 12px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   border-radius: 8px;
 }
@@ -477,7 +478,7 @@ input,
 select,
 textarea {
   width: 100%;
-  background: #11100e;
+  background: var(--surface-0);
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -500,7 +501,7 @@ textarea:focus {
 
 input[readonly] {
   color: var(--muted);
-  background: #141210;
+  background: var(--surface-1);
 }
 
 .fields {
@@ -529,7 +530,7 @@ button,
 .button,
 .stage a.button {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
   border: 1px solid var(--accent);
   border-radius: 8px;
   padding: 8px 16px;
@@ -547,7 +548,7 @@ button,
 button.ghost,
 .button.ghost,
 .stage a.button.ghost {
-  background: #1c1917;
+  background: var(--surface-2);
   color: var(--ink);
   border: 1px solid var(--line);
   font-weight: 500;
@@ -556,8 +557,8 @@ button.ghost,
 button.ghost:hover,
 .button.ghost:hover,
 .stage a.button.ghost:hover {
-  background: #26221e;
-  border-color: #4f463d;
+  background: var(--surface-3);
+  border-color: var(--line-strong);
 }
 
 button:hover,
@@ -583,7 +584,7 @@ button:disabled {
 }
 
 .err {
-  color: #f87171;
+  color: var(--danger);
   font-size: 13px;
   white-space: pre-wrap;
   margin: 0;
@@ -603,35 +604,35 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 3px 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .status-pill.running {
-  color: #fbbf24;
-  border-color: rgba(251, 191, 36, 0.35);
-  background: rgba(251, 191, 36, 0.08);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 35%, transparent);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
 }
 
 .status-pill.done {
-  color: #a3e635;
-  border-color: rgba(163, 230, 53, 0.35);
-  background: rgba(163, 230, 53, 0.08);
+  color: var(--ok-strong);
+  border-color: color-mix(in srgb, var(--ok-strong) 35%, transparent);
+  background: color-mix(in srgb, var(--ok-strong) 8%, transparent);
 }
 
 .status-pill.failed {
-  color: #f87171;
-  border-color: rgba(248, 113, 113, 0.35);
-  background: rgba(248, 113, 113, 0.08);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
 .status-pill.accent {
   color: var(--accent-ink);
-  border-color: rgba(196, 92, 38, 0.5);
-  background: rgba(196, 92, 38, 0.1);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 /* --- Progress Bar --- */
@@ -645,7 +646,7 @@ button:disabled {
 .progress-track {
   height: 6px;
   border-radius: 4px;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   overflow: hidden;
 }
@@ -672,7 +673,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 16px;
-  background: #161412;
+  background: var(--surface-1);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -685,7 +686,7 @@ button:disabled {
 }
 
 .counter-card strong {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 28px;
   font-weight: 600;
   line-height: 1.15;
@@ -695,7 +696,7 @@ button:disabled {
 
 .counter-card small {
   font-size: 12px;
-  color: #7c7267;
+  color: var(--muted-2);
 }
 
 /* --- Quick Create Cards (Clean Action Launcher) --- */
@@ -710,7 +711,7 @@ button:disabled {
   align-items: stretch;
   justify-content: space-between;
   flex-direction: column;
-  background: #161412;
+  background: var(--surface-1);
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -720,7 +721,7 @@ button:disabled {
 }
 
 .quick-create-card:hover {
-  background: #1c1917;
+  background: var(--surface-2);
   border-color: var(--accent);
   opacity: 1;
 }
@@ -736,7 +737,7 @@ button:disabled {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: #11100e;
+  background: var(--surface-0);
   border: 1px solid var(--line);
   color: var(--accent);
   display: inline-flex;
@@ -766,7 +767,7 @@ button:disabled {
 }
 
 .quick-card-body strong {
-  font-family: "Public Sans", sans-serif;
+  font-family: var(--font-ui);
   font-size: 16px;
   font-weight: 600;
   color: var(--ink);
@@ -790,7 +791,7 @@ button:disabled {
   padding: 3px;
   display: inline-flex;
   gap: 2px;
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .segmented button {
@@ -808,7 +809,7 @@ button:disabled {
 }
 
 .segmented button.on {
-  background: #26221e;
+  background: var(--surface-3);
   color: var(--ink);
   font-weight: 600;
 }
@@ -818,7 +819,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 32px 24px;
-  background: #11100e;
+  background: var(--surface-0);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -830,7 +831,7 @@ button:disabled {
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: #161412;
+  background: var(--surface-1);
   border: 1px solid var(--line);
   color: var(--muted);
   display: flex;
@@ -875,7 +876,7 @@ button:disabled {
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .job-table {
@@ -898,11 +899,11 @@ button:disabled {
 }
 
 .job-table tbody tr:hover {
-  background: #161412;
+  background: var(--surface-1);
 }
 
 .job-table th {
-  background: #141210;
+  background: var(--surface-1);
   color: var(--muted);
   font-size: 11px;
   font-weight: 600;
@@ -943,7 +944,7 @@ button:disabled {
 .table-link span,
 .attachment-table td span {
   display: block;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--muted);
   word-break: break-all;
@@ -952,16 +953,16 @@ button:disabled {
 .table-badge {
   display: inline-block;
   padding: 2px 8px;
-  background: #1c1917;
+  background: var(--surface-2);
   border: 1px solid var(--line);
   border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--ink);
 }
 
 .table-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   color: var(--muted);
 }
@@ -991,7 +992,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .card-title {
@@ -1007,7 +1008,7 @@ button:disabled {
   border: 1px dashed var(--line);
   border-radius: 8px;
   padding: 14px;
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .picked-list {
@@ -1024,7 +1025,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .picked-card div {
@@ -1059,7 +1060,7 @@ button:disabled {
 }
 
 .library-chip {
-  background: #161412;
+  background: var(--surface-1);
   color: var(--muted);
   border: 1px solid var(--line);
   font-size: 12px;
@@ -1076,7 +1077,7 @@ button:disabled {
   z-index: 4;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #161412;
+  background: var(--surface-1);
   padding: 12px 16px;
   display: flex;
   align-items: center;
@@ -1129,7 +1130,7 @@ button:disabled {
   gap: 8px;
   align-items: center;
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
 }
@@ -1139,16 +1140,16 @@ button:disabled {
   height: 8px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .stage-rail li.done {
-  color: #a3e635;
+  color: var(--ok-strong);
 }
 
 .stage-rail li.done .stage-dot {
-  background: #a3e635;
-  border-color: #a3e635;
+  background: var(--ok-strong);
+  border-color: var(--ok-strong);
 }
 
 .stage-rail li.now {
@@ -1162,19 +1163,19 @@ button:disabled {
 }
 
 .stage-rail li.fail {
-  color: #f87171;
+  color: var(--danger);
 }
 
 .stage-rail li.fail .stage-dot {
-  background: #f87171;
-  border-color: #f87171;
+  background: var(--danger);
+  border-color: var(--danger);
 }
 
 .error-panel {
-  border: 1px solid rgba(248, 113, 113, 0.35);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
   border-radius: 8px;
   padding: 12px;
-  background: rgba(248, 113, 113, 0.06);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
 }
 
 .error-panel pre {
@@ -1204,7 +1205,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 8px;
-  background: #141210;
+  background: var(--surface-1);
 }
 
 .phone-frame {
@@ -1227,7 +1228,7 @@ button:disabled {
 
 .empty {
   color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   letter-spacing: 0.08em;
 }
@@ -1269,7 +1270,7 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px;
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .scene-card img,
@@ -1277,7 +1278,7 @@ button:disabled {
   width: 64px;
   height: 112px;
   border-radius: 6px;
-  background: #1c1917;
+  background: var(--surface-2);
   object-fit: cover;
 }
 
@@ -1345,7 +1346,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #11100e;
+  background: var(--surface-0);
 }
 
 .provider-tile strong {

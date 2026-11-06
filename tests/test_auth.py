@@ -52,6 +52,31 @@ def test_providers_is_public(client: TestClient):
     assert body["drama_motion"] in {"kenburns", "grok", "grok_hub", "hf", "wavespeed", "pollinations"}
 
 
+def test_site_theme_is_public_and_only_operator_changes_it(client: TestClient):
+    first = client.get("/site/theme")
+    assert first.status_code == 200
+    assert first.json() == {"theme": "brutal", "themes": ["brutal", "soft"]}
+
+    operator = _register(client, "admin@example.com")
+    creator = _register(client, "creator@example.com")
+    assert operator["user"]["role"] == "operator"
+    client.cookies.clear()
+
+    denied = client.put(
+        "/site/theme",
+        json={"theme": "soft"},
+        headers={"Authorization": f"Bearer {creator['access_token']}"},
+    )
+    assert denied.status_code == 403
+    assert client.put("/site/theme", json={"theme": "soft"}).status_code == 401
+
+    admin = {"Authorization": f"Bearer {operator['access_token']}"}
+    assert client.put("/site/theme", json={"theme": "glass"}, headers=admin).status_code == 422
+    saved = client.put("/site/theme", json={"theme": "soft"}, headers=admin)
+    assert saved.status_code == 200
+    assert client.get("/site/theme").json()["theme"] == "soft"
+
+
 def test_jobs_require_auth(client: TestClient):
     res = client.post(
         "/jobs",

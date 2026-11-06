@@ -9,6 +9,7 @@ import uuid
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from omaishort import config, db, uploads
 from omaishort.auth import (
@@ -207,6 +208,33 @@ def save_elevenlabs_hub(body: ElevenLabsHubBody, _user: CurrentUser) -> dict[str
 @app.get("/voices")
 def voices(language: str | None = None) -> dict[str, object]:
     return {"voices": list_voices(language)}
+
+
+SITE_THEMES = ("brutal", "soft")
+
+
+class SiteThemeBody(BaseModel):
+    theme: str
+
+
+def site_theme_value() -> str:
+    value = db.get_setting("site_theme")
+    return value if value in SITE_THEMES else SITE_THEMES[0]
+
+
+@app.get("/site/theme")
+def read_site_theme() -> dict[str, object]:
+    return {"theme": site_theme_value(), "themes": list(SITE_THEMES)}
+
+
+@app.put("/site/theme")
+def save_site_theme(body: SiteThemeBody, user: CurrentUser) -> dict[str, object]:
+    if user.get("role") != "operator":
+        raise HTTPException(status_code=403, detail="Chỉ admin (operator) đổi được giao diện.")
+    if body.theme not in SITE_THEMES:
+        raise HTTPException(status_code=422, detail=f"theme must be one of {', '.join(SITE_THEMES)}")
+    db.set_setting("site_theme", body.theme)
+    return {"theme": body.theme, "themes": list(SITE_THEMES)}
 
 
 @app.post("/auth/register", status_code=201)

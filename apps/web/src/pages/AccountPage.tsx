@@ -12,6 +12,7 @@ import {
   type ProviderStatus,
 } from "../api";
 import { CounterCard, PageHeader, StatusPill } from "../components";
+import { SiteThemePicker } from "../theme";
 import { useSession } from "../session";
 
 function chips(status: ProviderStatus): { id: string; on: boolean; label: string }[] {
@@ -126,6 +127,21 @@ export function AccountPage() {
         title={user?.display_name || user?.email || "Account"}
         lede={user ? `${user.email} · ${user.role}` : "Phiên đăng nhập hiện tại"}
       />
+
+      <section className="panel">
+        <div className="section-head compact">
+          <div>
+            <p className="kicker">Giao diện</p>
+            <h2>Giao diện toàn site</h2>
+            <p className="panel-subtitle">
+              {user?.role === "operator"
+                ? "Bạn là admin. Bộ được chọn áp dụng cho landing và studio của mọi người."
+                : "Admin (operator) chọn giao diện cho toàn site."}
+            </p>
+          </div>
+        </div>
+        <SiteThemePicker editable={user?.role === "operator"} />
+      </section>
 
       <div className="hub-grid">
         <section className="panel hub-card">

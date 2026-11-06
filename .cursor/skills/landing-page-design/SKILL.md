@@ -55,9 +55,9 @@ Work section by section: `Hero → Formats → Capabilities → How It Works →
 ## PART B — Non-Negotiable Visual System
 
 ### B1. Typography
-- **Project Adaptation**: Keep `Fraunces` (display serif, weights 500–600) + `Public Sans` (UI sans, weights 400–600) per `.cursor/rules/frontend.mdc`. Monospace (`ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas`) permitted only for CLI commands, timestamps, resolution badges, and stage codes.
+- **Project Adaptation**: Text uses `var(--font-display)` / `var(--font-ui)` from the site theme (`brutal`: Space Grotesk; `soft`: Manrope) per `.cursor/rules/frontend.mdc`. Monospace (`ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas`) permitted only for CLI commands, timestamps, resolution badges, and stage codes.
 - **No italic fonts** anywhere in the landing page interface.
-- **No ultra-bold weights** (800/900); cap at `600` (semibold).
+- **No ultra-bold weights** (800/900). Body caps at `600`; `brutal` display titles and buttons use `700` (set in `styles/skins.css`, not per component).
 - **Type scale**: Strictly `12px, 14px, 16px, 18px, 20px, 24px, 32px, 40px, 48px, 64px`.
 
 ### B2. Spacing
@@ -69,12 +69,12 @@ Work section by section: `Hero → Formats → Capabilities → How It Works →
 - **Nested Radius Formula**: $\text{Inner Radius} = \text{Outer Radius} - \text{Gap (Padding)}$ when gap $< 32\text{px}$ and result $> 2\text{px}$. (Example: Outer card `24px` radius with `8px` padding → inner container `16px` radius; Outer card `16px` radius with `8px` padding → inner container `8px` radius).
 
 ### B4. Borders and Backgrounds
-- **Borders**: Never apply a border to only one side of a card (no `border-top` or `border-left` only on cards/quotes). Borders must go **all the way around** (`1px solid var(--line)`) or not at all.
-- **Backgrounds**: **Never use gradients in backgrounds.** All page, section, card, and CTA backgrounds must be completely flat (`#14110e`, `#181818`, `#1c1814`, `#1f1f1f`, `#272727`). Remove any radial glow blobs or linear-gradient section backdrops.
+- **Borders**: Never apply a border to only one side of a card (no `border-top` or `border-left` only on cards/quotes). Borders must go **all the way around** (`1px solid var(--line)` in component CSS) or not at all. Thickness and shadow come from `styles/skins.css` (`brutal`: 2–3px black + hard offset; `soft`: no visible border, paired soft shadows).
+- **Backgrounds**: **Never use gradients in backgrounds.** All page, section, card, and CTA backgrounds must be completely flat theme tokens (`var(--bg)`, `var(--surface-0)` … `var(--surface-3)`), never raw hex. Remove any radial glow blobs or linear-gradient section backdrops.
 
 ### B5. Hero Section
 - **Max width**: Hero heading and subheading capped at `680px` max-width for clean, natural line breaks.
-- **Heading color gradient**: Left-to-right text gradient on the main `h1` hero heading (`#F3ECE3` → `#9B9B9B` on dark theme) using `background-clip: text`.
+- **Heading color gradient**: Left-to-right text gradient on the main `h1` hero heading (`var(--hero-from)` → `var(--hero-to)`, set per theme) using `background-clip: text`. `brutal` overrides it to solid uppercase ink.
 
 ### B6. Icons
 - Clean, consistent `1.5px` stroke vector icons (Phosphor / Solar style). Never use Material Icons or emojis.

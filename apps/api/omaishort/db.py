@@ -203,6 +203,15 @@ def init_db() -> None:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at)")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_attachments_user ON attachments(user_id, created_at)"
@@ -271,6 +280,36 @@ def list_jobs(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
                 (user_id, cap),
             ).fetchall()
             return [item for item in (_row(row) for row in rows) if item]
+        finally:
+            conn.close()
+
+
+def get_setting(key: str) -> str | None:
+    with _lock:
+        conn = connect()
+        try:
+            row = conn.execute(_sql("SELECT value FROM settings WHERE key = ?"), (key,)).fetchone()
+            data = _row(row)
+            return str(data["value"]) if data else None
+        finally:
+            conn.close()
+
+
+def set_setting(key: str, value: str) -> None:
+    now = _now()
+    with _lock:
+        conn = connect()
+        try:
+            conn.execute(
+                _sql(
+                    """
+                    INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+                    ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+                    """
+                ),
+                (key, value, now),
+            )
+            conn.commit()
         finally:
             conn.close()
 

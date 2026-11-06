@@ -49,5 +49,11 @@ CREATE TABLE IF NOT EXISTS attachments (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_attachments_user ON attachments(user_id, created_at);

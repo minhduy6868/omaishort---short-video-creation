@@ -11,12 +11,12 @@ Voice:
 - Each beat MUST name one still a camera can show (inbox, phone chat, server rack, temple, river, eggs). Software stills are screens and racks, not a couple.
 - Each beat: 3–5 short spoken sentences (one breath each). Fill target_seconds (~3.1 Vietnamese words/sec; ~90s unless target_seconds says otherwise).
 
-Beats (must all be present):
-- hook: the person, product, or claim in one punch. Who/what, why now.
-- conflict: the real problem, threat, or gap — stakes a listener feels.
-- rising_action: how it actually worked (battle, mechanism, workflow, commands). Concrete, chronological.
-- twist: the misconception, the trick, or the part people skip.
-- ending: what to remember, and if SOURCE has an install/start path, say it plainly.
+Beats (must all be present — follow a high-retention 5-part Viral Documentary / Storytelling Arc, NEVER dry textbook definitions):
+- hook (Mở đầu gây tò mò): Open with a striking paradox, surprising number, or real-life scene that stops the viewer in the first 3 seconds. Who/what and why it matters right now.
+- conflict (Vấn đề cốt lõi & Tác động): The real human, historical, or practical problem/stakes — why the listener feels the urgency or impact in real life.
+- rising_action (Giải mã & Câu chuyện thực tế): Walk through how it actually unfolded or works step-by-step using vivid narrative, concrete examples, or real workflow steps. Chronological and story-driven.
+- twist (Góc khuất bất ngờ & Phản trực giác): The counter-intuitive truth, hidden turning point, or the biggest misconception 90% of people get wrong.
+- ending (Đúc kết & Ứng dụng): The sharp takeaway or memorable mental model the viewer brings home (and if SOURCE has a clear start/install path, state it cleanly).
 
 Facts:
 - Stay faithful to SOURCE. Do not invent battles, quotes, versions, or commands that are not there.

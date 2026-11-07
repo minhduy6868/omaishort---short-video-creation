@@ -10,6 +10,7 @@ export function toneForStatus(status?: string | null): StatusTone {
   if (!status) return "idle";
   if (status === "done") return "done";
   if (status === "failed") return "failed";
+  if (status === "paused") return "accent";
   if (status === "queued") return "idle";
   return "running";
 }

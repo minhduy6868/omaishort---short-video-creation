@@ -23,6 +23,7 @@ class MixSettings(BaseModel):
     logo_enabled: bool = False
     logo_path: str | None = None
     logo_margin: int = Field(default=48, ge=8, le=200)
+    pause_before_render: bool = False
 
     @field_validator("logo_path", mode="before")
     @classmethod
@@ -103,6 +104,7 @@ class Genre(str, Enum):
 class JobStatus(str, Enum):
     queued = "queued"
     running = "running"
+    paused = "paused"
     done = "done"
     failed = "failed"
 
@@ -138,7 +140,7 @@ class StoryInput(BaseModel):
     mode: StoryMode = StoryMode.script
     kind: VideoKind = VideoKind.drama
     text: str = Field(min_length=8)
-    target_seconds: int = Field(default=60, ge=15, le=180)
+    target_seconds: int = Field(default=60, ge=15, le=600)
     genre: Genre = Genre.confession
     drama_shape: DramaShape = DramaShape.infer
     language: str = "en"

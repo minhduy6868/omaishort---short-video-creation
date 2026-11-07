@@ -32,6 +32,17 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(cfg, "DATA_DIR", tmp_path)
     monkeypatch.setattr(cfg, "DATABASE_URL", os.environ["DATABASE_URL"])
+    monkeypatch.setattr(cfg, "POLLINATIONS_ENABLED", False)
+    monkeypatch.setattr(cfg, "GROK_WEB_ENABLED", False)
+    monkeypatch.setattr(cfg, "CHATGPT_WEB_ENABLED", False)
+    import omaishort.providers.chatgpt_web as cweb
+    import omaishort.providers.grok_web as gweb
+    import omaishort.providers.llm as llm_mod
+
+    monkeypatch.setattr(cweb, "CHATGPT_WEB_ENABLED", False)
+    monkeypatch.setattr(gweb, "GROK_WEB_ENABLED", False)
+    monkeypatch.setattr(llm_mod, "CHATGPT_WEB_ENABLED", False)
+    monkeypatch.setattr(llm_mod, "GROK_WEB_ENABLED", False)
     from omaishort.main import app
 
     with TestClient(app) as test_client:
@@ -187,10 +198,31 @@ def test_full_flow_login_to_rendered_mp4_and_local_storage_management(
         path = await silence_audio(dest, 3.0)
         return TTSResult(path=path, provider="silence", words=None)
 
+    async def _fast_topic(text: str, language: str = "vi"):
+        from omaishort.engine.brief_media import ArticlePage
+
+        return ArticlePage(
+            url="https://vi.wikipedia.org/wiki/Lam_phat",
+            title="Lạm phát",
+            text=(
+                "Lạm phát là sự tăng mức giá chung một cách liên tục của hàng hóa và dịch vụ theo thời gian. "
+                "Khi mức giá chung tăng cao, một đơn vị tiền tệ sẽ mua được ít hàng hóa và dịch vụ hơn so với trước đây. "
+                "Ngân hàng trung ương thường điều hành chính sách tiền tệ và lãi suất để kiểm soát lạm phát. "
+                "Nhiều người lầm tưởng giảm phát luôn tốt hơn lạm phát, nhưng giảm phát kéo dài có thể làm đình trệ nền kinh tế. "
+                "Quản lý tài chính cá nhân và đa dạng hóa tài sản giúp bảo vệ sức mua trước biến động giá cả."
+            ),
+            image_urls=[],
+        )
+
     monkeypatch.setattr("omaishort.pipeline.analyze_story", _fast_analyze)
     monkeypatch.setattr("omaishort.pipeline.plan_scenes", _fast_plan)
     monkeypatch.setattr("omaishort.pipeline.generate_image", _fast_image)
+    monkeypatch.setattr("omaishort.providers.smart_image_search.generate_image", _fast_image)
+    monkeypatch.setattr("omaishort.pipeline._remote_search_enabled", lambda: False)
     monkeypatch.setattr("omaishort.pipeline.synthesize_speech", _fast_tts)
+    monkeypatch.setattr("omaishort.engine.compose.i2v_ready", lambda: False)
+    monkeypatch.setattr("omaishort.providers.llm.llm_http_available", lambda: False)
+    monkeypatch.setattr("omaishort.engine.brief_media.fetch_knowledge_topic", _fast_topic)
 
     # 1. Register / Login
     op = _register(client, "studio-admin@example.com")
@@ -262,6 +294,120 @@ def test_full_flow_login_to_rendered_mp4_and_local_storage_management(
     assert mp4_on_disk.is_file()
     assert probe_video_size(mp4_on_disk) == (1080, 1920)
     assert has_audio_stream(mp4_on_disk) is True
+
+    # 5b. Test 5-Beat Content Drafting & Full Project Editing (Meta, Structure, AI Rewrite, Scene, Upload Still)
+    draft_res = client.post(
+        "/scripts/draft",
+        json={
+            "kind": "knowledge",
+            "text": "Lạm phát và cách nó vận hành trong nền kinh tế",
+            "language": "vi",
+            "target_seconds": 90,
+        },
+        headers=headers,
+    )
+    assert draft_res.status_code == 200
+    draft_data = draft_res.json()
+    assert "structure" in draft_data
+    assert all(k in draft_data["structure"] for k in ("hook", "conflict", "rising_action", "twist", "ending"))
+
+    patch_meta_res = client.patch(
+        f"/jobs/{job_id}",
+        json={"title": "Chủ tịch ẩn danh tại khách sạn", "target_seconds": 30},
+        headers=headers,
+    )
+    assert patch_meta_res.status_code == 200
+    assert patch_meta_res.json()["storyboard"]["title"] == "Chủ tịch ẩn danh tại khách sạn"
+
+    patch_struct_res = client.patch(
+        f"/jobs/{job_id}/structure",
+        json={
+            "hook": "Mở màn gây sốc giữa sảnh khách sạn năm sao lúc nửa đêm.",
+            "sync_scenes": True,
+        },
+        headers=headers,
+    )
+    assert patch_struct_res.status_code == 200
+    assert "Mở màn gây sốc" in patch_struct_res.json()["structure"]["hook"]
+    assert "Mở màn gây sốc" in patch_struct_res.json()["storyboard"]["scenes"][0]["dialogue_or_vo"]
+
+    ai_rw_res = client.post(
+        f"/jobs/{job_id}/ai-rewrite",
+        json={"beat": "hook", "instruction": "Thêm chi tiết chiếc thẻ đen quyền lực", "sync_scenes": True},
+        headers=headers,
+    )
+    assert ai_rw_res.status_code == 200
+    assert "thẻ đen" in ai_rw_res.json()["structure"]["hook"].lower()
+
+    patch_scene_res = client.patch(
+        f"/jobs/{job_id}/scenes/2",
+        json={
+            "dialogue_or_vo": "Giám đốc sững sờ khi thấy đoàn xe hộ tống dừng trước sảnh.",
+            "image_prompt": "Custom cinematic lobby shot with black limousine convoy outside",
+            "camera": "close_up",
+            "motion": "zoom_in",
+            "duration_sec": 6.5,
+        },
+        headers=headers,
+    )
+    assert patch_scene_res.status_code == 200
+    sc2 = patch_scene_res.json()["storyboard"]["scenes"][1]
+    assert "sững sờ" in sc2["dialogue_or_vo"]
+    assert sc2["image_prompt"] == "Custom cinematic lobby shot with black limousine convoy outside"
+    assert sc2["shots"][0]["camera"] == "close_up"
+
+    bad_still_res = client.post(
+        f"/jobs/{job_id}/scenes/2/upload-still",
+        files={"file": ("not_an_image.png", b"not-a-valid-image", "image/png")},
+        headers=headers,
+    )
+    assert bad_still_res.status_code in (400, 415)
+
+    up_still_res = client.post(
+        f"/jobs/{job_id}/scenes/2/upload-still",
+        files={"file": ("custom_scene2.png", _make_png((40, 120, 200), (600, 900)), "image/png")},
+        headers=headers,
+    )
+    assert up_still_res.status_code == 200
+    assert "still_02" in up_still_res.json()["artifacts"]
+
+    # 5c. Test Pause, Regenerate Scene Still from Grok / ChatGPT, Fill Missing Stills, and Resume
+    pause_res = client.post(f"/jobs/{job_id}/pause", headers=headers)
+    assert pause_res.status_code == 200
+    assert pause_res.json()["status"] == "paused"
+
+    grok_still_res = client.post(
+        f"/jobs/{job_id}/scenes/1/regenerate-still",
+        json={"prompt": "Luxury hotel lobby chandelier", "source": "grok"},
+        headers=headers,
+    )
+    assert grok_still_res.status_code == 200
+    assert "still_01" in grok_still_res.json()["artifacts"]
+
+    chatgpt_still_res = client.post(
+        f"/jobs/{job_id}/scenes/3/regenerate-still",
+        json={"prompt": "Black VIP limousine convoy arriving at hotel", "source": "chatgpt"},
+        headers=headers,
+    )
+    assert chatgpt_still_res.status_code == 200
+    assert "still_03" in chatgpt_still_res.json()["artifacts"]
+
+    fill_res = client.post(
+        f"/jobs/{job_id}/fill-stills",
+        json={"source": "grok", "force_all": False},
+        headers=headers,
+    )
+    assert fill_res.status_code == 200
+
+    resume_res = client.post(
+        f"/jobs/{job_id}/resume",
+        json={"regenerate_stills": False},
+        headers=headers,
+    )
+    assert resume_res.status_code == 200
+    resumed_job = client.get(f"/jobs/{job_id}", headers=headers).json()
+    assert resumed_job["status"] == "done"
+    assert mp4_on_disk.is_file()
 
     # 6. Verify Local Video Storage API & compaction
     videos_res = client.get("/storage/videos", headers=headers)

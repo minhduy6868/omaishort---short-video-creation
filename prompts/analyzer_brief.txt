@@ -14,14 +14,15 @@ kind=news (human story / event):
 - ending = where it stands NOW — last section of the source (assets, leaving, verdict). Never stop at "conflict began".
 
 kind=knowledge (one claim / explainer, a short topic request, or a GitHub README turned into a tutorial):
-- If the paste is a TOPIC (e.g. "thuyết minh về lạm phát và cách nó vận hành"), WRITE the explainer. Do not echo the request.
-- If STORY is already five encyclopedia paragraphs, KEEP the facts and polish; do not shrink below target_seconds.
+- If the paste is a TOPIC (e.g. "thuyết minh về lạm phát và cách nó vận hành"), WRITE a compelling story-driven documentary script. Do not echo the request.
+- If STORY is already five authored paragraphs, KEEP the facts and polish; do not shrink below target_seconds.
 - Biography / history: dates, invasion, how they fought, the trick (stakes, tide), what remains. Never call a person "a mechanism".
-- hook = the claim (or who they were)
-- conflict = the number/fact to prove, or the threat
-- rising_action = how it works / how they fought, not a dump of install logs
-- twist = what people get wrong
-- ending = what to remember
+- Follow a high-retention 5-part Viral Documentary Storytelling Arc (not a dry textbook outline):
+  - hook (Mở đầu gây tò mò) = striking paradox, concrete scene, or surprising claim (or who they were in action)
+  - conflict (Vấn đề cốt lõi & Tác động) = the real-world stakes, urgency, or threat that makes the viewer care
+  - rising_action (Giải mã & Câu chuyện thực tế) = how it actually works or unfolded step-by-step through vivid examples, not a dump of install logs
+  - twist (Góc khuất bất ngờ & Phản trực giác) = the counter-intuitive insight, hidden turning point, or what most people get wrong
+  - ending (Đúc kết & Ứng dụng) = the sharp takeaway or practical lesson to remember
   If the source is a GitHub README: narrate a short how-to. Skip badges, license walls, and raw clone commands.
 
 Rules:

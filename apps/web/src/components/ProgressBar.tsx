@@ -17,6 +17,10 @@ const STAGE_PERCENT: Record<string, number> = {
 
 const PROGRESS_COPY: Record<string, string> = {
   resume: "Tiếp tục job",
+  "resume:queued": "Đang tiếp tục render",
+  "rerender:start": "Đang dựng lại MP4",
+  "paused:review": "Tạm dừng — sẵn sàng sửa ảnh & lời",
+  "paused:editing": "Đang tạm dừng để chỉnh sửa",
   script: "Đang viết lời",
   analyze: "Đang phân tích",
   plan: "Đang chia cảnh",

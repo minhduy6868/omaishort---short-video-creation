@@ -1,4 +1,4 @@
-import type { Job, JobStorageInfo, StoryDraft } from "./types";
+import type { CharacterBibleData, Job, JobStorageInfo, StoryDraft, StoryStructureData } from "./types";
 
 export type VoiceOption = { id: string; language: string; label: string };
 
@@ -456,4 +456,205 @@ export async function saveAdminSettings(body: {
   });
   if (!res.ok) throw await parseError(res, "Không lưu được cài đặt hệ thống");
   return (await res.json()) as AdminSettings;
+}
+
+export type DraftScriptResponse = {
+  title: string;
+  kind: string;
+  provider: string;
+  note?: string;
+  text: string;
+  structure: StoryStructureData;
+  bible: CharacterBibleData;
+};
+
+export async function draftScript(body: {
+  kind: string;
+  text: string;
+  language: string;
+  target_seconds: number;
+  source_url?: string | null;
+  script_brief?: string | null;
+}): Promise<DraftScriptResponse> {
+  const res = await request("/scripts/draft", {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không soạn được dàn ý nội dung");
+  return (await res.json()) as DraftScriptResponse;
+}
+
+export async function rewriteScript(body: {
+  kind: string;
+  title?: string;
+  language: string;
+  target_seconds: number;
+  beat: string;
+  instruction?: string;
+  structure: StoryStructureData;
+}): Promise<{ structure: StoryStructureData; provider: string; text: string }> {
+  const res = await request("/scripts/rewrite", {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không viết lại được nội dung");
+  return (await res.json()) as { structure: StoryStructureData; provider: string; text: string };
+}
+
+export async function patchJobMeta(
+  jobId: string,
+  body: {
+    title?: string;
+    voice_id?: string;
+    language?: string;
+    target_seconds?: number;
+    script_brief?: string;
+    bgm_enabled?: boolean;
+    bgm_volume?: number;
+    logo_enabled?: boolean;
+  },
+): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}`, {
+    method: "PATCH",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không lưu được cài đặt dự án");
+  return (await res.json()) as Job;
+}
+
+export async function patchJobStructure(
+  jobId: string,
+  body: Partial<StoryStructureData> & { sync_scenes?: boolean },
+): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/structure`, {
+    method: "PATCH",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không lưu được cấu trúc nội dung");
+  return (await res.json()) as Job;
+}
+
+export async function aiRewriteJobStructure(
+  jobId: string,
+  body: { beat?: string; instruction?: string; sync_scenes?: boolean },
+): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/ai-rewrite`, {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không viết lại được bằng AI");
+  return (await res.json()) as Job;
+}
+
+export async function patchJobBible(jobId: string, bible: CharacterBibleData): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/bible`, {
+    method: "PATCH",
+    headers: headers(undefined, true),
+    body: JSON.stringify(bible),
+  });
+  if (!res.ok) throw await parseError(res, "Không lưu được hồ sơ nhân vật / bối cảnh");
+  return (await res.json()) as Job;
+}
+
+export async function patchJobScene(
+  jobId: string,
+  sceneIndex: number,
+  body: {
+    dialogue_or_vo?: string;
+    action?: string;
+    image_prompt?: string;
+    location?: string;
+    emotion?: string;
+    mood?: string;
+    lighting?: string;
+    duration_sec?: number;
+    camera?: string;
+    motion?: string;
+  },
+): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/scenes/${sceneIndex}`, {
+    method: "PATCH",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, `Không lưu được cảnh ${sceneIndex}`);
+  return (await res.json()) as Job;
+}
+
+export async function regenerateSceneStill(
+  jobId: string,
+  sceneIndex: number,
+  prompt?: string,
+  source: "auto" | "grok" | "chatgpt" | "search" = "auto",
+): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/scenes/${sceneIndex}/regenerate-still`, {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify({ prompt: prompt || null, source }),
+  });
+  if (!res.ok) throw await parseError(res, `Không tạo lại được ảnh cảnh ${sceneIndex}`);
+  return (await res.json()) as Job;
+}
+
+export async function fillJobStills(
+  jobId: string,
+  source: "auto" | "grok" | "chatgpt" | "search" = "auto",
+  forceAll = false,
+): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/fill-stills`, {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify({ source, force_all: forceAll }),
+  });
+  if (!res.ok) throw await parseError(res, "Không bù được ảnh các cảnh");
+  return (await res.json()) as Job;
+}
+
+export async function pauseJob(jobId: string): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/pause`, {
+    method: "POST",
+    headers: headers(undefined, false),
+  });
+  if (!res.ok) throw await parseError(res, "Không tạm dừng được job");
+  return (await res.json()) as Job;
+}
+
+export async function resumeJob(jobId: string, regenerateStills = false): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/resume`, {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify({ regenerate_stills: regenerateStills }),
+  });
+  if (!res.ok) throw await parseError(res, "Không tiếp tục được job");
+  return (await res.json()) as Job;
+}
+
+export async function uploadSceneStill(
+  jobId: string,
+  sceneIndex: number,
+  file: File,
+): Promise<Job> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/scenes/${sceneIndex}/upload-still`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw await parseError(res, `Không tải được ảnh lên cảnh ${sceneIndex}`);
+  return (await res.json()) as Job;
+}
+
+export async function rerenderJob(jobId: string, regenerateStills = false): Promise<Job> {
+  const res = await request(`/jobs/${encodeURIComponent(jobId)}/rerender`, {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify({ regenerate_stills: regenerateStills }),
+  });
+  if (!res.ok) throw await parseError(res, "Không chạy lại được bước render MP4");
+  return (await res.json()) as Job;
 }

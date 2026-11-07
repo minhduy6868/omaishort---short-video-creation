@@ -1,9 +1,11 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   createJob,
+  draftScript,
   listAttachments,
   readProviders,
   readVoices,
+  rewriteScript,
   startChatgptLogin,
   startGrokLogin,
   uploadAttachment,
@@ -13,7 +15,39 @@ import {
 } from "../api";
 import { PageHeader, StatusPill } from "../components";
 import { useNav } from "../nav";
-import type { DramaShape, VideoKind } from "../types";
+import type { DramaShape, StoryStructureData, VideoKind } from "../types";
+
+const BEAT_META: {
+  key: keyof Pick<StoryStructureData, "hook" | "conflict" | "rising_action" | "twist" | "ending">;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    key: "hook",
+    label: "1. Mở đầu gây tò mò (Hook & Nghịch lý)",
+    hint: "Con số gây sốc, câu hỏi đắt giá hoặc tình huống thực tế giữ chân người xem 3 giây đầu.",
+  },
+  {
+    key: "conflict",
+    label: "2. Vấn đề cốt lõi (Tác động & Hệ lụy)",
+    hint: "Tại sao điều này quan trọng ngay lúc này? Nút thắt hoặc tác động thực tế tới người xem.",
+  },
+  {
+    key: "rising_action",
+    label: "3. Giải mã & Diễn biến (Câu chuyện & Cơ chế)",
+    hint: "Dẫn dắt từng bước bằng câu chuyện cụ thể, mốc sự kiện hoặc ví dụ đời thường.",
+  },
+  {
+    key: "twist",
+    label: "4. Góc khuất bất ngờ (Phản trực giác)",
+    hint: "Sự thật ít người biết hoặc cú bẻ lái lật ngược lầm tưởng của số đông.",
+  },
+  {
+    key: "ending",
+    label: "5. Đúc kết & Ứng dụng (Giá trị đọng lại)",
+    hint: "Bài học cốt lõi hoặc kết luận sắc bén để người xem nhớ mãi sau khi xem xong.",
+  },
+];
 
 const DRAMA_SAMPLE = `I found his phone on the counter at 2:17 a.m. He said he was sleeping. The lock screen was a photo of us. The messages were not.
 
@@ -105,6 +139,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
   const [scriptBrief, setScriptBrief] = useState("");
   const [bgmEnabled, setBgmEnabled] = useState(true);
   const [logoEnabled, setLogoEnabled] = useState(false);
+  const [pauseBeforeRender, setPauseBeforeRender] = useState(false);
   const [voices, setVoices] = useState<VoiceOption[]>(FALLBACK_VOICES);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -115,10 +150,23 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
   const [chatgptOpening, setChatgptOpening] = useState(false);
   const [grokOpening, setGrokOpening] = useState(false);
+  const [structureDraft, setStructureDraft] = useState<StoryStructureData | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [rewriteBusy, setRewriteBusy] = useState<string | null>(null);
+  const [aiInstruction, setAiInstruction] = useState("");
   const copy = COPY[kind];
   const attachChoices = editorial ? ["editorial", "logo", "script"] : ["face", "location", "prop", "logo", "script"];
 
   useEffect(() => {
+    setText(kind === "drama" ? DRAMA_SAMPLE : kind === "news" ? NEWS_SAMPLE : KNOWLEDGE_SAMPLE);
+    setGenre(kind === "drama" ? "confession" : kind);
+    const nextLang = kind === "drama" ? "en" : "vi";
+    setLanguage(nextLang);
+    setVoiceId(defaultVoice(nextLang));
+    setSeconds(kind === "drama" ? 60 : 90);
+    setAttachKind(kind !== "drama" ? "editorial" : "face");
+    setStructureDraft(null);
+    setMessage(null);
     void readVoices().then((rows) => {
       if (rows.length) setVoices(rows);
     });
@@ -170,7 +218,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
         source_url: editorial ? sourceUrl.trim() || null : null,
         script_brief: scriptBrief.trim() || null,
         attachments: picked.map((item) => ({ id: item.id, bind: item.bind || null })),
-        mix: { logo_enabled: logoEnabled, bgm_enabled: bgmEnabled },
+        mix: { logo_enabled: logoEnabled, bgm_enabled: bgmEnabled, pause_before_render: pauseBeforeRender },
       });
       go(`/watch/${data.id}`);
     } catch (err) {
@@ -185,6 +233,72 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
         ? prev
         : [...prev, { id: row.id, kind: row.kind, filename: row.filename, bind: attachBind.trim() }],
     );
+  }
+
+  function syncTextFromStructure(next: StoryStructureData) {
+    setStructureDraft(next);
+    const joined = [next.hook, next.conflict, next.rising_action, next.twist, next.ending]
+      .map((item) => (item || "").trim())
+      .filter(Boolean)
+      .join("\n\n");
+    if (joined) setText(joined);
+  }
+
+  function splitTextIntoFiveBeats() {
+    const paras = text
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const next: StoryStructureData = {
+      hook: paras[0] || text.trim(),
+      conflict: paras[1] || "",
+      rising_action: paras[2] || "",
+      twist: paras[3] || "",
+      ending: paras[4] || "",
+    };
+    setStructureDraft(next);
+  }
+
+  async function handleDraftWithAi() {
+    setDraftBusy(true);
+    setMessage(null);
+    try {
+      const res = await draftScript({
+        kind,
+        text: text.trim() || sourceUrl.trim(),
+        language,
+        target_seconds: seconds,
+        source_url: editorial ? sourceUrl.trim() || null : null,
+        script_brief: scriptBrief.trim() || null,
+      });
+      setStructureDraft(res.structure);
+      if (res.text) setText(res.text);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không tạo được dàn ý 5 phần");
+    } finally {
+      setDraftBusy(false);
+    }
+  }
+
+  async function handleRewriteBeat(beatKey: string) {
+    if (!structureDraft) return;
+    setRewriteBusy(beatKey);
+    setMessage(null);
+    try {
+      const res = await rewriteScript({
+        kind,
+        language,
+        target_seconds: seconds,
+        beat: beatKey,
+        instruction: aiInstruction.trim() || scriptBrief.trim(),
+        structure: structureDraft,
+      });
+      syncTextFromStructure(res.structure);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không viết lại được phần này");
+    } finally {
+      setRewriteBusy(null);
+    }
   }
 
   return (
@@ -278,9 +392,82 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
 
             <label>
               Ghi chú lời
-              <textarea value={scriptBrief} onChange={(e) => setScriptBrief(e.target.value)} rows={4} maxLength={2000} />
+              <textarea value={scriptBrief} onChange={(e) => setScriptBrief(e.target.value)} rows={3} maxLength={2000} />
               <span className="field-hint">Dùng cho tone, ngôn ngữ, thông tin bắt buộc hoặc điều cần tránh.</span>
             </label>
+
+            <div className="hub-actions" style={{ marginTop: "8px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                disabled={draftBusy || (!text.trim() && !sourceUrl.trim())}
+                onClick={() => void handleDraftWithAi()}
+              >
+                {draftBusy ? "Đang soạn dàn ý 5 phần…" : "Soạn cấu trúc 5 phần (ChatGPT / AI)"}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  if (structureDraft) setStructureDraft(null);
+                  else splitTextIntoFiveBeats();
+                }}
+              >
+                {structureDraft ? "Ẩn khung sửa 5 phần" : "Mở khung sửa từng phần (5 phần)"}
+              </button>
+            </div>
+
+            {structureDraft ? (
+              <div className="structure-builder" style={{ marginTop: "14px", display: "grid", gap: "12px" }}>
+                <div className="section-head compact">
+                  <div>
+                    <p className="kicker">Storytelling Framework</p>
+                    <h3>Chỉnh sửa chi tiết 5 phần nội dung</h3>
+                  </div>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={rewriteBusy !== null}
+                    onClick={() => void handleRewriteBeat("all")}
+                  >
+                    {rewriteBusy === "all" ? "Đang viết lại…" : "AI trau chuốt cả 5 phần"}
+                  </button>
+                </div>
+                <label>
+                  Yêu cầu chỉnh sửa thêm cho AI (tuỳ chọn)
+                  <input
+                    value={aiInstruction}
+                    onChange={(e) => setAiInstruction(e.target.value)}
+                    placeholder="VD: Thêm con số cụ thể ở mở đầu, giọng kể cuốn hút, câu ngắn gọn…"
+                  />
+                </label>
+                {BEAT_META.map((item) => (
+                  <div key={item.key} className="beat-card" style={{ display: "grid", gap: "6px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                      <strong>{item.label}</strong>
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={rewriteBusy !== null}
+                        onClick={() => void handleRewriteBeat(item.key)}
+                      >
+                        {rewriteBusy === item.key ? "Đang viết…" : "AI viết lại phần này"}
+                      </button>
+                    </div>
+                    <textarea
+                      rows={3}
+                      value={structureDraft[item.key] || ""}
+                      onChange={(e) =>
+                        syncTextFromStructure({
+                          ...structureDraft,
+                          [item.key]: e.target.value,
+                        })
+                      }
+                    />
+                    <span className="field-hint">{item.hint}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </section>
 
           <section className="panel compose-panel settings-panel">
@@ -311,7 +498,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
               )}
               <label>
                 Giây
-                <input type="number" min={15} max={180} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} />
+                <input type="number" min={15} max={600} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} />
               </label>
               <label>
                 Ngôn ngữ
@@ -339,7 +526,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
             </div>
 
             <div className="mix-card">
-              <p className="card-title">Mix</p>
+              <p className="card-title">Mix & Chế độ duyệt</p>
               <label className="check">
                 <input type="checkbox" checked={bgmEnabled} onChange={(e) => setBgmEnabled(e.target.checked)} />
                 Nhạc nền
@@ -347,6 +534,14 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
               <label className="check">
                 <input type="checkbox" checked={logoEnabled} onChange={(e) => setLogoEnabled(e.target.checked)} />
                 Logo
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={pauseBeforeRender}
+                  onChange={(e) => setPauseBeforeRender(e.target.checked)}
+                />
+                Tạm dừng sau bước tạo Ảnh & Lời để duyệt/sửa trước khi xuất MP4
               </label>
             </div>
 

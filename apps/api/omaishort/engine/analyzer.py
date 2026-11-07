@@ -132,3 +132,180 @@ def _ensure_assets(bible: CharacterBible, story: StoryInput) -> CharacterBible:
     if not bible.props:
         bible.props = guessed.props
     return stamp_identity_locks(bible)
+
+
+async def draft_content_structure(
+    *,
+    kind: str,
+    text: str,
+    language: str = "vi",
+    target_seconds: int = 90,
+    source_url: str | None = None,
+    script_brief: str | None = None,
+) -> dict[str, object]:
+    """Draft a 5-beat Viral Documentary / Storytelling structure via ChatGPT/LLM or smart fallback."""
+    from omaishort.engine.brief_media import (
+        fetch_article,
+        fetch_github_project,
+        fetch_knowledge_topic,
+        looks_like_github,
+        looks_like_url,
+    )
+    from omaishort_schema.models import Genre, StoryMode, VideoKind
+
+    vkind = VideoKind.knowledge if kind == "knowledge" else VideoKind.news if kind in {"news", "brief"} else VideoKind.drama
+    raw_text = (text or "").strip()
+    url = (source_url or "").strip()
+    if not url and looks_like_url(raw_text):
+        url = raw_text
+    title = raw_text.split("\n")[0][:80] or "Nội dung mới"
+    extract = raw_text
+
+    if vkind in {VideoKind.knowledge, VideoKind.news}:
+        if url:
+            try:
+                if looks_like_github(url):
+                    page = await fetch_github_project(url)
+                else:
+                    page = await fetch_article(url)
+                title = page.title or title
+                extract = page.text or raw_text
+            except Exception:
+                pass
+        elif vkind == VideoKind.knowledge:
+            try:
+                page = await fetch_knowledge_topic(raw_text, language)
+                title = page.title or title
+                extract = page.text or raw_text
+            except Exception:
+                pass
+        prompt_name = "news_script.txt" if vkind == VideoKind.news else "knowledge_script.txt"
+        script_text, provider, note = await write_knowledge_script(
+            title,
+            extract,
+            language,
+            float(target_seconds or 90),
+            topic=raw_text or title,
+            script_brief=script_brief or "",
+            prompt_name=prompt_name,
+        )
+        story = StoryInput(
+            mode=StoryMode.script,
+            kind=vkind,
+            text=script_text if len(script_text) >= 8 else (raw_text or title),
+            target_seconds=max(15, min(600, int(target_seconds or 90))),
+            genre=Genre.knowledge if vkind == VideoKind.knowledge else Genre.news,
+            language=language,
+            source_url=url or None,
+            script_brief=script_brief or None,
+        )
+        bible, structure = fallback_analyze(story)
+        return {
+            "title": title,
+            "kind": vkind.value,
+            "provider": provider,
+            "note": note,
+            "text": "\n\n".join(
+                [
+                    structure.hook,
+                    structure.conflict,
+                    structure.rising_action,
+                    structure.twist,
+                    structure.ending,
+                ]
+            ),
+            "structure": structure.model_dump(mode="json"),
+            "bible": bible.model_dump(mode="json"),
+        }
+
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.drama,
+        text=raw_text if len(raw_text) >= 8 else "Một bí mật bất ngờ được hé lộ lúc nửa đêm.",
+        target_seconds=max(15, min(600, int(target_seconds or 60))),
+        genre=Genre.drama,
+        language=language,
+        script_brief=script_brief or None,
+    )
+    bible, structure, provider = await analyze_story(story)
+    return {
+        "title": title,
+        "kind": VideoKind.drama.value,
+        "provider": provider,
+        "note": "",
+        "text": "\n\n".join(
+            [
+                structure.hook,
+                structure.conflict,
+                structure.rising_action,
+                structure.twist,
+                structure.ending,
+            ]
+        ),
+        "structure": structure.model_dump(mode="json"),
+        "bible": bible.model_dump(mode="json"),
+    }
+
+
+async def rewrite_content_beats(
+    current: dict[str, object],
+    *,
+    kind: str = "knowledge",
+    language: str = "vi",
+    target_seconds: int = 90,
+    beat: str = "all",
+    instruction: str = "",
+    title: str = "",
+) -> tuple[dict[str, object], str]:
+    """Use ChatGPT / LLM (or smart editorial polish) to rewrite one beat or all 5 beats."""
+    system = (
+        "You are a senior documentary & viral short-video script editor for 1080x1920 shorts.\n"
+        "Return ONLY valid JSON with keys: hook, conflict, rising_action, twist, ending.\n"
+        "Follow the 5-part Viral Documentary Storytelling Arc:\n"
+        "- hook (Mở đầu gây tò mò): striking paradox, surprising number, or vivid cold open.\n"
+        "- conflict (Vấn đề cốt lõi & Tác động): real-world stakes and urgency.\n"
+        "- rising_action (Giải mã & Câu chuyện thực tế): concrete step-by-step narrative or mechanism with vivid examples.\n"
+        "- twist (Góc khuất bất ngờ & Phản trực giác): counter-intuitive truth or common misconception.\n"
+        "- ending (Đúc kết & Ứng dụng): memorable takeaway or actionable conclusion.\n"
+        "If target_beat is a single beat (not 'all'), rewrite ONLY that beat to be sharper and keep the other four beats unchanged.\n"
+        "Each beat must be 3-5 natural spoken sentences in the requested language."
+    )
+    user_lines = [
+        f"kind={kind}",
+        f"title={title}",
+        f"language={language}",
+        f"target_seconds={target_seconds}",
+        f"target_beat={beat}",
+    ]
+    if instruction.strip():
+        user_lines.append(f"EDITOR_INSTRUCTION={instruction.strip()}")
+    user_lines.append("CURRENT_STRUCTURE:")
+    for key in _SCRIPT_KEYS:
+        user_lines.append(f"{key}: {current.get(key) or ''}")
+    raw, src, _err = await complete_json_result(system, "\n".join(user_lines))
+    updated = dict(current)
+    if isinstance(raw, dict):
+        src_obj = raw.get("structure") if isinstance(raw.get("structure"), dict) else raw
+        keys_to_update = _SCRIPT_KEYS if beat == "all" else tuple(k for k in _SCRIPT_KEYS if k == beat)
+        changed = False
+        for k in keys_to_update:
+            val = re.sub(r"\s+", " ", str(src_obj.get(k) or "")).strip()
+            if len(val.split()) >= 5:
+                updated[k] = ensure_spoken_stops(val)
+                changed = True
+        if changed:
+            return updated, src or "llm"
+
+    # Smart local polish when LLM/ChatGPT is offline
+    vi = (language or "vi").lower().startswith("vi")
+    keys_to_update = _SCRIPT_KEYS if beat == "all" else tuple(k for k in _SCRIPT_KEYS if k == beat)
+    hint = re.sub(r"\s+", " ", instruction.strip())
+    for k in keys_to_update:
+        orig = re.sub(r"\s+", " ", str(updated.get(k) or "")).strip()
+        if not orig:
+            continue
+        if hint and hint.lower() not in orig.lower():
+            updated[k] = ensure_spoken_stops(f"{orig.rstrip('.!?')}. {hint}")
+        else:
+            updated[k] = ensure_spoken_stops(orig)
+    return updated, "local-polish"

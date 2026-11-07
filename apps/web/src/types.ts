@@ -23,6 +23,9 @@ export const PIPELINE_STAGES: Stage[] = [
 export type ShotPreview = {
   camera: string;
   motion: string;
+  t_start?: number;
+  t_end?: number;
+  still_id?: string;
 };
 
 export type ScenePreview = {
@@ -31,9 +34,50 @@ export type ScenePreview = {
   location: string;
   location_id?: string | null;
   emotion: string;
+  action?: string;
+  image_prompt?: string;
+  lighting?: string;
+  mood?: string;
   still_id: string;
   dialogue_or_vo: string;
   shots: ShotPreview[];
+};
+
+export type CharacterRow = {
+  id: string;
+  age?: number | null;
+  gender?: string | null;
+  appearance: string;
+  clothing: string;
+  personality: string;
+  voice_id?: string | null;
+  reference_image?: string | null;
+};
+
+export type AssetRefRow = {
+  id: string;
+  description: string;
+  appearance: string;
+  reference_image?: string | null;
+};
+
+export type CharacterBibleData = {
+  characters: CharacterRow[];
+  locations: AssetRefRow[];
+  props: AssetRefRow[];
+};
+
+export type StoryStructureData = {
+  hook: string;
+  conflict: string;
+  rising_action: string;
+  twist: string;
+  ending: string;
+  hook_sec?: number;
+  conflict_sec?: number;
+  rising_sec?: number;
+  twist_sec?: number;
+  ending_sec?: number;
 };
 
 export type JobStorageInfo = {
@@ -68,20 +112,21 @@ export type Job = {
   created_at?: string;
   updated_at?: string;
   input?: Partial<StoryDraft> & Record<string, unknown>;
-  structure?: {
-    hook: string;
-    conflict: string;
-    rising_action: string;
-    twist: string;
-    ending: string;
-  };
+  bible?: CharacterBibleData;
+  structure?: StoryStructureData;
   storyboard?: {
     title: string;
     kind?: string;
+    target_seconds?: number;
+    language?: string;
     scenes: ScenePreview[];
   };
   artifacts?: Record<string, string>;
   storage?: JobStorageInfo;
+  rewrite_provider?: string;
+  still_provider?: string;
+  updated_scenes?: number[];
+  still_source?: string;
 };
 
 export type VideoKind = "drama" | "news" | "knowledge";
@@ -103,5 +148,6 @@ export type StoryDraft = {
   mix?: {
     bgm_enabled?: boolean;
     logo_enabled?: boolean;
+    pause_before_render?: boolean;
   };
 };

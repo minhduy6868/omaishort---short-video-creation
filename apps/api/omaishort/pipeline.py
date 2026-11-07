@@ -6,7 +6,7 @@ import json
 import traceback
 from pathlib import Path
 
-from omaishort import db
+from omaishort import config, db
 from omaishort.config import WHISPER_MODEL, default_mix_settings, default_subtitle_style
 from omaishort.engine.apply_attachments import apply_attachment_files
 from omaishort.engine.analyzer import analyze_story, write_knowledge_script
@@ -27,6 +27,7 @@ from omaishort.engine.image_prompts import (
     build_location_prompt,
     build_prop_prompt,
     build_ref_prompt,
+    build_scene_prompt,
     fill_image_prompts,
     scene_still_refs,
 )
@@ -35,10 +36,27 @@ from omaishort.engine.rescale import rescale_to_audio
 from omaishort.engine.timeline import build_timeline
 from omaishort.paths import audio_dir, job_dir, location_refs_dir, prop_refs_dir, refs_dir, render_dir, stills_dir
 from omaishort.providers.image import generate_image
+from omaishort.providers.smart_image_search import resolve_scene_still
 from omaishort.providers.tts import join_scene_narration, silence_audio, synthesize_speech
 from omaishort.engine.kenburns import has_audio_stream, probe_duration, probe_video_size
 from omaishort_schema.models import Genre, JobStage, JobStatus, MixSettings, StoryInput, VideoKind, is_editorial
 from omaishort.uploads import disk_path
+
+
+def _is_paused(job_id: str) -> bool:
+    row = db.get_job(job_id)
+    return bool(row and row.get("status") == JobStatus.paused.value)
+
+
+def _remote_search_enabled() -> bool:
+    return bool(
+        config.POLLINATIONS_ENABLED
+        or config.GROK_WEB_ENABLED
+        or config.CHATGPT_WEB_ENABLED
+        or config.XAI_API_KEY
+        or config.OPENAI_API_KEY
+        or config.GEMINI_API_KEY
+    )
 
 
 def _attachment_records(story: StoryInput, user_id: str | None) -> list[dict]:
@@ -194,6 +212,8 @@ async def run_job(job_id: str) -> None:
             except Exception as exc:
                 page = None
                 providers["article"] = f"topic_failed:{type(exc).__name__}"
+            if _is_paused(job_id):
+                return
             db.update_job(job_id, status=JobStatus.running.value, progress="script")
             title = (page.title if page else "") or topic
             extract = (page.text if page else "") or ""
@@ -205,6 +225,8 @@ async def run_job(job_id: str) -> None:
                 topic=topic,
                 script_brief=story.script_brief or "",
             )
+            if _is_paused(job_id):
+                return
             providers["script"] = script_src
             story = story.model_copy(
                 update={
@@ -228,12 +250,16 @@ async def run_job(job_id: str) -> None:
             if script_note:
                 artifacts["script_note"] = script_note
             db.update_job(job_id, artifacts_json=json.dumps(artifacts), progress="script")
+        if _is_paused(job_id):
+            return
         db.update_job(job_id, status=JobStatus.running.value, stage=JobStage.analyze.value, progress="analyze")
         if providers.get("script") in {"llm", "chatgpt-web"}:
             bible, structure = fallback_analyze(story)
             src = "script"
         else:
             bible, structure, src = await analyze_story(story)
+        if _is_paused(job_id):
+            return
         providers["analyzer"] = src
         _dump(job_id, "bible.json", bible)
         _dump(job_id, "structure.json", structure)
@@ -251,6 +277,8 @@ async def run_job(job_id: str) -> None:
             plan_src = "script"
         else:
             board, plan_src = await plan_scenes(story, bible, structure)
+        if _is_paused(job_id):
+            return
         providers["planner"] = plan_src
         if is_editorial(story.kind):
             clamp_brief_storyboard(board, story.target_seconds, story.language)
@@ -326,6 +354,12 @@ async def run_job(job_id: str) -> None:
                 artifacts[f"prop_{prop.id}"] = path.as_posix()
         else:
             providers["refs"] = "skipped_brief"
+        if _is_paused(job_id):
+            if speak_task is not None and not speak_task.done():
+                speak_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await speak_task
+            return
         fill_image_prompts(board, bible)
         _dump(job_id, "bible.json", bible)
         _dump(job_id, "storyboard.json", board)
@@ -342,7 +376,8 @@ async def run_job(job_id: str) -> None:
         sourced_by_id: dict[str, Path] = {}
         source_kind = "generated"
         if is_editorial(story.kind):
-            db.update_job(job_id, progress="stills:search")
+            if not _is_paused(job_id):
+                db.update_job(job_id, progress="stills:search")
             sourced_by_id, source_kind = await assign_editorial_stills(
                 scenes=board.scenes,
                 source_url=story.source_url,
@@ -364,7 +399,16 @@ async def run_job(job_id: str) -> None:
                 conform_photo(src, dest)
                 path, pname = dest, source_kind
             elif is_editorial(story.kind):
-                path, pname = await generate_image(scene.image_prompt, dest, skip_remote=True)
+                async with image_slots:
+                    path, pname = await resolve_scene_still(
+                        prompt=scene.image_prompt or scene.action,
+                        vo=scene.dialogue_or_vo,
+                        title=board.title or story.text[:80],
+                        dest=dest,
+                        source="auto",
+                        editorial=True,
+                        skip_remote=not _remote_search_enabled(),
+                    )
             else:
                 refs = scene_still_refs(
                     scene, refs_dir=rdir, location_dir=loc_dir, prop_dir=prop_dir
@@ -378,17 +422,36 @@ async def run_job(job_id: str) -> None:
                 stills[scene.still_id] = path
                 artifacts[scene.still_id] = path.as_posix()
                 done_stills += 1
-                db.update_job(
-                    job_id,
-                    artifacts_json=json.dumps(artifacts),
-                    progress=f"stills:{done_stills}/{total_stills}",
-                )
+                if not _is_paused(job_id):
+                    db.update_job(
+                        job_id,
+                        artifacts_json=json.dumps(artifacts),
+                        progress=f"stills:{done_stills}/{total_stills}",
+                    )
 
         await asyncio.gather(*[_one_still(scene) for scene in board.scenes])
+
+        pause_requested = _is_paused(job_id) or bool((story.mix or MixSettings()).pause_before_render)
+        if pause_requested:
+            if speak_task is not None and not speak_task.done():
+                speak_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await speak_task
+            artifacts["providers"] = json.dumps(providers)
+            db.update_job(
+                job_id,
+                status=JobStatus.paused.value,
+                stage=JobStage.stills.value,
+                progress="paused:review",
+                artifacts_json=json.dumps(artifacts),
+            )
+            return
 
         if speak_task is not None and not speak_task.done():
             db.update_job(job_id, stage=JobStage.tts.value, progress="tts")
         voice_path, tts_name, edge_words = await speak_task
+        if _is_paused(job_id):
+            return
         providers["tts"] = tts_name
         duration = probe_duration(voice_path) or float(story.target_seconds)
         board = rescale_to_audio(board, duration)
@@ -403,6 +466,8 @@ async def run_job(job_id: str) -> None:
             duration=duration,
             whisper_model=WHISPER_MODEL,
         )
+        if _is_paused(job_id):
+            return
         providers["captions"] = cap_src
         ass_path = render_dir(job_id) / "captions.ass"
         style = story.subtitle or default_subtitle_style()
@@ -413,6 +478,8 @@ async def run_job(job_id: str) -> None:
         mp4 = render_dir(job_id) / "short.mp4"
         mix = story.mix or default_mix_settings()
         await compose_short(board, stills, voice_path, ass_path, mp4, render_dir(job_id), mix=mix)
+        if _is_paused(job_id):
+            return
         _dump(job_id, "storyboard.json", board)
         motion_path = render_dir(job_id) / "motion.json"
         i2v_ids: set[str] = set()
@@ -457,6 +524,323 @@ async def run_job(job_id: str) -> None:
             speak_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await speak_task
+        db.update_job(
+            job_id,
+            status=JobStatus.failed.value,
+            progress="failed",
+            error=f"{exc}\n{traceback.format_exc()[-2000:]}",
+        )
+        raise
+
+
+async def regenerate_scene_still(
+    job_id: str,
+    scene_index: int,
+    custom_prompt: str | None = None,
+    *,
+    source: str = "auto",
+) -> dict[str, object]:
+    """Regenerate or refetch a single scene's still image (via 'auto', 'grok', 'chatgpt', or 'search')."""
+    from omaishort_schema.models import CharacterBible, Storyboard
+
+    row = db.get_job(job_id)
+    if not row or not row.get("storyboard_json"):
+        raise ValueError("storyboard not ready")
+    story = StoryInput.model_validate_json(row["input_json"])
+    bible = (
+        CharacterBible.model_validate_json(row["bible_json"])
+        if row.get("bible_json")
+        else fallback_analyze(story)[0]
+    )
+    board = Storyboard.model_validate_json(row["storyboard_json"])
+    target = next((s for s in board.scenes if s.index == scene_index), None)
+    if target is None and 1 <= scene_index <= len(board.scenes):
+        target = board.scenes[scene_index - 1]
+    if target is None:
+        raise ValueError(f"scene {scene_index} not found")
+
+    if custom_prompt and custom_prompt.strip():
+        target.action = custom_prompt.strip()
+        target.image_prompt = custom_prompt.strip()
+    elif not (target.image_prompt or "").strip():
+        target.image_prompt = build_scene_prompt(target, bible)
+
+    sdir = stills_dir(job_id)
+    sdir.mkdir(parents=True, exist_ok=True)
+    safe_still_id = Path(target.still_id).name
+    dest = sdir / f"{safe_still_id}.png"
+    rdir = refs_dir(job_id)
+    loc_dir = location_refs_dir(job_id)
+    prop_dir = prop_refs_dir(job_id)
+
+    refs = (
+        []
+        if is_editorial(board.kind)
+        else scene_still_refs(target, refs_dir=rdir, location_dir=loc_dir, prop_dir=prop_dir)
+    )
+    src_mode = (source or "auto").strip().lower()
+    pname = "generated"
+    if src_mode in {"grok", "chatgpt", "search"}:
+        _path, pname = await resolve_scene_still(
+            prompt=custom_prompt.strip() if (custom_prompt and custom_prompt.strip()) else (target.image_prompt or target.action),
+            vo=target.dialogue_or_vo,
+            title=board.title or story.text[:80],
+            dest=dest,
+            source=src_mode,
+            refs=refs,
+            editorial=is_editorial(board.kind),
+            skip_remote=not _remote_search_enabled(),
+        )
+    elif is_editorial(board.kind) and not (custom_prompt and custom_prompt.strip()):
+        sourced, skind = await assign_editorial_stills(
+            scenes=[target],
+            source_url=story.source_url,
+            article_urls=None,
+            captions={},
+            dest_dir=sdir / "sourced",
+            title=board.title or story.text[:80],
+            local_paths=[],
+        )
+        src_path = sourced.get(target.still_id)
+        if src_path and src_path.is_file():
+            conform_photo(src_path, dest)
+            pname = skind
+        else:
+            _path, pname = await resolve_scene_still(
+                prompt=target.image_prompt or target.action,
+                vo=target.dialogue_or_vo,
+                title=board.title or story.text[:80],
+                dest=dest,
+                source="auto",
+                refs=[],
+                editorial=True,
+                skip_remote=not _remote_search_enabled(),
+            )
+    else:
+        _path, pname = await generate_image(
+            target.image_prompt or target.action,
+            dest,
+            refs,
+            photo=not is_editorial(board.kind),
+            skip_remote=not _remote_search_enabled(),
+        )
+
+    artifacts = db.artifacts_of(row)
+    artifacts[target.still_id] = dest.as_posix()
+    providers_raw = artifacts.get("providers")
+    prov_map: dict[str, str] = {}
+    if isinstance(providers_raw, str):
+        with contextlib.suppress(Exception):
+            parsed = json.loads(providers_raw)
+            if isinstance(parsed, dict):
+                prov_map = parsed
+    prov_map[f"still_{target.still_id}"] = pname
+    artifacts["providers"] = json.dumps(prov_map)
+    _dump(job_id, "storyboard.json", board)
+    db.update_job(
+        job_id,
+        storyboard_json=board.model_dump_json(),
+        artifacts_json=json.dumps(artifacts),
+    )
+    return {"still_id": target.still_id, "provider": pname, "path": dest.as_posix()}
+
+
+async def fill_missing_stills(
+    job_id: str,
+    *,
+    source: str = "auto",
+    force_all: bool = False,
+) -> dict[str, object]:
+    """Fill missing or placeholder stills across all scenes using Grok, ChatGPT, or Web Search."""
+    from omaishort.providers.pollinations import looks_like_photo
+    from omaishort_schema.models import Storyboard
+
+    row = db.get_job(job_id)
+    if not row or not row.get("storyboard_json"):
+        raise ValueError("storyboard not ready")
+    board = Storyboard.model_validate_json(row["storyboard_json"])
+    artifacts = db.artifacts_of(row)
+    providers_raw = artifacts.get("providers")
+    prov_map: dict[str, str] = {}
+    if isinstance(providers_raw, str):
+        with contextlib.suppress(Exception):
+            parsed = json.loads(providers_raw)
+            if isinstance(parsed, dict):
+                prov_map = parsed
+
+    sdir = stills_dir(job_id)
+    updated_scenes: list[int] = []
+    for scene in board.scenes:
+        safe_id = Path(scene.still_id).name
+        dest = sdir / f"{safe_id}.png"
+        prev_prov = str(prov_map.get(f"still_{scene.still_id}") or "")
+        is_missing_or_placeholder = (
+            not dest.is_file()
+            or dest.stat().st_size < 1000
+            or prev_prov in {"placeholder", "none"}
+            or not looks_like_photo(dest)
+        )
+        if force_all or is_missing_or_placeholder:
+            await regenerate_scene_still(job_id, scene.index, source=source)
+            updated_scenes.append(scene.index)
+
+    return {"updated_scenes": updated_scenes, "source": source}
+
+
+async def rerender_job(job_id: str, *, regenerate_stills: bool = False) -> None:
+    """Re-synthesize voiceover, captions, and MP4 from the current edited storyboard & stills."""
+    from omaishort_schema.models import CharacterBible, Storyboard, StoryStructure
+
+    row = db.get_job(job_id)
+    if not row:
+        return
+    story = StoryInput.model_validate_json(row["input_json"])
+    bible = (
+        CharacterBible.model_validate_json(row["bible_json"])
+        if row.get("bible_json")
+        else fallback_analyze(story)[0]
+    )
+    structure = (
+        StoryStructure.model_validate_json(row["structure_json"])
+        if row.get("structure_json")
+        else fallback_analyze(story)[1]
+    )
+    if row.get("storyboard_json"):
+        board = Storyboard.model_validate_json(row["storyboard_json"])
+    else:
+        board = fallback_plan(story, bible, structure)
+        fill_image_prompts(board, bible)
+
+    artifacts = db.artifacts_of(row)
+    sdir = stills_dir(job_id)
+    sdir.mkdir(parents=True, exist_ok=True)
+    rdir = refs_dir(job_id)
+    loc_dir = location_refs_dir(job_id)
+    prop_dir = prop_refs_dir(job_id)
+
+    try:
+        db.update_job(
+            job_id,
+            status=JobStatus.running.value,
+            stage=JobStage.stills.value if regenerate_stills else JobStage.tts.value,
+            progress="rerender:start",
+            error=None,
+        )
+        for scene in board.scenes:
+            if not (scene.image_prompt or "").strip():
+                scene.image_prompt = build_scene_prompt(scene, bible)
+        sourced_by_id: dict[str, Path] = {}
+        if regenerate_stills and is_editorial(board.kind):
+            sourced_by_id, _skind = await assign_editorial_stills(
+                scenes=board.scenes,
+                source_url=story.source_url,
+                article_urls=None,
+                captions={},
+                dest_dir=sdir / "sourced",
+                title=board.title or story.text[:80],
+                local_paths=[],
+            )
+        stills: dict[str, Path] = {}
+        for scene in board.scenes:
+            safe_id = Path(scene.still_id).name
+            dest = sdir / f"{safe_id}.png"
+            if regenerate_stills or not dest.is_file():
+                src_photo = sourced_by_id.get(scene.still_id)
+                if src_photo and src_photo.is_file():
+                    conform_photo(src_photo, dest)
+                    stills[scene.still_id] = dest
+                elif is_editorial(board.kind):
+                    path, _pname = await resolve_scene_still(
+                        prompt=scene.image_prompt or scene.action,
+                        vo=scene.dialogue_or_vo,
+                        title=board.title or story.text[:80],
+                        dest=dest,
+                        source="auto",
+                        editorial=True,
+                        skip_remote=not _remote_search_enabled(),
+                    )
+                    stills[scene.still_id] = path
+                else:
+                    refs = scene_still_refs(scene, refs_dir=rdir, location_dir=loc_dir, prop_dir=prop_dir)
+                    path, _pname = await generate_image(
+                        scene.image_prompt or scene.action,
+                        dest,
+                        refs,
+                        photo=True,
+                        skip_remote=not _remote_search_enabled(),
+                    )
+                    stills[scene.still_id] = path
+            else:
+                stills[scene.still_id] = dest
+            artifacts[scene.still_id] = stills[scene.still_id].as_posix()
+
+        db.update_job(job_id, stage=JobStage.tts.value, progress="tts", artifacts_json=json.dumps(artifacts))
+        vo = join_scene_narration([scene.dialogue_or_vo for scene in board.scenes])
+        voice_path, _tts_name, edge_words = await _speak_voiceover(job_id, story, vo)
+        duration = probe_duration(voice_path) or float(story.target_seconds)
+        board = rescale_to_audio(board, duration)
+        _dump(job_id, "storyboard.json", board)
+        artifacts["voiceover"] = voice_path.as_posix()
+
+        db.update_job(
+            job_id,
+            stage=JobStage.captions.value,
+            progress="captions",
+            storyboard_json=board.model_dump_json(),
+        )
+        stamps, _cap_src = resolve_word_stamps(
+            edge_words=edge_words,
+            audio_path=voice_path,
+            script=vo,
+            duration=duration,
+            whisper_model=WHISPER_MODEL,
+        )
+        ass_path = render_dir(job_id) / "captions.ass"
+        style = story.subtitle or default_subtitle_style()
+        words_to_ass(stamps, ass_path, style=style)
+        artifacts["captions"] = ass_path.as_posix()
+
+        db.update_job(job_id, stage=JobStage.render.value, progress="render")
+        mp4 = render_dir(job_id) / "short.mp4"
+        mix = story.mix or default_mix_settings()
+        await compose_short(board, stills, voice_path, ass_path, mp4, render_dir(job_id), mix=mix)
+        _dump(job_id, "storyboard.json", board)
+        motion_path = render_dir(job_id) / "motion.json"
+        i2v_ids: set[str] = set()
+        if motion_path.exists():
+            motion = json.loads(motion_path.read_text(encoding="utf-8"))
+            i2v_ids = set(motion.get("i2v_still_ids") or [])
+            artifacts["motion"] = motion_path.as_posix()
+            artifacts["motion_mode"] = str(motion.get("mode") or "kenburns")
+        timeline = build_timeline(board, stills, voice_path, duration, i2v_still_ids=i2v_ids)
+        timeline_path = _dump(job_id, "timeline.json", timeline)
+        size = probe_video_size(mp4)
+        if size != (1080, 1920):
+            raise RuntimeError(f"mp4 is {size}, expected 1080x1920")
+        if not has_audio_stream(mp4):
+            raise RuntimeError("mp4 has no audio")
+        artifacts["mp4"] = mp4.as_posix()
+        artifacts["timeline"] = timeline_path.as_posix()
+
+        from omaishort.storage import inspect_job_storage
+
+        storage_info = inspect_job_storage(job_id, row)
+        storage_info["duration_sec"] = round(float(duration), 2)
+        storage_info["width"] = size[0]
+        storage_info["height"] = size[1]
+
+        db.update_job(
+            job_id,
+            status=JobStatus.done.value,
+            stage=JobStage.done.value,
+            progress="done",
+            storyboard_json=board.model_dump_json(),
+            timeline_json=timeline.model_dump_json(),
+            artifacts_json=json.dumps(artifacts),
+            storage_json=json.dumps(storage_info),
+            error=None,
+        )
+    except Exception as exc:
         db.update_job(
             job_id,
             status=JobStatus.failed.value,

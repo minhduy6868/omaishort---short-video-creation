@@ -1025,7 +1025,17 @@ def _editorial_action(vo: str, fallback: str, used: list[str] | None = None) -> 
 
 
 def _plan_brief(story: StoryInput, bible: CharacterBible, structure: StoryStructure) -> Storyboard:
-    vos = _brief_spoken_beats(story.text, story.target_seconds, story.language)
+    struct_beats = [
+        (structure.hook or "").strip(),
+        (structure.conflict or "").strip(),
+        (structure.rising_action or "").strip(),
+        (structure.twist or "").strip(),
+        (structure.ending or "").strip(),
+    ]
+    if all(len(b.split()) >= 6 for b in struct_beats) and len({b.lower() for b in struct_beats}) >= 3:
+        vos = [ensure_spoken_punct(_strip_brief_lead(b), story.language) for b in struct_beats]
+    else:
+        vos = _brief_spoken_beats(story.text, story.target_seconds, story.language)
     durations = [
         structure.hook_sec,
         structure.conflict_sec,

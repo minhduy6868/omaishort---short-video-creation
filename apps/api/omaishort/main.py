@@ -28,11 +28,22 @@ from omaishort.auth import (
     token_payload,
 )
 from omaishort.files import resolve_public_file
-from omaishort.pipeline import run_job
+from omaishort.pipeline import fill_missing_stills, regenerate_scene_still, rerender_job, run_job
 from omaishort.providers.elevenlabs_hub import ElevenLabsHubBody, load_status, update as update_elevenlabs
 from omaishort.providers.llm import llm_status
 from omaishort.providers.tts import list_voices
-from omaishort_schema.models import AttachmentKind, StoryInput
+from omaishort_schema.models import (
+    AttachmentKind,
+    Camera,
+    CharacterBible,
+    MixSettings,
+    Motion,
+    Shot,
+    StoryInput,
+    StoryStructure,
+    Storyboard,
+    is_editorial,
+)
 
 
 def _resume_interrupted_jobs() -> None:
@@ -419,6 +430,641 @@ def read_job(job_id: str, user: CurrentUser) -> dict:
     row = require_job(job_id, user)
     pub = db.public_job(row)
     pub["storage"] = storage.inspect_job_storage(job_id, row)
+    return pub
+
+
+class DraftScriptBody(BaseModel):
+    kind: str = "knowledge"
+    text: str
+    language: str = "vi"
+    target_seconds: int = 90
+    source_url: str | None = None
+    script_brief: str | None = None
+
+
+class RewriteScriptBody(BaseModel):
+    kind: str = "knowledge"
+    title: str = ""
+    language: str = "vi"
+    target_seconds: int = 90
+    beat: str = "all"
+    instruction: str = ""
+    structure: dict[str, object]
+
+
+@app.post("/scripts/draft")
+async def draft_script_endpoint(body: DraftScriptBody, _user: CurrentUser) -> dict[str, object]:
+    from omaishort.engine.analyzer import draft_content_structure
+
+    return await draft_content_structure(
+        kind=body.kind,
+        text=body.text,
+        language=body.language,
+        target_seconds=body.target_seconds,
+        source_url=body.source_url,
+        script_brief=body.script_brief,
+    )
+
+
+@app.post("/scripts/rewrite")
+async def rewrite_script_endpoint(body: RewriteScriptBody, _user: CurrentUser) -> dict[str, object]:
+    from omaishort.engine.analyzer import rewrite_content_beats
+
+    updated, provider = await rewrite_content_beats(
+        body.structure,
+        kind=body.kind,
+        language=body.language,
+        target_seconds=body.target_seconds,
+        beat=body.beat,
+        instruction=body.instruction,
+        title=body.title,
+    )
+    text = "\n\n".join(
+        str(updated.get(k) or "").strip()
+        for k in ("hook", "conflict", "rising_action", "twist", "ending")
+        if str(updated.get(k) or "").strip()
+    )
+    return {"structure": updated, "provider": provider, "text": text}
+
+
+class JobMetaPatchBody(BaseModel):
+    title: str | None = None
+    voice_id: str | None = None
+    language: str | None = None
+    target_seconds: int | None = None
+    script_brief: str | None = None
+    bgm_enabled: bool | None = None
+    bgm_volume: float | None = None
+    logo_enabled: bool | None = None
+
+
+def _require_idle_job(row: dict) -> None:
+    if row.get("status") in {"running", "queued"}:
+        raise HTTPException(
+            status_code=409,
+            detail="Job đang chạy, vui lòng chờ hoàn tất trước khi chỉnh sửa hoặc render lại.",
+        )
+
+
+@app.patch("/jobs/{job_id}")
+def patch_job_meta(job_id: str, body: JobMetaPatchBody, user: CurrentUser) -> dict:
+    from omaishort.paths import job_dir
+
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    story = StoryInput.model_validate_json(row["input_json"])
+    updates: dict[str, object] = {}
+    if body.voice_id is not None:
+        updates["voice_id"] = body.voice_id.strip() or story.voice_id
+    if body.language is not None and body.language.strip():
+        updates["language"] = body.language.strip()[:8]
+    if body.target_seconds is not None:
+        updates["target_seconds"] = max(15, min(600, int(body.target_seconds)))
+    if body.script_brief is not None:
+        updates["script_brief"] = body.script_brief.strip() or None
+    if any(v is not None for v in (body.bgm_enabled, body.bgm_volume, body.logo_enabled)):
+        mix = (story.mix or MixSettings()).model_copy(
+            update={
+                k: v
+                for k, v in {
+                    "bgm_enabled": body.bgm_enabled,
+                    "bgm_volume": body.bgm_volume,
+                    "logo_enabled": body.logo_enabled,
+                }.items()
+                if v is not None
+            }
+        )
+        updates["mix"] = mix
+    if updates:
+        story = story.model_copy(update=updates)
+
+    board_json = row.get("storyboard_json")
+    if board_json:
+        board = Storyboard.model_validate_json(board_json)
+        if body.title is not None and body.title.strip():
+            board.title = body.title.strip()[:200]
+        if body.language is not None and body.language.strip():
+            board.language = body.language.strip()[:8]
+        if body.target_seconds is not None:
+            board.target_seconds = float(max(15, min(600, int(body.target_seconds))))
+        db.dump_json(job_dir(job_id) / "storyboard.json", board.model_dump(mode="json"))
+        board_json = board.model_dump_json()
+
+    db.update_job(job_id, input_json=story.model_dump_json(), storyboard_json=board_json)
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    return pub
+
+
+class StructurePatchBody(BaseModel):
+    hook: str | None = None
+    conflict: str | None = None
+    rising_action: str | None = None
+    twist: str | None = None
+    ending: str | None = None
+    hook_sec: float | None = None
+    conflict_sec: float | None = None
+    rising_sec: float | None = None
+    twist_sec: float | None = None
+    ending_sec: float | None = None
+    sync_scenes: bool = True
+
+
+def _apply_structure_to_job(
+    job_id: str,
+    row: dict,
+    structure: StoryStructure,
+    *,
+    sync_scenes: bool = True,
+) -> dict:
+    from omaishort.engine.fallback import BEAT_ORDER, fallback_analyze, fallback_plan, infer_beat
+    from omaishort.engine.image_prompts import build_scene_prompt, fill_image_prompts
+    from omaishort.engine.rescale import repair_scene_shots
+    from omaishort.paths import job_dir
+
+    story = StoryInput.model_validate_json(row["input_json"])
+    bible = (
+        CharacterBible.model_validate_json(row["bible_json"])
+        if row.get("bible_json")
+        else fallback_analyze(story)[0]
+    )
+    beats = [
+        structure.hook,
+        structure.conflict,
+        structure.rising_action,
+        structure.twist,
+        structure.ending,
+    ]
+    secs = [
+        structure.hook_sec,
+        structure.conflict_sec,
+        structure.rising_sec,
+        structure.twist_sec,
+        structure.ending_sec,
+    ]
+    story = story.model_copy(update={"text": "\n\n".join(beats)})
+
+    board_json = row.get("storyboard_json")
+    if sync_scenes:
+        if board_json:
+            board = Storyboard.model_validate_json(board_json)
+            if len(board.scenes) == 5:
+                for idx, scene in enumerate(board.scenes):
+                    scene.dialogue_or_vo = beats[idx]
+                    if secs[idx] and secs[idx] >= 1.0:
+                        scene.duration_sec = round(float(secs[idx]), 2)
+                    repair_scene_shots(scene)
+                    scene.image_prompt = build_scene_prompt(scene, bible)
+            elif is_editorial(story.kind):
+                board = fallback_plan(story, bible, structure)
+                fill_image_prompts(board, bible)
+            else:
+                total = max(1, len(board.scenes))
+                beat_map = dict(zip(BEAT_ORDER, beats))
+                by_beat: dict[str, list] = {b: [] for b in BEAT_ORDER}
+                for idx, scene in enumerate(board.scenes):
+                    bname = infer_beat(scene, idx, total)
+                    by_beat.setdefault(bname, []).append(scene)
+                for bname, group in by_beat.items():
+                    text_block = (beat_map.get(bname) or "").strip()
+                    if not group or not text_block:
+                        continue
+                    if len(group) == 1:
+                        group[0].dialogue_or_vo = text_block
+                        group[0].mood = text_block[:80]
+                    else:
+                        import re as _re
+
+                        sents = [s.strip() for s in _re.split(r"(?<=[.!?…])\s+", text_block) if s.strip()] or [text_block]
+                        for s_idx, sc in enumerate(group):
+                            sc.mood = text_block[:80]
+                            if s_idx < len(sents):
+                                sc.dialogue_or_vo = sents[s_idx] if s_idx < len(group) - 1 else " ".join(sents[s_idx:])
+                    for sc in group:
+                        repair_scene_shots(sc)
+        else:
+            board = fallback_plan(story, bible, structure)
+            fill_image_prompts(board, bible)
+        db.dump_json(job_dir(job_id) / "storyboard.json", board.model_dump(mode="json"))
+        board_json = board.model_dump_json()
+
+    db.dump_json(job_dir(job_id) / "structure.json", structure.model_dump(mode="json"))
+    db.update_job(
+        job_id,
+        input_json=story.model_dump_json(),
+        structure_json=structure.model_dump_json(),
+        storyboard_json=board_json,
+    )
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    return pub
+
+
+@app.patch("/jobs/{job_id}/structure")
+def patch_job_structure(job_id: str, body: StructurePatchBody, user: CurrentUser) -> dict:
+    from omaishort.engine.fallback import fallback_analyze
+
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    story = StoryInput.model_validate_json(row["input_json"])
+    current = (
+        StoryStructure.model_validate_json(row["structure_json"])
+        if row.get("structure_json")
+        else fallback_analyze(story)[1]
+    )
+    updates: dict[str, object] = {}
+    for key in ("hook", "conflict", "rising_action", "twist", "ending"):
+        val = getattr(body, key)
+        if val is not None and val.strip():
+            updates[key] = val.strip()
+    for sec_key in ("hook_sec", "conflict_sec", "rising_sec", "twist_sec", "ending_sec"):
+        sec_val = getattr(body, sec_key)
+        if sec_val is not None and float(sec_val) >= 1.0:
+            updates[sec_key] = round(float(sec_val), 2)
+    structure = current.model_copy(update=updates)
+    return _apply_structure_to_job(job_id, row, structure, sync_scenes=body.sync_scenes)
+
+
+class JobAiRewriteBody(BaseModel):
+    beat: str = "all"
+    instruction: str = ""
+    sync_scenes: bool = True
+
+
+@app.post("/jobs/{job_id}/ai-rewrite")
+async def ai_rewrite_job_structure(job_id: str, body: JobAiRewriteBody, user: CurrentUser) -> dict:
+    from omaishort.engine.analyzer import rewrite_content_beats
+    from omaishort.engine.fallback import fallback_analyze
+
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    story = StoryInput.model_validate_json(row["input_json"])
+    current = (
+        StoryStructure.model_validate_json(row["structure_json"])
+        if row.get("structure_json")
+        else fallback_analyze(story)[1]
+    )
+    board_title = ""
+    if row.get("storyboard_json"):
+        try:
+            board_title = Storyboard.model_validate_json(row["storyboard_json"]).title
+        except Exception:
+            board_title = ""
+    rewritten_dict, provider = await rewrite_content_beats(
+        current.model_dump(mode="json"),
+        kind=story.kind.value,
+        language=story.language,
+        target_seconds=story.target_seconds,
+        beat=body.beat,
+        instruction=body.instruction,
+        title=board_title or story.text[:80],
+    )
+    structure = StoryStructure.model_validate(rewritten_dict)
+    pub = _apply_structure_to_job(job_id, row, structure, sync_scenes=body.sync_scenes)
+    pub["rewrite_provider"] = provider
+    return pub
+
+
+@app.patch("/jobs/{job_id}/bible")
+def patch_job_bible(job_id: str, bible: CharacterBible, user: CurrentUser) -> dict:
+    from omaishort.engine.fallback import stamp_identity_locks
+    from omaishort.engine.image_prompts import fill_image_prompts
+    from omaishort.paths import job_dir
+
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    locked = stamp_identity_locks(bible)
+    board_json = row.get("storyboard_json")
+    if board_json:
+        board = Storyboard.model_validate_json(board_json)
+        fill_image_prompts(board, locked)
+        db.dump_json(job_dir(job_id) / "storyboard.json", board.model_dump(mode="json"))
+        board_json = board.model_dump_json()
+    db.dump_json(job_dir(job_id) / "bible.json", locked.model_dump(mode="json"))
+    db.update_job(job_id, bible_json=locked.model_dump_json(), storyboard_json=board_json)
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    return pub
+
+
+class ScenePatchBody(BaseModel):
+    dialogue_or_vo: str | None = None
+    action: str | None = None
+    image_prompt: str | None = None
+    location: str | None = None
+    emotion: str | None = None
+    mood: str | None = None
+    lighting: str | None = None
+    duration_sec: float | None = None
+    camera: str | None = None
+    motion: str | None = None
+
+
+@app.patch("/jobs/{job_id}/scenes/{scene_index}")
+def patch_job_scene(
+    job_id: str,
+    scene_index: int,
+    body: ScenePatchBody,
+    user: CurrentUser,
+) -> dict:
+    from omaishort.engine.fallback import fallback_analyze
+    from omaishort.engine.image_prompts import build_scene_prompt
+    from omaishort.engine.rescale import repair_scene_shots
+    from omaishort.paths import job_dir
+
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    if not row.get("storyboard_json"):
+        raise HTTPException(409, "Storyboard chưa sẵn sàng")
+    story = StoryInput.model_validate_json(row["input_json"])
+    bible = (
+        CharacterBible.model_validate_json(row["bible_json"])
+        if row.get("bible_json")
+        else fallback_analyze(story)[0]
+    )
+    board = Storyboard.model_validate_json(row["storyboard_json"])
+    target = next((s for s in board.scenes if s.index == scene_index), None)
+    if target is None and 1 <= scene_index <= len(board.scenes):
+        target = board.scenes[scene_index - 1]
+    if target is None:
+        raise HTTPException(404, f"Không tìm thấy cảnh {scene_index}")
+
+    old_prompt = (target.image_prompt or "").strip()
+    old_auto_prompt = build_scene_prompt(target, bible).strip()
+
+    if body.dialogue_or_vo is not None and body.dialogue_or_vo.strip():
+        target.dialogue_or_vo = body.dialogue_or_vo.strip()
+    if body.action is not None and body.action.strip():
+        target.action = body.action.strip()
+    if body.location is not None and body.location.strip():
+        target.location = body.location.strip()
+    if body.emotion is not None and body.emotion.strip():
+        target.emotion = body.emotion.strip()
+    if body.mood is not None and body.mood.strip():
+        target.mood = body.mood.strip()
+    if body.lighting is not None and body.lighting.strip():
+        target.lighting = body.lighting.strip()
+    if body.duration_sec is not None and float(body.duration_sec) >= 1.0:
+        target.duration_sec = round(float(body.duration_sec), 2)
+    if body.camera is not None and body.camera in Camera._value2member_map_:
+        cam = Camera(body.camera)
+        if target.shots:
+            target.shots[0].camera = cam
+        else:
+            target.shots = [
+                Shot(
+                    camera=cam,
+                    motion=Motion.zoom_in,
+                    t_start=0,
+                    t_end=target.duration_sec,
+                    still_id=target.still_id,
+                )
+            ]
+    if body.motion is not None and body.motion in Motion._value2member_map_:
+        mot = Motion(body.motion)
+        if target.shots:
+            target.shots[0].motion = mot
+            if mot == Motion.hold:
+                for sh in target.shots[1:]:
+                    sh.motion = Motion.hold
+        else:
+            target.shots = [
+                Shot(
+                    camera=Camera.medium,
+                    motion=mot,
+                    t_start=0,
+                    t_end=target.duration_sec,
+                    still_id=target.still_id,
+                )
+            ]
+    repair_scene_shots(target)
+    new_auto_prompt = build_scene_prompt(target, bible)
+    if body.image_prompt is not None and body.image_prompt.strip():
+        submitted_prompt = body.image_prompt.strip()
+        if submitted_prompt != old_prompt or (old_prompt and old_prompt != old_auto_prompt):
+            target.image_prompt = submitted_prompt
+        else:
+            target.image_prompt = new_auto_prompt
+    else:
+        target.image_prompt = new_auto_prompt
+
+    # Sync structure if 5-scene editorial
+    struct_json = row.get("structure_json")
+    if len(board.scenes) == 5 and struct_json:
+        try:
+            struct = StoryStructure.model_validate_json(struct_json)
+            beat_keys = ("hook", "conflict", "rising_action", "twist", "ending")
+            idx = target.index - 1
+            if 0 <= idx < 5:
+                struct = struct.model_copy(update={beat_keys[idx]: target.dialogue_or_vo})
+                db.dump_json(job_dir(job_id) / "structure.json", struct.model_dump(mode="json"))
+                struct_json = struct.model_dump_json()
+        except Exception:
+            pass
+
+    db.dump_json(job_dir(job_id) / "storyboard.json", board.model_dump(mode="json"))
+    db.update_job(job_id, storyboard_json=board.model_dump_json(), structure_json=struct_json)
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    return pub
+
+
+class RegenerateStillBody(BaseModel):
+    prompt: str | None = None
+    source: str = "auto"
+
+
+@app.post("/jobs/{job_id}/scenes/{scene_index}/regenerate-still")
+async def regenerate_scene_still_endpoint(
+    job_id: str,
+    scene_index: int,
+    user: CurrentUser,
+    body: RegenerateStillBody | None = None,
+) -> dict:
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    try:
+        res = await regenerate_scene_still(
+            job_id,
+            scene_index,
+            custom_prompt=body.prompt if body else None,
+            source=body.source if body else "auto",
+        )
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    pub["still_provider"] = res.get("provider")
+    return pub
+
+
+class FillStillsBody(BaseModel):
+    source: str = "auto"
+    force_all: bool = False
+
+
+@app.post("/jobs/{job_id}/fill-stills")
+async def fill_missing_stills_endpoint(
+    job_id: str,
+    user: CurrentUser,
+    body: FillStillsBody | None = None,
+) -> dict:
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    try:
+        res = await fill_missing_stills(
+            job_id,
+            source=body.source if body else "auto",
+            force_all=bool(body.force_all) if body else False,
+        )
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    pub["updated_scenes"] = res.get("updated_scenes", [])
+    pub["still_source"] = res.get("source", "auto")
+    return pub
+
+
+@app.post("/jobs/{job_id}/pause")
+def pause_job_endpoint(job_id: str, user: CurrentUser) -> dict:
+    from omaishort.engine.fallback import fallback_analyze, fallback_plan
+    from omaishort.engine.image_prompts import fill_image_prompts
+    from omaishort.paths import job_dir
+
+    row = require_job(job_id, user)
+    story = StoryInput.model_validate_json(row["input_json"])
+    bible_json = row.get("bible_json")
+    struct_json = row.get("structure_json")
+    board_json = row.get("storyboard_json")
+
+    if not bible_json or not struct_json:
+        fb_bible, fb_struct = fallback_analyze(story)
+        if not bible_json:
+            bible_json = fb_bible.model_dump_json()
+            db.dump_json(job_dir(job_id) / "bible.json", fb_bible.model_dump(mode="json"))
+        if not struct_json:
+            struct_json = fb_struct.model_dump_json()
+            db.dump_json(job_dir(job_id) / "structure.json", fb_struct.model_dump(mode="json"))
+
+    if not board_json:
+        bible = CharacterBible.model_validate_json(bible_json)
+        structure = StoryStructure.model_validate_json(struct_json)
+        board = fallback_plan(story, bible, structure)
+        fill_image_prompts(board, bible)
+        board_json = board.model_dump_json()
+        db.dump_json(job_dir(job_id) / "storyboard.json", board.model_dump(mode="json"))
+
+    db.update_job(
+        job_id,
+        status="paused",
+        progress="paused:editing",
+        bible_json=bible_json,
+        structure_json=struct_json,
+        storyboard_json=board_json,
+    )
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    return pub
+
+
+class RerenderBody(BaseModel):
+    regenerate_stills: bool = False
+
+
+@app.post("/jobs/{job_id}/resume")
+async def resume_job_endpoint(
+    job_id: str,
+    background: BackgroundTasks,
+    user: CurrentUser,
+    body: RerenderBody | None = None,
+) -> dict:
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    regen = bool(body.regenerate_stills) if body else False
+    db.update_job(job_id, status="running", progress="resume:queued", error=None)
+    background.add_task(rerender_job, job_id, regenerate_stills=regen)
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    return pub
+
+
+@app.post("/jobs/{job_id}/scenes/{scene_index}/upload-still")
+async def upload_scene_still_endpoint(
+    job_id: str,
+    scene_index: int,
+    user: CurrentUser,
+    file: UploadFile = File(...),
+) -> dict:
+    import json as _json
+    from omaishort.engine.brief_media import conform_photo
+    from omaishort.paths import stills_dir
+
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    if not row.get("storyboard_json"):
+        raise HTTPException(409, "Storyboard chưa sẵn sàng")
+    board = Storyboard.model_validate_json(row["storyboard_json"])
+    target = next((s for s in board.scenes if s.index == scene_index), None)
+    if target is None and 1 <= scene_index <= len(board.scenes):
+        target = board.scenes[scene_index - 1]
+    if target is None:
+        raise HTTPException(404, f"Không tìm thấy cảnh {scene_index}")
+
+    raw = await file.read(uploads.MAX_IMAGE + 1)
+    if len(raw) < 64:
+        raise HTTPException(400, "File ảnh không hợp lệ")
+    if len(raw) > uploads.MAX_IMAGE:
+        raise HTTPException(413, "File ảnh vượt quá giới hạn 8MB")
+    uploads.sniff_bytes(raw, AttachmentKind.editorial, file.filename or "still.png")
+    uploads._verify_image(raw)
+
+    safe_id = Path(target.still_id).name
+    sdir = stills_dir(job_id)
+    sdir.mkdir(parents=True, exist_ok=True)
+    tmp = sdir / f"{safe_id}.upload"
+    dest = sdir / f"{safe_id}.png"
+    tmp.write_bytes(raw)
+    try:
+        conform_photo(tmp, dest)
+    except Exception as exc:
+        tmp.unlink(missing_ok=True)
+        raise HTTPException(400, f"Không đọc được file ảnh: {exc}") from exc
+    finally:
+        tmp.unlink(missing_ok=True)
+
+    artifacts = db.artifacts_of(row)
+    artifacts[target.still_id] = dest.as_posix()
+    db.update_job(job_id, artifacts_json=_json.dumps(artifacts))
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
+    return pub
+
+
+@app.post("/jobs/{job_id}/rerender")
+async def rerender_job_endpoint(
+    job_id: str,
+    background: BackgroundTasks,
+    user: CurrentUser,
+    body: RerenderBody | None = None,
+) -> dict:
+    row = require_job(job_id, user)
+    _require_idle_job(row)
+    regen = bool(body.regenerate_stills) if body else False
+    db.update_job(job_id, status="running", stage="tts", progress="rerender:queued", error=None)
+    background.add_task(rerender_job, job_id, regenerate_stills=regen)
+    fresh = db.get_job(job_id) or row
+    pub = db.public_job(fresh)
+    pub["storage"] = storage.inspect_job_storage(job_id, fresh)
     return pub
 
 

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { deleteJob, listJobs } from "../api";
+import { deleteJob, listJobs, pauseJob } from "../api";
 import { CounterCard, PageHeader, ProgressBar, StatusPill, progressCopy, progressFromJob, stageLabel, toneForStatus } from "../components";
 import { useNav } from "../nav";
 import type { Job, VideoKind } from "../types";
 
-type StatusFilter = "all" | "running" | "done" | "failed";
+type StatusFilter = "all" | "running" | "paused" | "done" | "failed";
 
 const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: "all", label: "Tất cả" },
   { id: "running", label: "Đang chạy" },
+  { id: "paused", label: "Tạm dừng" },
   { id: "done", label: "Đã xong" },
   { id: "failed", label: "Lỗi" },
 ];
@@ -38,7 +39,7 @@ const CREATE_LINKS: { href: string; kind: VideoKind; title: string; copy: string
 ];
 
 function isRunning(job: Job): boolean {
-  return job.status !== "done" && job.status !== "failed";
+  return job.status === "running" || job.status === "queued";
 }
 
 function formatDate(value?: string): string {
@@ -113,6 +114,7 @@ export function WorkPage() {
     return {
       total: rows.length,
       running: rows.filter(isRunning).length,
+      paused: rows.filter((job) => job.status === "paused").length,
       done: rows.filter((job) => job.status === "done").length,
       failed: rows.filter((job) => job.status === "failed").length,
     };
@@ -146,7 +148,11 @@ export function WorkPage() {
 
       <div className="counter-grid">
         <CounterCard label="Tổng số job" value={counts.total} hint="Trong workspace" />
-        <CounterCard label="Đang xử lý" value={counts.running} hint="Pipeline đang chạy" />
+        <CounterCard
+          label="Đang xử lý"
+          value={counts.running}
+          hint={counts.paused > 0 ? `${counts.paused} đang tạm dừng sửa` : "Pipeline đang chạy"}
+        />
         <CounterCard label="Hoàn tất" value={counts.done} hint="Sẵn sàng tải MP4" />
         <CounterCard label="Cần kiểm tra" value={counts.failed} hint="Xem log tại Watch" />
       </div>
@@ -267,15 +273,33 @@ export function WorkPage() {
                       </td>
                       <td>
                         <div className="hub-actions">
+                          <button type="button" className="ghost" onClick={() => go(`/watch/${job.id}`)}>
+                            {job.status === "done"
+                              ? "Chỉnh sửa / Xem"
+                              : job.status === "paused"
+                                ? "Sửa & Xuất MP4"
+                                : "Xem & Sửa"}
+                          </button>
+                          {isRunning(job) ? (
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={() => {
+                                void pauseJob(job.id)
+                                  .then(() => go(`/watch/${job.id}`))
+                                  .catch((err) =>
+                                    setLoadError(err instanceof Error ? err.message : "Không tạm dừng được job"),
+                                  );
+                              }}
+                            >
+                              Tạm dừng & Sửa
+                            </button>
+                          ) : null}
                           {job.status === "done" ? (
                             <a className="button ghost" href={`/jobs/${encodeURIComponent(job.id)}/download`} download>
                               Tải MP4
                             </a>
-                          ) : (
-                            <button type="button" className="ghost" onClick={() => go(`/watch/${job.id}`)}>
-                              Xem
-                            </button>
-                          )}
+                          ) : null}
                           <button
                             type="button"
                             className="ghost"

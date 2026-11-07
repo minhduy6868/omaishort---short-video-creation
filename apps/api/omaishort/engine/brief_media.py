@@ -657,18 +657,18 @@ def _knowledge_frames(name: str, vi: bool, person: bool) -> dict[str, str]:
         }
     if vi:
         return {
-            "hook": f"{name} là một cơ chế, không phải tin đồn.",
-            "conflict": f"Hệ quả của {name} đụng vào đời sống thường ngày.",
-            "rising": f"{name} chạy qua nguyên nhân, chuỗi hệ quả, và cách người ta đo nó.",
-            "twist": f"Một ví dụ lẻ không đủ để nói đã hiểu {name}.",
-            "ending": f"Đo {name} theo cả hệ thống, không theo cảm giác một sự kiện.",
+            "hook": f"Ít ai để ý {name} đang âm thầm xoay chuyển mọi thứ ngay quanh ta.",
+            "conflict": f"Tác động của {name} chạm trực tiếp vào quyết định và đời sống hàng ngày.",
+            "rising": f"Nhìn sâu vào {name} sẽ thấy rõ nguyên nhân, chuỗi diễn biến và quy luật vận hành thực tế.",
+            "twist": f"Điều thú vị nhất về {name} lại nằm ở góc khuất mà số đông thường hiểu ngược.",
+            "ending": f"Hiểu đúng bản chất {name} giúp ta nhìn toàn cảnh thay vì chỉ thấy bề nổi.",
         }
     return {
-        "hook": f"{name} is a mechanism, not a rumor.",
-        "conflict": f"{name} changes everyday outcomes, not just a definition.",
-        "rising": f"{name} has causes, a chain of effects, and a way to measure it.",
-        "twist": f"One anecdote is not a model of {name}.",
-        "ending": f"Measure {name} as a system, not a one-off shock.",
+        "hook": f"Few people notice how {name} quietly reshapes the world around us.",
+        "conflict": f"{name} directly changes everyday outcomes, not just textbook definitions.",
+        "rising": f"Look closer at {name} to see its real causes, chain of events, and how it works in practice.",
+        "twist": f"The most surprising part of {name} is the counter-intuitive detail most people miss.",
+        "ending": f"Understanding {name} as a whole picture gives you a sharper lens on reality.",
     }
 
 

@@ -34,12 +34,30 @@ def system_chrome_exe() -> Path | None:
     return None
 
 
+def ensure_default_desktop() -> None:
+    """Bind the calling worker thread to WinSta0\\Default on Windows so headed Chrome opens on the user's screen."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+
+        u32 = ctypes.windll.user32
+        hdesk = u32.OpenDesktopW("Default", 0, True, 0x01FF)
+        if hdesk:
+            u32.SetThreadDesktop(hdesk)
+            u32.CloseDesktop(hdesk)
+    except Exception:
+        pass
+
+
 def hub_launch_args(user_data_dir: Path, *, visible: bool, headless: bool = False) -> dict:
     """Persistent-profile launch for a hub.
 
     Background jobs use a real headed window parked off-screen. Cloudflare on chatgpt.com
     and grok.com challenges headless Chrome, so the composer or the fetch never answers.
     """
+    if visible:
+        ensure_default_desktop()
     args = list(_STEALTH)
     if not visible and not headless:
         args.extend(_OFFSCREEN)

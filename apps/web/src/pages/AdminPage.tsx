@@ -5,14 +5,19 @@ import {
   deleteAdminJob,
   listAdminJobs,
   listAdminUsers,
+  openChatgptContent,
   patchAdminUser,
   readAdminOverview,
   readAdminStorage,
+  readProviders,
   retryAdminJob,
   saveAdminSettings,
+  startChatgptLogin,
+  startGrokLogin,
   type AdminOverview,
   type AdminUserRow,
   type LocalVideoEntry,
+  type ProviderStatus,
   type StorageSummary,
 } from "../api";
 import {
@@ -83,6 +88,9 @@ export function AdminPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobFilter, setJobFilter] = useState<string>("all");
   const [storageData, setStorageData] = useState<{ summary: StorageSummary; videos: LocalVideoEntry[] } | null>(null);
+  const [providers, setProviders] = useState<ProviderStatus | null>(null);
+  const [chatgptOpening, setChatgptOpening] = useState(false);
+  const [grokOpening, setGrokOpening] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,16 +101,18 @@ export function AdminPage() {
     if (!isOperator) return;
     setError(null);
     try {
-      const [ov, usr, jb, st] = await Promise.all([
+      const [ov, usr, jb, st, prov] = await Promise.all([
         readAdminOverview(),
         listAdminUsers(),
         listAdminJobs(),
         readAdminStorage(),
+        readProviders(),
       ]);
       setOverview(ov);
       setUsers(usr);
       setJobs(jb);
       setStorageData(st);
+      setProviders(prov);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tải được dữ liệu quản trị");
     }
@@ -111,6 +121,32 @@ export function AdminPage() {
   useEffect(() => {
     void refreshAll();
   }, [refreshAll]);
+
+  useEffect(() => {
+    if (!chatgptOpening && !grokOpening) return;
+    const timer = window.setInterval(() => {
+      void readProviders().then((status) => {
+        setProviders(status);
+        if (chatgptOpening && !status?.chatgpt_opening) {
+          setChatgptOpening(false);
+          setMessage(
+            status?.chatgpt_web_authed
+              ? "Đã lưu phiên ChatGPT."
+              : "Đã đóng cửa sổ ChatGPT. Bấm Đăng nhập ChatGPT nếu chưa hoàn tất.",
+          );
+        }
+        if (grokOpening && !status?.grok_opening) {
+          setGrokOpening(false);
+          setMessage(
+            status?.grok_hub_authed
+              ? "Đã lưu phiên Grok."
+              : "Đã đóng cửa sổ Grok. Bấm Đăng nhập Grok nếu chưa hoàn tất.",
+          );
+        }
+      });
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [chatgptOpening, grokOpening]);
 
   if (!isOperator) {
     return (
@@ -264,6 +300,56 @@ export function AdminPage() {
             <p className="meta" style={{ marginTop: "12px" }}>
               Thư mục lưu trữ video local: <code>{storageSummary?.data_dir || "data/"}</code>
             </p>
+            <div className="hub-actions" style={{ marginTop: "16px" }}>
+              <button
+                type="button"
+                className={providers?.chatgpt_web_authed ? "ghost" : undefined}
+                disabled={chatgptOpening}
+                onClick={() => {
+                  setError(null);
+                  setChatgptOpening(true);
+                  void startChatgptLogin()
+                    .then(() => setMessage("Chrome đang mở ChatGPT. Đăng nhập trên cửa sổ đó."))
+                    .catch((err) => {
+                      setChatgptOpening(false);
+                      setError(err instanceof Error ? err.message : "Không mở được ChatGPT");
+                    });
+                }}
+              >
+                {chatgptOpening ? "Đang chờ ChatGPT…" : providers?.chatgpt_web_authed ? "ChatGPT: Đăng nhập lại" : "Đăng nhập ChatGPT"}
+              </button>
+              {providers?.chatgpt_web_authed ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={chatgptOpening}
+                  onClick={() => {
+                    void openChatgptContent()
+                      .then(() => setMessage("Đã mở cửa sổ hội thoại ChatGPT hôm nay."))
+                      .catch((err) => setError(err instanceof Error ? err.message : "Không mở được ChatGPT"));
+                  }}
+                >
+                  Mở ChatGPT hôm nay
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={providers?.grok_hub_authed ? "ghost" : undefined}
+                disabled={grokOpening}
+                onClick={() => {
+                  setError(null);
+                  setGrokOpening(true);
+                  void startGrokLogin()
+                    .then(() => setMessage("Chrome đang mở grok.com/imagine. Đăng nhập trên cửa sổ đó."))
+                    .catch((err) => {
+                      setGrokOpening(false);
+                      setError(err instanceof Error ? err.message : "Không mở được Grok");
+                    });
+                }}
+              >
+                {grokOpening ? "Đang chờ Grok…" : providers?.grok_hub_authed ? "Grok: Đăng nhập lại" : "Đăng nhập Grok"}
+              </button>
+            </div>
           </section>
         </div>
       ) : null}

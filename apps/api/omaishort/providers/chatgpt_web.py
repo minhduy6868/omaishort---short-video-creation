@@ -49,8 +49,35 @@ def profile_dir() -> Path:
     return DATA_DIR / "chatgpt-web" / "profile"
 
 
+def session_path() -> Path:
+    return DATA_DIR / "chatgpt-web" / "session.json"
+
+
 def daily_path() -> Path:
     return DATA_DIR / "chatgpt-web" / "daily.json"
+
+
+def save_authed() -> None:
+    session_path().parent.mkdir(parents=True, exist_ok=True)
+    session_path().write_text(json.dumps({"authed": True}, indent=2), encoding="utf-8")
+
+
+def clear_authed() -> None:
+    try:
+        session_path().unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _session_marker_ok() -> bool:
+    marker = session_path()
+    if not marker.is_file():
+        return False
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return isinstance(data, dict) and bool(data.get("authed"))
 
 
 def _cookie_db_has_session(path: Path) -> bool:
@@ -58,6 +85,9 @@ def _cookie_db_has_session(path: Path) -> bool:
 
     try:
         conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=1)
+    except sqlite3.OperationalError:
+        # Windows Chrome locks Default/Network/Cookies exclusively while the window is open.
+        return path.stat().st_size > 100 and _session_marker_ok()
     except sqlite3.Error:
         return False
     try:
@@ -66,6 +96,8 @@ def _cookie_db_has_session(path: Path) -> bool:
             _AUTH_COOKIES,
         ).fetchone()
         return rows is not None
+    except sqlite3.OperationalError:
+        return path.stat().st_size > 100 and _session_marker_ok()
     except sqlite3.Error:
         return False
     finally:
@@ -223,6 +255,8 @@ async def open_content() -> bool:
             if page.is_closed() or not ctx.pages:
                 break
             save_daily_chat(page.url or "")
+            if await _account_live(page):
+                save_authed()
             await asyncio.sleep(1)
         try:
             await ctx.close()
@@ -255,25 +289,59 @@ async def login(on_open=None) -> bool:
             _opened(exc)
             return False
         await _prepare(ctx)
-        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-        _opened(None)
-        print("Log in to ChatGPT in the window. It stays open until the account is saved.", flush=True)
-        await page.goto(f"{_CHAT}/auth/login", wait_until="domcontentloaded")
-        deadline = time.monotonic() + 30 * 60
-        while time.monotonic() < deadline:
-            if page.is_closed() or not ctx.pages:
-                saved = is_authed()
-                print("ChatGPT login window was closed." + (" Session was saved." if saved else ""), flush=True)
-                return saved
-            if await _has_session(ctx, page):
-                await page.wait_for_timeout(1200)
+        try:
+            page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+            _opened(None)
+            print("Log in to ChatGPT in the window. It stays open until the account is saved.", flush=True)
+            await page.goto(f"{_CHAT}/", wait_until="domcontentloaded")
+            await page.wait_for_timeout(2500)
+            if not await _account_live(page):
+                clear_authed()
+                for cookie_name in _AUTH_COOKIES:
+                    try:
+                        await ctx.clear_cookies(name=cookie_name)
+                    except Exception:
+                        pass
+                try:
+                    login_btn = page.locator('[data-testid="login-button"]').first
+                    if await login_btn.count():
+                        await login_btn.click()
+                    elif "/auth/" not in (page.url or ""):
+                        await page.goto(f"{_CHAT}/auth/login", wait_until="domcontentloaded")
+                except Exception:
+                    pass
+            else:
+                save_authed()
+                await page.wait_for_timeout(3000)
+
+            deadline = time.monotonic() + 30 * 60
+            while time.monotonic() < deadline:
+                open_pages = [p for p in ctx.pages if not p.is_closed()]
+                if not open_pages:
+                    saved = is_authed()
+                    print("ChatGPT login window was closed." + (" Session was saved." if saved else ""), flush=True)
+                    return saved
+                for p in open_pages:
+                    url = p.url or ""
+                    if url.startswith(_CHAT) and "/auth/" not in url:
+                        if await _account_live(p):
+                            save_authed()
+                            save_daily_chat(url)
+                            try:
+                                if await p.locator(_COMPOSER).count() > 0:
+                                    await p.wait_for_timeout(1500)
+                                    print(f"Session saved at {profile_dir()}", flush=True)
+                                    return True
+                            except Exception:
+                                pass
+                await asyncio.sleep(2)
+            print("Login timed out.", flush=True)
+            return False
+        finally:
+            try:
                 await ctx.close()
-                print(f"Session saved at {profile_dir()}")
-                return True
-            await asyncio.sleep(2)
-        await ctx.close()
-        print("Login timed out.")
-        return False
+            except Exception:
+                pass
 
 
 async def _wait_composer(page, timeout_ms: int = 45_000):

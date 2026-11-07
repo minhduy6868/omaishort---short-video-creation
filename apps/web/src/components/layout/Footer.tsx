@@ -23,8 +23,8 @@ export function Footer() {
             <h4>{t('footer.product')}</h4>
             <ul>
               <li><Link to="/work">{t('footer.studio')}</Link></li>
-              <li><a href="#features">{t('nav.features')}</a></li>
-              <li><a href="#demo">{t('nav.demo')}</a></li>
+              <li><a href={`/${lang}#features`}>{t('nav.features')}</a></li>
+              <li><a href={`/${lang}#demo`}>{t('nav.demo')}</a></li>
             </ul>
           </div>
           <div className="footer-col">
@@ -32,6 +32,14 @@ export function Footer() {
             <ul>
               <li><a href="https://github.com/minhduy6868/omaishort---short-video-creation" target="_blank" rel="noopener noreferrer">{t('footer.github')}</a></li>
               <li><a href="https://github.com/minhduy6868/omaishort---short-video-creation/tree/main/docs" target="_blank" rel="noopener noreferrer">{t('footer.documentation')}</a></li>
+            </ul>
+          </div>
+          <div className="footer-col">
+            <h4>{t('footer.legal')}</h4>
+            <ul>
+              <li><Link to={`/${lang}/privacy`}>{t('footer.privacy')}</Link></li>
+              <li><Link to={`/${lang}/terms`}>{t('footer.terms')}</Link></li>
+              <li><Link to={`/${lang}/cookies`}>{t('footer.cookies')}</Link></li>
             </ul>
           </div>
         </div>

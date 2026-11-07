@@ -19,7 +19,20 @@ from omaishort.providers.chrome_profile import hub_launch_args, playwright_ok, s
 
 IMAGINE = "https://grok.com/imagine"
 _AUTH_COOKIES = {"sso", "sso-rw"}
+_HIDE_WEBDRIVER = "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
 session_lock = asyncio.Lock()
+
+
+async def prepare(ctx) -> None:
+    await ctx.add_init_script(_HIDE_WEBDRIVER)
+
+
+def chrome_launch_error(exc: BaseException) -> str:
+    text = str(exc)
+    lowered = text.lower()
+    if "in use" in lowered or "singleton" in lowered or "existing browser session" in lowered:
+        return "Cửa sổ Chrome đăng nhập Grok đang mở. Đăng nhập trên cửa sổ đó, hoặc đóng rồi bấm lại."
+    return "Không mở được Chrome. Đóng hết cửa sổ Chrome rồi bấm Đăng nhập Grok lại."
 
 
 def profile_dir() -> Path:
@@ -134,10 +147,15 @@ async def _try_fill_login(page) -> None:
         return
 
 
-async def login() -> bool:
+async def login(on_open=None) -> bool:
     """Open a visible Chrome window until Grok SSO cookies exist."""
+    def _opened(exc: BaseException | None) -> None:
+        if on_open is not None:
+            on_open(exc)
+
     if not playwright_ok():
         print("Install: pip install playwright && python -m playwright install chromium")
+        _opened(RuntimeError("Playwright Chromium is not installed"))
         return False
     from playwright.async_api import async_playwright
 
@@ -147,23 +165,45 @@ async def login() -> bool:
         if launch.get("channel") == "chrome":
             print(f"Using installed Chrome at {system_chrome_exe()}", flush=True)
         print("Grok hub: Chrome will open grok.com/imagine. Session saves when SSO cookies appear.", flush=True)
-        ctx = await pw.chromium.launch_persistent_context(**launch)
-        page = ctx.pages[0] if ctx.pages else await ctx.new_page()
-        await page.goto(IMAGINE, wait_until="domcontentloaded")
-        if not await has_session(ctx):
-            await _try_fill_login(page)
-        deadline = time.monotonic() + 30 * 60
-        while time.monotonic() < deadline:
-            if await has_session(ctx):
-                await page.wait_for_timeout(1200)
-                save_authed()
+        try:
+            ctx = await pw.chromium.launch_persistent_context(**launch)
+        except Exception as exc:
+            print(f"Grok login could not open Chrome: {exc}", flush=True)
+            _opened(exc)
+            return False
+        await prepare(ctx)
+        try:
+            page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+            _opened(None)
+            await page.goto(IMAGINE, wait_until="domcontentloaded")
+            await page.wait_for_timeout(2000)
+            if not await has_session(ctx):
+                clear_authed()
+                await _try_fill_login(page)
+            deadline = time.monotonic() + 30 * 60
+            while time.monotonic() < deadline:
+                open_pages = [p for p in ctx.pages if not p.is_closed()]
+                if not open_pages:
+                    if await has_session(ctx):
+                        save_authed()
+                    saved = is_authed()
+                    print("Grok login window was closed." + (" Session was saved." if saved else ""), flush=True)
+                    return saved
+                if await has_session(ctx):
+                    on_grok = [p for p in open_pages if "grok.com" in (p.url or "")]
+                    target = on_grok[0] if on_grok else open_pages[0]
+                    await target.wait_for_timeout(1500)
+                    save_authed()
+                    print(f"Grok hub session saved at {profile_dir()}", flush=True)
+                    return True
+                await asyncio.sleep(2)
+            print("Grok login timed out.", flush=True)
+            return False
+        finally:
+            try:
                 await ctx.close()
-                print(f"Grok hub session saved at {profile_dir()}")
-                return True
-            await asyncio.sleep(2)
-        await ctx.close()
-        print("Grok login timed out.")
-        return False
+            except Exception:
+                pass
 
 
 async def open_imagine(page) -> None:

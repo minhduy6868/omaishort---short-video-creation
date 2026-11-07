@@ -12,13 +12,23 @@
     "tagline": "Paste a story. Get a short video.",
     "product": "Product",
     "resources": "Resources",
+    "legal": "Legal & Policies",
     "documentation": "Documentation",
     "github": "GitHub",
     "studio": "Studio",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "cookies": "Cookie & Data Policy",
     "copyright": "© {{year}} omaishort. Local-first story video engine."
   },
   "meta": {
     "title": "omaishort — AI Story-to-Video Engine",
-    "description": "Paste a story, news URL, or topic — omaishort creates 1080×1920 short videos with AI voiceover, generated stills, and karaoke captions. Local-first, free."
+    "description": "Paste a story, news URL, or topic — omaishort creates 1080×1920 short videos with AI voiceover, generated stills, and karaoke captions. Local-first, free.",
+    "privacyTitle": "Privacy Policy — omaishort",
+    "privacyDescription": "How omaishort keeps rendered 1080×1920 MP4 videos on your local disk while syncing account and job metadata on Cloudflare D1.",
+    "termsTitle": "Terms of Service — omaishort",
+    "termsDescription": "Terms of use for omaishort Studio, AI-generated content ownership, and provider integration rules.",
+    "cookiesTitle": "Cookie & Local Storage Policy — omaishort",
+    "cookiesDescription": "Details on essential HttpOnly authentication cookies, local browser preferences, and local disk artifacts."
   }
 }

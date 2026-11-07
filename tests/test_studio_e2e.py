@@ -144,14 +144,35 @@ def test_only_the_operator_can_click_the_site_theme(studio_url, browser):
     assert _register(page, studio_url, "creator@example.com")["user"]["role"] == "creator"
 
     page.goto(f"{studio_url}/account")
-    picker = page.get_by_role("radiogroup", name="Giao diện toàn site")
-    picker.wait_for()
-    radios = picker.get_by_role("radio")
-    assert radios.count() == 2
-    for index in range(2):
-        assert radios.nth(index).is_disabled()
-    assert page.get_by_text("Admin (operator) chọn giao diện cho toàn site.").is_visible()
+    lib = page.get_by_role("heading", name="Attachment library")
+    lib.wait_for()
+    assert lib.is_visible()
+    assert page.get_by_role("radiogroup", name="Giao diện toàn site").count() == 0
+    assert page.get_by_role("button", name="Đăng nhập ChatGPT").count() == 0
+    assert page.get_by_role("button", name="Đăng nhập Grok").count() == 0
     context.close()
+
+
+def test_policy_pages_and_seo_endpoints(studio_url, browser):
+    page = browser.new_page()
+    robots = page.request.get(f"{studio_url}/robots.txt")
+    assert robots.status == 200
+    assert "Sitemap:" in robots.text()
+
+    sitemap = page.request.get(f"{studio_url}/sitemap.xml")
+    assert sitemap.status == 200
+    assert "/vi/privacy" in sitemap.text()
+
+    page.goto(f"{studio_url}/vi/privacy")
+    h1 = page.get_by_role("heading", name="Chính sách Bảo mật")
+    h1.wait_for()
+    assert h1.is_visible()
+
+    page.goto(f"{studio_url}/vi/terms")
+    terms_h1 = page.get_by_role("heading", name="Điều khoản Dịch vụ")
+    terms_h1.wait_for()
+    assert terms_h1.is_visible()
+    page.close()
 
 
 def test_operator_can_open_admin_console_and_tabs(studio_url, browser):

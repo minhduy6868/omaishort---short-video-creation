@@ -12,13 +12,23 @@
     "tagline": "Dán câu chuyện. Nhận video ngắn.",
     "product": "Sản phẩm",
     "resources": "Tài nguyên",
+    "legal": "Chính sách & Pháp lý",
     "documentation": "Tài liệu",
     "github": "GitHub",
     "studio": "Studio",
+    "privacy": "Chính sách Bảo mật",
+    "terms": "Điều khoản Dịch vụ",
+    "cookies": "Chính sách Cookie & Dữ liệu",
     "copyright": "© {{year}} omaishort. Công cụ tạo video chạy local."
   },
   "meta": {
     "title": "omaishort — Tạo Video Ngắn Từ Câu Chuyện Bằng AI",
-    "description": "Dán câu chuyện, tin tức hoặc chủ đề — omaishort tạo video ngắn 1080×1920 với giọng đọc AI, hình ảnh và phụ đề karaoke. Chạy local, miễn phí."
+    "description": "Dán câu chuyện, tin tức hoặc chủ đề — omaishort tạo video ngắn 1080×1920 với giọng đọc AI, hình ảnh và phụ đề karaoke. Chạy local, miễn phí.",
+    "privacyTitle": "Chính sách Bảo mật — omaishort",
+    "privacyDescription": "Cách omaishort lưu trữ video MP4 local trên máy của bạn và bảo mật tài khoản, metadata trên Cloudflare D1.",
+    "termsTitle": "Điều khoản Dịch vụ — omaishort",
+    "termsDescription": "Điều khoản sử dụng omaishort Studio, quyền sở hữu nội dung AI và quy định tích hợp nhà cung cấp.",
+    "cookiesTitle": "Chính sách Cookie & Dữ liệu Local — omaishort",
+    "cookiesDescription": "Chi tiết về cookie xác thực HttpOnly, bộ nhớ trình duyệt và thư mục dữ liệu local của omaishort."
   }
 }

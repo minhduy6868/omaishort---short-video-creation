@@ -1,20 +1,20 @@
 User-agent: *
 Allow: /
-Disallow: /login
-Disallow: /register
-Disallow: /work
-Disallow: /drama
-Disallow: /news
-Disallow: /knowledge
+Allow: /vi
+Allow: /en
+Allow: /ja
+Allow: /vi/privacy
+Allow: /en/privacy
+Allow: /ja/privacy
+Allow: /vi/terms
+Allow: /en/terms
+Allow: /ja/terms
+Allow: /vi/cookies
+Allow: /en/cookies
+Allow: /ja/cookies
+Disallow: /admin
 Disallow: /account
-Disallow: /watch
-Disallow: /en/studio
-Disallow: /vi/studio
-Disallow: /ja/studio
-Disallow: /auth
+Disallow: /auth/
 Disallow: /jobs
-Disallow: /files
-Disallow: /attachments
 
-# Sitemap will use actual domain when confirmed
-# Sitemap: https://omaishort.com/sitemap.xml
+Sitemap: https://omaishort.com/sitemap.xml

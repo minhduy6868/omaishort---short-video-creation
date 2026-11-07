@@ -97,6 +97,27 @@ def test_grok_web_is_authed_needs_cookie_db(tmp_path, monkeypatch):
     assert grok_web.is_authed()
     grok_web.clear_authed()
     assert not grok_web.is_authed()
+    assert "cửa sổ" in grok_web.chrome_launch_error(RuntimeError("profile in use by existing browser session")).lower()
+
+
+def test_chatgpt_web_session_marker_handles_locked_cookie_db(tmp_path, monkeypatch):
+    import sqlite3
+    from omaishort.providers import chatgpt_web
+
+    monkeypatch.setattr(chatgpt_web, "DATA_DIR", tmp_path)
+    cookies = tmp_path / "chatgpt-web" / "profile" / "Default" / "Network" / "Cookies"
+    cookies.parent.mkdir(parents=True)
+    cookies.write_bytes(b"x" * 256)
+    monkeypatch.setattr(
+        sqlite3,
+        "connect",
+        lambda *args, **kwargs: (_ for _ in ()).throw(sqlite3.OperationalError("unable to open database file")),
+    )
+    assert not chatgpt_web.is_authed()
+    chatgpt_web.save_authed()
+    assert chatgpt_web.is_authed()
+    chatgpt_web.clear_authed()
+    assert not chatgpt_web.is_authed()
 
 
 def test_story_input_drama_shape_defaults_to_infer():

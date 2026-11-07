@@ -50,6 +50,7 @@ function formatDate(value: string): string {
 
 export function AccountPage() {
   const { user } = useSession();
+  const isOperator = user?.role === "operator";
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
   const [chatgptOpening, setChatgptOpening] = useState(false);
@@ -66,8 +67,9 @@ export function AccountPage() {
   const [hubMessage, setHubMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    void readProviders().then(setProviders);
     void listAttachments().then(setAttachments);
+    if (!isOperator) return;
+    void readProviders().then(setProviders);
     void readElevenLabs()
       .then((hub) => {
         setEleven(hub);
@@ -77,9 +79,10 @@ export function AccountPage() {
         setElevenMode(hub.mode === "api" ? "api" : "anonymous");
       })
       .catch((err) => setHubMessage(err instanceof Error ? err.message : "Không đọc được ElevenLabs"));
-  }, []);
+  }, [isOperator]);
 
   useEffect(() => {
+    if (!isOperator) return;
     const refresh = () => {
       if (!document.hidden) void readProviders().then(setProviders);
     };
@@ -89,7 +92,7 @@ export function AccountPage() {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
+  }, [isOperator]);
 
   useEffect(() => {
     if (!chatgptOpening && !grokOpening) return;
@@ -97,20 +100,28 @@ export function AccountPage() {
     const timer = window.setInterval(() => {
       void readProviders().then((status) => {
         setProviders(status);
-        if (chatgptOpening && status?.chatgpt_web_authed) {
+        if (chatgptOpening && !status?.chatgpt_opening) {
           setChatgptOpening(false);
-          setChatgptMessage("Đã lưu phiên ChatGPT. Mở cửa sổ để chỉnh nội dung trên hội thoại hôm nay.");
+          setChatgptMessage(
+            status?.chatgpt_web_authed
+              ? "Đã lưu phiên ChatGPT. Mở cửa sổ để chỉnh nội dung trên hội thoại hôm nay."
+              : "Đã đóng cửa sổ ChatGPT. Bấm Đăng nhập ChatGPT nếu chưa hoàn tất.",
+          );
         }
-        if (grokOpening && status?.grok_hub_authed) {
+        if (grokOpening && !status?.grok_opening) {
           setGrokOpening(false);
-          setGrokMessage("Đã lưu phiên Grok.");
+          setGrokMessage(
+            status?.grok_hub_authed
+              ? "Đã lưu phiên Grok."
+              : "Đã đóng cửa sổ Grok. Bấm Đăng nhập Grok nếu chưa hoàn tất.",
+          );
         }
         if (Date.now() - started > 10 * 60 * 1000) {
           setChatgptOpening(false);
           setGrokOpening(false);
         }
       });
-    }, 3000);
+    }, 2000);
     return () => window.clearInterval(timer);
   }, [chatgptOpening, grokOpening]);
 
@@ -128,22 +139,22 @@ export function AccountPage() {
         lede={user ? `${user.email} · ${user.role}` : "Phiên đăng nhập hiện tại"}
       />
 
-      <section className="panel">
-        <div className="section-head compact">
-          <div>
-            <p className="kicker">Giao diện</p>
-            <h2>Giao diện toàn site</h2>
-            <p className="panel-subtitle">
-              {user?.role === "operator"
-                ? "Bạn là admin. Bộ được chọn áp dụng cho landing và studio của mọi người."
-                : "Admin (operator) chọn giao diện cho toàn site."}
-            </p>
-          </div>
-        </div>
-        <SiteThemePicker editable={user?.role === "operator"} />
-      </section>
+      {isOperator ? (
+        <>
+          <section className="panel">
+            <div className="section-head compact">
+              <div>
+                <p className="kicker">Giao diện</p>
+                <h2>Giao diện toàn site</h2>
+                <p className="panel-subtitle">
+                  Bạn là admin. Bộ được chọn áp dụng cho landing và studio của mọi người.
+                </p>
+              </div>
+            </div>
+            <SiteThemePicker editable />
+          </section>
 
-      <div className="hub-grid">
+          <div className="hub-grid">
         <section className="panel hub-card">
           <div className="section-head compact">
             <div>
@@ -375,36 +386,44 @@ export function AccountPage() {
           {eleven?.error ? <p className="err">{eleven.error}</p> : null}
         </section>
       </div>
+        </>
+      ) : null}
 
       <div className="counter-grid">
         <CounterCard label="Attachments" value={attachments.length} hint="File trong thư viện" />
         <CounterCard label="Loại file" value={attachmentCounts.length} hint="face, logo, script, editorial" />
-        <CounterCard label="Providers" value={providers ? chips(providers).filter((chip) => chip.on).length : 0} hint="Đang sẵn sàng" />
-        <CounterCard label="Motion" value={providers?.drama_motion && providers.drama_motion !== "kenburns" ? 1 : 0} hint={providers?.drama_motion || "kenburns"} />
+        {isOperator ? (
+          <>
+            <CounterCard label="Providers" value={providers ? chips(providers).filter((chip) => chip.on).length : 0} hint="Đang sẵn sàng" />
+            <CounterCard label="Motion" value={providers?.drama_motion && providers.drama_motion !== "kenburns" ? 1 : 0} hint={providers?.drama_motion || "kenburns"} />
+          </>
+        ) : null}
       </div>
 
       <div className="account-grid">
-        <section className="panel">
-          <div className="section-head compact">
-            <div>
-              <p className="kicker">Providers</p>
-              <h2>Readiness</h2>
+        {isOperator ? (
+          <section className="panel">
+            <div className="section-head compact">
+              <div>
+                <p className="kicker">Providers</p>
+                <h2>Readiness</h2>
+              </div>
             </div>
-          </div>
-          {providers ? (
-            <div className="provider-card-grid">
-              {chips(providers).map((chip) => (
-                <article key={chip.id} className="provider-tile">
-                  <StatusPill label={chip.on ? "ready" : "off"} tone={chip.on ? "done" : "idle"} />
-                  <strong>{chip.label}</strong>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="meta">Đang đọc provider…</p>
-          )}
-          <p className="meta">ChatGPT viết lời Knowledge. Grok hub chỉ chuyển động drama. Gemini là API key.</p>
-        </section>
+            {providers ? (
+              <div className="provider-card-grid">
+                {chips(providers).map((chip) => (
+                  <article key={chip.id} className="provider-tile">
+                    <StatusPill label={chip.on ? "ready" : "off"} tone={chip.on ? "done" : "idle"} />
+                    <strong>{chip.label}</strong>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="meta">Đang đọc provider…</p>
+            )}
+            <p className="meta">ChatGPT viết lời Knowledge. Grok hub chỉ chuyển động drama. Gemini là API key.</p>
+          </section>
+        ) : null}
 
         <section className="panel">
           <div className="section-head compact">

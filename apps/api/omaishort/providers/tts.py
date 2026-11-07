@@ -8,6 +8,25 @@ from typing import Protocol
 
 import httpx
 
+
+def ensure_sentence_stop(text: str) -> str:
+    blob = (text or "").strip()
+    if blob and not re.search(r"[.!?…][\"'»”’]*$", blob):
+        return blob + "."
+    return blob
+
+
+def ensure_spoken_stops(text: str) -> str:
+    """Each blank-line block ends on a sentence stop so TTS does not run on."""
+    parts = [ensure_sentence_stop(block) for block in (text or "").split("\n\n") if block.strip()]
+    return "\n\n".join(parts) if parts else (text or "").strip()
+
+
+def join_scene_narration(lines: list[str]) -> str:
+    """Join scene VO with sentence stops so edge-tts pauses between scenes."""
+    return " ".join(ensure_sentence_stop(raw) for raw in lines if (raw or "").strip())
+
+
 from omaishort.providers import elevenlabs_hub
 from omaishort.engine.captions import WordStamp, edge_ticks_to_seconds
 from omaishort.engine.kenburns import probe_duration as probe_duration
@@ -180,24 +199,6 @@ class ElevenLabsTTSProvider:
                 return TTSResult(path=dest, provider=self.name, words=None)
         except Exception:
             return None
-
-
-def ensure_sentence_stop(text: str) -> str:
-    blob = (text or "").strip()
-    if blob and not re.search(r"[.!?…][\"'»”’]*$", blob):
-        return blob + "."
-    return blob
-
-
-def ensure_spoken_stops(text: str) -> str:
-    """Each blank-line block ends on a sentence stop so TTS does not run on."""
-    parts = [ensure_sentence_stop(block) for block in (text or "").split("\n\n") if block.strip()]
-    return "\n\n".join(parts) if parts else (text or "").strip()
-
-
-def join_scene_narration(lines: list[str]) -> str:
-    """Join scene VO with sentence stops so edge-tts pauses between scenes."""
-    return " ".join(ensure_sentence_stop(raw) for raw in lines if (raw or "").strip())
 
 
 def split_tts_chunks(text: str, limit: int = 900) -> list[str]:

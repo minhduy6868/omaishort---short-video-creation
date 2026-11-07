@@ -23,10 +23,10 @@ export function Header() {
   }, [location.pathname]);
 
   const navItems = [
-    { key: 'features', href: '#features' },
-    { key: 'howItWorks', href: '#how-it-works' },
-    { key: 'demo', href: '#demo' },
-    { key: 'faq', href: '#faq' },
+    { key: 'features', href: `/${lang}#features` },
+    { key: 'howItWorks', href: `/${lang}#how-it-works` },
+    { key: 'demo', href: `/${lang}#demo` },
+    { key: 'faq', href: `/${lang}#faq` },
   ];
 
   return (

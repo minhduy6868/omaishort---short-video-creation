@@ -77,6 +77,57 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/robots.txt")
+def robots_txt() -> Response:
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Allow: /vi\n"
+        "Allow: /en\n"
+        "Allow: /ja\n"
+        "Allow: /vi/privacy\n"
+        "Allow: /en/privacy\n"
+        "Allow: /ja/privacy\n"
+        "Allow: /vi/terms\n"
+        "Allow: /en/terms\n"
+        "Allow: /ja/terms\n"
+        "Allow: /vi/cookies\n"
+        "Allow: /en/cookies\n"
+        "Allow: /ja/cookies\n"
+        "Disallow: /admin\n"
+        "Disallow: /account\n"
+        "Disallow: /auth/\n"
+        "Disallow: /jobs\n\n"
+        "Sitemap: https://omaishort.com/sitemap.xml\n"
+    )
+    return Response(content=body, media_type="text/plain; charset=utf-8")
+
+
+@app.get("/sitemap.xml")
+def sitemap_xml() -> Response:
+    urls = (
+        "https://omaishort.com/vi",
+        "https://omaishort.com/en",
+        "https://omaishort.com/ja",
+        "https://omaishort.com/vi/privacy",
+        "https://omaishort.com/en/privacy",
+        "https://omaishort.com/ja/privacy",
+        "https://omaishort.com/vi/terms",
+        "https://omaishort.com/en/terms",
+        "https://omaishort.com/ja/terms",
+        "https://omaishort.com/vi/cookies",
+        "https://omaishort.com/en/cookies",
+        "https://omaishort.com/ja/cookies",
+    )
+    items = "".join(f"<url><loc>{u}</loc></url>" for u in urls)
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{items}</urlset>"
+    )
+    return Response(content=xml, media_type="application/xml; charset=utf-8")
+
+
 _chatgpt_gate = threading.Lock()
 _chatgpt_opening = False
 _grok_gate = threading.Lock()
@@ -85,7 +136,11 @@ _grok_opening = False
 
 @app.get("/providers")
 def providers() -> dict[str, object]:
-    return llm_status()
+    return {
+        **llm_status(),
+        "chatgpt_opening": bool(_chatgpt_opening),
+        "grok_opening": bool(_grok_opening),
+    }
 
 
 @app.post("/providers/chatgpt-login")
@@ -167,6 +222,7 @@ def start_grok_login(_user: CurrentUser) -> dict[str, str]:
     """Open headed Chrome on this PC until a Grok SSO cookie exists. Drama motion only."""
     global _grok_opening
     from omaishort.providers.chrome_profile import playwright_ok
+    from omaishort.providers.grok_web import chrome_launch_error
     from omaishort.providers.grok_web import login as grok_login
     from omaishort.providers.grok_web import session_lock as grok_busy
 
@@ -175,11 +231,23 @@ def start_grok_login(_user: CurrentUser) -> dict[str, str]:
     if grok_busy.locked():
         raise HTTPException(status_code=409, detail="Một job đang dùng phiên Grok để dựng chuyển động. Chờ cảnh đó xong rồi bấm lại.")
 
+    opened = threading.Event()
+    box: dict[str, str] = {}
+
+    def _on_open(exc: BaseException | None) -> None:
+        if exc is not None:
+            box["error"] = chrome_launch_error(exc)
+        opened.set()
+
     def _run() -> None:
         global _grok_opening
         try:
-            asyncio.run(grok_login())
+            asyncio.run(grok_login(on_open=_on_open))
+        except Exception as exc:
+            box.setdefault("error", chrome_launch_error(exc))
+            opened.set()
         finally:
+            opened.set()
             with _grok_gate:
                 _grok_opening = False
 
@@ -188,6 +256,11 @@ def start_grok_login(_user: CurrentUser) -> dict[str, str]:
             raise HTTPException(status_code=409, detail="Cửa sổ Grok đang mở. Đăng nhập trên cửa sổ đó, hoặc đóng rồi bấm lại.")
         _grok_opening = True
     threading.Thread(target=_run, name="grok-login", daemon=True).start()
+    opened.wait(30)
+    if box.get("error"):
+        with _grok_gate:
+            _grok_opening = False
+        raise HTTPException(status_code=503, detail=box["error"])
     return {"status": "opening"}
 
 

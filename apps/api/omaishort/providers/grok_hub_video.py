@@ -143,6 +143,7 @@ async def _generate_locked(prompt: str, dest: Path, still: Path, duration: float
         async with async_playwright() as pw:
             launch = grok_web.launch_args(headed=False)
             ctx = await pw.chromium.launch_persistent_context(**launch)
+            await grok_web.prepare(ctx)
             try:
                 if not await grok_web.has_session(ctx):
                     grok_web.clear_authed()

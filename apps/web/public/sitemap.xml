@@ -1,26 +1,67 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Domain placeholder: update when production domain is confirmed -->
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:xhtml="http://www.w3.org/1999/xhtml">
-  <url>
-    <loc>https://omaishort.com/en</loc>
-    <xhtml:link rel="alternate" hreflang="vi" href="https://omaishort.com/vi" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://omaishort.com/en" />
-    <xhtml:link rel="alternate" hreflang="ja" href="https://omaishort.com/ja" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://omaishort.com/en" />
-  </url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://omaishort.com/vi</loc>
     <xhtml:link rel="alternate" hreflang="vi" href="https://omaishort.com/vi" />
     <xhtml:link rel="alternate" hreflang="en" href="https://omaishort.com/en" />
     <xhtml:link rel="alternate" hreflang="ja" href="https://omaishort.com/ja" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://omaishort.com/en" />
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/en</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://omaishort.com/ja</loc>
-    <xhtml:link rel="alternate" hreflang="vi" href="https://omaishort.com/vi" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://omaishort.com/en" />
-    <xhtml:link rel="alternate" hreflang="ja" href="https://omaishort.com/ja" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://omaishort.com/en" />
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/vi/privacy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/en/privacy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/ja/privacy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/vi/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/en/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/ja/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/vi/cookies</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/en/cookies</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://omaishort.com/ja/cookies</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
   </url>
 </urlset>

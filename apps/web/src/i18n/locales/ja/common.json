@@ -12,13 +12,23 @@
     "tagline": "ストーリーを貼り付けるだけ。ショート動画が完成。",
     "product": "プロダクト",
     "resources": "リソース",
+    "legal": "ポリシー・規約",
     "documentation": "ドキュメント",
     "github": "GitHub",
     "studio": "Studio",
+    "privacy": "プライバシーポリシー",
+    "terms": "利用規約",
+    "cookies": "Cookie・データポリシー",
     "copyright": "© {{year}} omaishort. ローカルファーストのストーリー動画エンジン。"
   },
   "meta": {
     "title": "omaishort — AIストーリー動画エンジン",
-    "description": "ストーリー、ニュースURL、またはトピックを貼り付けるだけ。omaishortがAIナレーション、画像生成、カラオケ字幕付きの1080×1920ショート動画を作成します。"
+    "description": "ストーリー、ニュースURL、またはトピックを貼り付けるだけ。omaishortがAIナレーション、画像生成、カラオケ字幕付きの1080×1920ショート動画を作成します。",
+    "privacyTitle": "プライバシーポリシー — omaishort",
+    "privacyDescription": "レンダリングされたMP4動画をローカルディスクに保持し、Cloudflare D1でアカウントとメタデータを安全に管理する方法。",
+    "termsTitle": "利用規約 — omaishort",
+    "termsDescription": "omaishort Studioの利用条件、生成されたコンテンツの権利、および外部プロバイダー連携に関する規約。",
+    "cookiesTitle": "Cookie・ローカルデータポリシー — omaishort",
+    "cookiesDescription": "必須のHttpOnly認証Cookie、ブラウザ設定、およびローカルディスクストレージに関する詳細。"
   }
 }

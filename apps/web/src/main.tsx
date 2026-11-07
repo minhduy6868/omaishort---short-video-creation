@@ -10,6 +10,7 @@ import "./styles/theme.css";
 import "./styles/skins.css";
 import { useNav, NavProvider } from "./nav";
 import { LandingPage } from "./pages/LandingPage";
+import { PolicyPage, type PolicySection } from "./pages/PolicyPage";
 import { SessionProvider } from "./session";
 import { initTheme } from "./theme";
 
@@ -33,6 +34,14 @@ function LandingRoute() {
   return <LandingPage />;
 }
 
+function PolicyRoute({ section }: { section: PolicySection }) {
+  const { lang } = useParams();
+  if (!lang || !SUPPORTED_LANGS.includes(lang as SupportedLang)) {
+    return <Navigate to={`/vi/${section}`} replace />;
+  }
+  return <PolicyPage section={section} />;
+}
+
 function AppRouter() {
   return (
     <BrowserRouter>
@@ -43,6 +52,13 @@ function AppRouter() {
           <Route key={path} path={path} element={<App />} />
         ))}
         <Route path="/watch/:id" element={<App />} />
+        <Route path="/privacy" element={<Navigate to="/vi/privacy" replace />} />
+        <Route path="/policy" element={<Navigate to="/vi/privacy" replace />} />
+        <Route path="/terms" element={<Navigate to="/vi/terms" replace />} />
+        <Route path="/cookies" element={<Navigate to="/vi/cookies" replace />} />
+        <Route path="/:lang/privacy" element={<PolicyRoute section="privacy" />} />
+        <Route path="/:lang/terms" element={<PolicyRoute section="terms" />} />
+        <Route path="/:lang/cookies" element={<PolicyRoute section="cookies" />} />
         <Route path="/:lang/studio" element={<Navigate to="/work" replace />} />
         <Route path="/:lang" element={<LandingRoute />} />
         <Route path="*" element={<Navigate to="/vi" replace />} />

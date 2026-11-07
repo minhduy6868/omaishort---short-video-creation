@@ -190,6 +190,7 @@ export type ProviderStatus = {
   grok_video?: boolean;
   grok_hub?: boolean;
   grok_hub_authed?: boolean;
+  grok_opening?: boolean;
   drama_motion?: string;
   image?: Record<string, boolean>;
   video?: Record<string, boolean>;
@@ -197,6 +198,7 @@ export type ProviderStatus = {
   chatgpt_web?: boolean;
   chatgpt_web_authed?: boolean;
   chatgpt_web_chat?: string;
+  chatgpt_opening?: boolean;
 };
 
 export async function startChatgptLogin(): Promise<{ status: string }> {

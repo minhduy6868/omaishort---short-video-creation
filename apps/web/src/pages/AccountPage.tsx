@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  checkChatgptSession,
   listAttachments,
   openChatgptContent,
   readElevenLabs,
@@ -50,10 +51,10 @@ function formatDate(value: string): string {
 
 export function AccountPage() {
   const { user } = useSession();
-  const isOperator = user?.role === "operator";
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
   const [chatgptOpening, setChatgptOpening] = useState(false);
+  const [chatgptChecking, setChatgptChecking] = useState(false);
   const [chatgptMessage, setChatgptMessage] = useState<string | null>(null);
   const [grokOpening, setGrokOpening] = useState(false);
   const [grokMessage, setGrokMessage] = useState<string | null>(null);
@@ -67,9 +68,8 @@ export function AccountPage() {
   const [hubMessage, setHubMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    void listAttachments().then(setAttachments);
-    if (!isOperator) return;
     void readProviders().then(setProviders);
+    void listAttachments().then(setAttachments);
     void readElevenLabs()
       .then((hub) => {
         setEleven(hub);
@@ -79,10 +79,9 @@ export function AccountPage() {
         setElevenMode(hub.mode === "api" ? "api" : "anonymous");
       })
       .catch((err) => setHubMessage(err instanceof Error ? err.message : "Không đọc được ElevenLabs"));
-  }, [isOperator]);
+  }, []);
 
   useEffect(() => {
-    if (!isOperator) return;
     const refresh = () => {
       if (!document.hidden) void readProviders().then(setProviders);
     };
@@ -92,7 +91,7 @@ export function AccountPage() {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, [isOperator]);
+  }, []);
 
   useEffect(() => {
     if (!chatgptOpening && !grokOpening) return;
@@ -139,22 +138,22 @@ export function AccountPage() {
         lede={user ? `${user.email} · ${user.role}` : "Phiên đăng nhập hiện tại"}
       />
 
-      {isOperator ? (
-        <>
-          <section className="panel">
-            <div className="section-head compact">
-              <div>
-                <p className="kicker">Giao diện</p>
-                <h2>Giao diện toàn site</h2>
-                <p className="panel-subtitle">
-                  Bạn là admin. Bộ được chọn áp dụng cho landing và studio của mọi người.
-                </p>
-              </div>
-            </div>
-            <SiteThemePicker editable />
-          </section>
+      <section className="panel">
+        <div className="section-head compact">
+          <div>
+            <p className="kicker">Giao diện</p>
+            <h2>Giao diện toàn site</h2>
+            <p className="panel-subtitle">
+              {user?.role === "operator"
+                ? "Bạn là admin. Bộ được chọn áp dụng cho landing và studio của mọi người."
+                : "Admin (operator) chọn giao diện cho toàn site."}
+            </p>
+          </div>
+        </div>
+        <SiteThemePicker editable={user?.role === "operator"} />
+      </section>
 
-          <div className="hub-grid">
+      <div className="hub-grid">
         <section className="panel hub-card">
           <div className="section-head compact">
             <div>
@@ -173,7 +172,7 @@ export function AccountPage() {
             <button
               type="button"
               className={providers?.chatgpt_web_authed ? "ghost" : undefined}
-              disabled={chatgptOpening}
+              disabled={chatgptOpening || chatgptChecking}
               onClick={() => {
                 setChatgptMessage(null);
                 setChatgptOpening(true);
@@ -189,10 +188,28 @@ export function AccountPage() {
             >
               {chatgptOpening ? "Đang chờ ChatGPT…" : providers?.chatgpt_web_authed ? "Đăng nhập lại" : "Đăng nhập ChatGPT"}
             </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={chatgptOpening || chatgptChecking}
+              onClick={() => {
+                setChatgptChecking(true);
+                setChatgptMessage("Đang kiểm tra kết nối trực tiếp tới ChatGPT…");
+                void checkChatgptSession()
+                  .then((res) => {
+                    setChatgptMessage(res.message);
+                    void readProviders().then(setProviders);
+                  })
+                  .catch((err) => setChatgptMessage(err instanceof Error ? err.message : "Không kiểm tra được ChatGPT"))
+                  .finally(() => setChatgptChecking(false));
+              }}
+            >
+              {chatgptChecking ? "Đang kiểm tra…" : "Kiểm tra ChatGPT thật"}
+            </button>
             {providers?.chatgpt_web_authed ? (
               <button
                 type="button"
-                disabled={chatgptOpening}
+                disabled={chatgptOpening || chatgptChecking}
                 onClick={() => {
                   setChatgptMessage(null);
                   void openChatgptContent()
@@ -204,6 +221,28 @@ export function AccountPage() {
               </button>
             ) : null}
           </div>
+          {providers?.last_script?.provider ? (
+            <div className="provider-row" style={{ marginTop: "10px", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <StatusPill
+                label={
+                  providers.last_script.provider === "chatgpt-web" || providers.last_script.provider === "llm"
+                    ? `Kịch bản gần nhất: ChatGPT thật (${providers.last_script.provider})`
+                    : `Kịch bản gần nhất: Fallback (${providers.last_script.provider})`
+                }
+                tone={
+                  providers.last_script.provider === "chatgpt-web" || providers.last_script.provider === "llm"
+                    ? "done"
+                    : "failed"
+                }
+              />
+              {providers.last_script.title ? <span className="meta">{providers.last_script.title}</span> : null}
+            </div>
+          ) : null}
+          {providers?.last_script?.note ? (
+            <p className="err" style={{ marginTop: "6px" }}>
+              Lý do fallback lần trước: {providers.last_script.note.slice(0, 180)}
+            </p>
+          ) : null}
           {providers?.chatgpt_web_chat ? <p className="meta">Hội thoại hôm nay đã có. Cửa sổ hub mở đúng phiên đó.</p> : null}
           {chatgptMessage ? <p className="meta">{chatgptMessage}</p> : null}
         </section>
@@ -386,44 +425,36 @@ export function AccountPage() {
           {eleven?.error ? <p className="err">{eleven.error}</p> : null}
         </section>
       </div>
-        </>
-      ) : null}
 
       <div className="counter-grid">
         <CounterCard label="Attachments" value={attachments.length} hint="File trong thư viện" />
         <CounterCard label="Loại file" value={attachmentCounts.length} hint="face, logo, script, editorial" />
-        {isOperator ? (
-          <>
-            <CounterCard label="Providers" value={providers ? chips(providers).filter((chip) => chip.on).length : 0} hint="Đang sẵn sàng" />
-            <CounterCard label="Motion" value={providers?.drama_motion && providers.drama_motion !== "kenburns" ? 1 : 0} hint={providers?.drama_motion || "kenburns"} />
-          </>
-        ) : null}
+        <CounterCard label="Providers" value={providers ? chips(providers).filter((chip) => chip.on).length : 0} hint="Đang sẵn sàng" />
+        <CounterCard label="Motion" value={providers?.drama_motion && providers.drama_motion !== "kenburns" ? 1 : 0} hint={providers?.drama_motion || "kenburns"} />
       </div>
 
       <div className="account-grid">
-        {isOperator ? (
-          <section className="panel">
-            <div className="section-head compact">
-              <div>
-                <p className="kicker">Providers</p>
-                <h2>Readiness</h2>
-              </div>
+        <section className="panel">
+          <div className="section-head compact">
+            <div>
+              <p className="kicker">Providers</p>
+              <h2>Readiness</h2>
             </div>
-            {providers ? (
-              <div className="provider-card-grid">
-                {chips(providers).map((chip) => (
-                  <article key={chip.id} className="provider-tile">
-                    <StatusPill label={chip.on ? "ready" : "off"} tone={chip.on ? "done" : "idle"} />
-                    <strong>{chip.label}</strong>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="meta">Đang đọc provider…</p>
-            )}
-            <p className="meta">ChatGPT viết lời Knowledge. Grok hub chỉ chuyển động drama. Gemini là API key.</p>
-          </section>
-        ) : null}
+          </div>
+          {providers ? (
+            <div className="provider-card-grid">
+              {chips(providers).map((chip) => (
+                <article key={chip.id} className="provider-tile">
+                  <StatusPill label={chip.on ? "ready" : "off"} tone={chip.on ? "done" : "idle"} />
+                  <strong>{chip.label}</strong>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="meta">Đang đọc provider…</p>
+          )}
+          <p className="meta">ChatGPT viết lời Knowledge. Grok hub chỉ chuyển động drama. Gemini là API key.</p>
+        </section>
 
         <section className="panel">
           <div className="section-head compact">

@@ -56,8 +56,7 @@ def hub_launch_args(user_data_dir: Path, *, visible: bool, headless: bool = Fals
     Background jobs use a real headed window parked off-screen. Cloudflare on chatgpt.com
     and grok.com challenges headless Chrome, so the composer or the fetch never answers.
     """
-    if visible:
-        ensure_default_desktop()
+    ensure_default_desktop()
     args = list(_STEALTH)
     if not visible and not headless:
         args.extend(_OFFSCREEN)

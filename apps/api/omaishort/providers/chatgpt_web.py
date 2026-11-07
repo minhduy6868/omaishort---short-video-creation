@@ -180,13 +180,9 @@ async def _prepare(ctx) -> None:
     await ctx.add_init_script(_HIDE_WEBDRIVER)
 
 
-async def _account_live(page) -> bool:
-    """True when /api/auth/session returns a user and an access token.
-
-    /backend-api/me needs the bearer token, so a cookie-only fetch there never sees the account.
-    """
+async def _account_info(page) -> dict:
     if page.is_closed() or not (page.url or "").startswith(_CHAT):
-        return False
+        return {}
     try:
         me = await page.evaluate(
             """async () => {
@@ -200,11 +196,113 @@ async def _account_live(page) -> bool:
             }"""
         )
     except Exception:
-        # Login redirects destroy the JS world mid-evaluate — poll again.
-        return False
-    if not isinstance(me, dict):
-        return False
+        return {}
+    return me if isinstance(me, dict) else {}
+
+
+async def _account_live(page) -> bool:
+    """True when /api/auth/session returns a user and an access token.
+
+    /backend-api/me needs the bearer token, so a cookie-only fetch there never sees the account.
+    """
+    me = await _account_info(page)
     return bool(me.get("token") and me.get("id") and (me.get("email") or me.get("name")))
+
+
+def latest_script_trace() -> dict[str, str]:
+    """Return the most recent job's script.json metadata so the UI shows whether ChatGPT or Wiki wrote it."""
+    jobs_root = DATA_DIR / "jobs"
+    if not jobs_root.is_dir():
+        return {}
+    candidates = sorted(
+        jobs_root.glob("*/script.json"),
+        key=lambda p: p.stat().st_mtime if p.exists() else 0.0,
+        reverse=True,
+    )
+    for path in candidates[:5]:
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(raw, dict) and raw.get("provider"):
+            return {
+                "job_id": path.parent.name,
+                "provider": str(raw.get("provider") or ""),
+                "title": str(raw.get("title") or raw.get("source") or path.parent.name),
+                "note": str(raw.get("note") or ""),
+            }
+    return {}
+
+
+async def check_live_session() -> dict[str, object]:
+    """Verify live ChatGPT Web session (/api/auth/session + composer visibility) and return account info."""
+    trace = latest_script_trace()
+    if not playwright_ok():
+        return {
+            "ok": False,
+            "authed": False,
+            "message": "Chưa cài Playwright Chromium.",
+            "last_script": trace,
+        }
+    from playwright.async_api import async_playwright
+
+    profile_dir().mkdir(parents=True, exist_ok=True)
+    daily = load_daily_chat()
+    url = chat_open_url(CHATGPT_WEB_MODEL, daily)
+    async with _LOCK:
+        async with async_playwright() as pw:
+            try:
+                ctx = await pw.chromium.launch_persistent_context(**_launch_args(headed=False))
+            except Exception as exc:
+                return {
+                    "ok": False,
+                    "authed": is_authed(),
+                    "message": chrome_launch_error(exc),
+                    "last_script": trace,
+                }
+            await _prepare(ctx)
+            try:
+                page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+                await page.goto(url, wait_until="domcontentloaded")
+                await page.wait_for_timeout(2000)
+                info = await _account_info(page)
+                live = bool(info.get("token") and info.get("id") and (info.get("email") or info.get("name")))
+                composer_ok = False
+                if live:
+                    save_authed()
+                    save_daily_chat(page.url or "")
+                    try:
+                        await _wait_composer(page, 15_000)
+                        composer_ok = True
+                    except Exception:
+                        composer_ok = False
+                else:
+                    clear_authed()
+                reason = await _blocked_reason(page) if not composer_ok else ""
+                who = str(info.get("email") or info.get("name") or "")
+                if live and composer_ok:
+                    msg = f"Đã kết nối ChatGPT thật ({who}). Khung nhập lệnh sẵn sàng — tạo video Knowledge sẽ dùng ChatGPT, không dùng Wikipedia fallback."
+                elif live and reason:
+                    msg = f"Tài khoản {who} đã đăng nhập nhưng đang vướng kiểm tra: {reason}"
+                elif live:
+                    msg = f"Đã nhận diện tài khoản ChatGPT ({who})."
+                else:
+                    msg = reason or "Chưa đăng nhập hoặc phiên ChatGPT đã hết hạn. Bấm Đăng nhập ChatGPT để kết nối."
+                return {
+                    "ok": bool(live and composer_ok),
+                    "authed": bool(live),
+                    "composer_ready": composer_ok,
+                    "email": str(info.get("email") or ""),
+                    "name": str(info.get("name") or ""),
+                    "chat_url": (load_daily_chat() or {}).get("url") or "",
+                    "message": msg,
+                    "last_script": trace,
+                }
+            finally:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
 
 
 async def _blocked_reason(page) -> str:

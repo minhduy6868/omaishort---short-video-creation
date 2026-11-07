@@ -185,6 +185,13 @@ export async function listAttachments(): Promise<AttachmentRow[]> {
   return Array.isArray(data.attachments) ? data.attachments : [];
 }
 
+export type ScriptTrace = {
+  job_id?: string;
+  provider?: string;
+  title?: string;
+  note?: string;
+};
+
 export type ProviderStatus = {
   grok_image?: boolean;
   grok_video?: boolean;
@@ -199,12 +206,30 @@ export type ProviderStatus = {
   chatgpt_web_authed?: boolean;
   chatgpt_web_chat?: string;
   chatgpt_opening?: boolean;
+  last_script?: ScriptTrace;
+};
+
+export type ChatgptCheckResult = {
+  ok: boolean;
+  authed: boolean;
+  composer_ready?: boolean;
+  email?: string;
+  name?: string;
+  chat_url?: string;
+  message: string;
+  last_script?: ScriptTrace;
 };
 
 export async function startChatgptLogin(): Promise<{ status: string }> {
   const res = await request("/providers/chatgpt-login", { method: "POST" });
   if (!res.ok) throw await parseError(res, "Could not open ChatGPT");
   return (await res.json()) as { status: string };
+}
+
+export async function checkChatgptSession(): Promise<ChatgptCheckResult> {
+  const res = await request("/providers/chatgpt-check", { method: "POST" });
+  if (!res.ok) throw await parseError(res, "Không kiểm tra được phiên ChatGPT");
+  return (await res.json()) as ChatgptCheckResult;
 }
 
 export async function startGrokLogin(): Promise<{ status: string }> {

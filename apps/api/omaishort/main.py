@@ -217,6 +217,19 @@ def open_chatgpt_content(_user: CurrentUser) -> dict[str, str]:
     return {"status": "opening"}
 
 
+@app.post("/providers/chatgpt-check")
+async def check_chatgpt_status(_user: CurrentUser) -> dict[str, object]:
+    """Verify live ChatGPT Web session and report whether ChatGPT or Wikipedia fallback was used."""
+    from omaishort.providers.chatgpt_web import check_live_session
+
+    if _chatgpt_opening:
+        raise HTTPException(
+            status_code=409,
+            detail="Cửa sổ ChatGPT đang mở. Đóng cửa sổ đó trước khi kiểm tra kết nối.",
+        )
+    return await check_live_session()
+
+
 @app.post("/providers/grok-login")
 def start_grok_login(_user: CurrentUser) -> dict[str, str]:
     """Open headed Chrome on this PC until a Grok SSO cookie exists. Drama motion only."""

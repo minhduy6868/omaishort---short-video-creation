@@ -105,6 +105,7 @@ def llm_status() -> dict[str, object]:
         "chatgpt_web_authed": chatgpt_web.is_authed(),
         "chatgpt_web_profile": str(chatgpt_web.profile_dir()),
         "chatgpt_web_chat": (chatgpt_web.load_daily_chat() or {}).get("url") or "",
+        "last_script": chatgpt_web.latest_script_trace(),
         "grok_image": grok,
         "grok_video": grok_video,
         "grok_hub": bool(GROK_WEB_ENABLED and grok_web.playwright_ok()),

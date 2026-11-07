@@ -261,6 +261,7 @@ export function WorkPage() {
                       <td>{formatDate(job.updated_at || job.created_at)}</td>
                       <td>
                         <span className="table-mono">
+                          {job.artifacts?.script_provider ? `${job.artifacts.script_provider} · ` : ""}
                           {motion}
                           {mp4Bytes ? ` · ${formatBytes(mp4Bytes)}` : ""}
                         </span>

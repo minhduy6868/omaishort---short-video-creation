@@ -133,6 +133,9 @@ async def run_job(job_id: str) -> None:
                             "script_brief": story.script_brief,
                         },
                     )
+                    artifacts["script_provider"] = script_src
+                    if script_note:
+                        artifacts["script_note"] = script_note
                     providers["script"] = script_src
                     story = story.model_copy(
                         update={
@@ -169,6 +172,9 @@ async def run_job(job_id: str) -> None:
                         },
                     )
                     artifacts["script"] = script_path.as_posix()
+                    artifacts["script_provider"] = script_src
+                    if script_note:
+                        artifacts["script_note"] = script_note
                     providers["script"] = script_src
                 article_urls = page.image_urls
                 article_captions = page.image_captions
@@ -218,6 +224,9 @@ async def run_job(job_id: str) -> None:
                 },
             )
             artifacts["script"] = script_path.as_posix()
+            artifacts["script_provider"] = script_src
+            if script_note:
+                artifacts["script_note"] = script_note
             db.update_job(job_id, artifacts_json=json.dumps(artifacts), progress="script")
         db.update_job(job_id, status=JobStatus.running.value, stage=JobStage.analyze.value, progress="analyze")
         if providers.get("script") in {"llm", "chatgpt-web"}:

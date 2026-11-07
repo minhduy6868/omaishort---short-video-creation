@@ -15,7 +15,13 @@ import time
 from pathlib import Path
 
 from omaishort.config import DATA_DIR, GROK_WEB_ENABLED, GROK_WEB_HEADED, HUB_HEADLESS
-from omaishort.providers.chrome_profile import hub_launch_args, playwright_ok, system_chrome_exe
+from omaishort.providers.chrome_profile import (
+    bring_chrome_windows_to_front,
+    hub_launch_args,
+    kill_stale_profile_chrome,
+    playwright_ok,
+    system_chrome_exe,
+)
 
 IMAGINE = "https://grok.com/imagine"
 _AUTH_COOKIES = {"sso", "sso-rw"}
@@ -160,6 +166,7 @@ async def login(on_open=None) -> bool:
     from playwright.async_api import async_playwright
 
     profile_dir().mkdir(parents=True, exist_ok=True)
+    kill_stale_profile_chrome(profile_dir())
     async with async_playwright() as pw:
         launch = {**launch_args(headed=True), "headless": False}
         if launch.get("channel") == "chrome":
@@ -174,12 +181,23 @@ async def login(on_open=None) -> bool:
         await prepare(ctx)
         try:
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+            try:
+                await page.bring_to_front()
+            except Exception:
+                pass
+            bring_chrome_windows_to_front()
             _opened(None)
             await page.goto(IMAGINE, wait_until="domcontentloaded")
+            bring_chrome_windows_to_front()
             await page.wait_for_timeout(2000)
-            if not await has_session(ctx):
+            bring_chrome_windows_to_front()
+            was_already_authed = await has_session(ctx)
+            saw_logged_out = not was_already_authed
+            if not was_already_authed:
                 clear_authed()
                 await _try_fill_login(page)
+            else:
+                save_authed()
             deadline = time.monotonic() + 30 * 60
             while time.monotonic() < deadline:
                 open_pages = [p for p in ctx.pages if not p.is_closed()]
@@ -189,13 +207,17 @@ async def login(on_open=None) -> bool:
                     saved = is_authed()
                     print("Grok login window was closed." + (" Session was saved." if saved else ""), flush=True)
                     return saved
-                if await has_session(ctx):
-                    on_grok = [p for p in open_pages if "grok.com" in (p.url or "")]
-                    target = on_grok[0] if on_grok else open_pages[0]
-                    await target.wait_for_timeout(1500)
+                has_sso = await has_session(ctx)
+                if not has_sso:
+                    saw_logged_out = True
+                else:
                     save_authed()
-                    print(f"Grok hub session saved at {profile_dir()}", flush=True)
-                    return True
+                    if saw_logged_out:
+                        on_grok = [p for p in open_pages if "grok.com" in (p.url or "")]
+                        target = on_grok[0] if on_grok else open_pages[0]
+                        await target.wait_for_timeout(1500)
+                        print(f"Grok hub session saved at {profile_dir()}", flush=True)
+                        return True
                 await asyncio.sleep(2)
             print("Grok login timed out.", flush=True)
             return False

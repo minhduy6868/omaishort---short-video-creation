@@ -144,14 +144,9 @@ def test_only_the_operator_can_click_the_site_theme(studio_url, browser):
     assert _register(page, studio_url, "creator@example.com")["user"]["role"] == "creator"
 
     page.goto(f"{studio_url}/account")
-    picker = page.get_by_role("radiogroup", name="Giao diện toàn site")
-    picker.wait_for()
-    radios = picker.get_by_role("radio")
-    assert radios.count() == 2
-    for index in range(2):
-        assert radios.nth(index).is_disabled()
-    assert page.get_by_text("Admin (operator) chọn giao diện cho toàn site.").is_visible()
+    page.get_by_role("button", name="Kiểm tra ChatGPT thật").wait_for()
     assert page.get_by_role("button", name="Kiểm tra ChatGPT thật").is_visible()
+    assert page.get_by_role("radiogroup", name="Giao diện toàn site").count() == 0
     context.close()
 
 

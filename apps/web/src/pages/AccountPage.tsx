@@ -13,7 +13,6 @@ import {
   type ProviderStatus,
 } from "../api";
 import { CounterCard, PageHeader, StatusPill } from "../components";
-import { SiteThemePicker } from "../theme";
 import { useSession } from "../session";
 
 function chips(status: ProviderStatus): { id: string; on: boolean; label: string }[] {
@@ -138,21 +137,6 @@ export function AccountPage() {
         lede={user ? `${user.email} · ${user.role}` : "Phiên đăng nhập hiện tại"}
       />
 
-      <section className="panel">
-        <div className="section-head compact">
-          <div>
-            <p className="kicker">Giao diện</p>
-            <h2>Giao diện toàn site</h2>
-            <p className="panel-subtitle">
-              {user?.role === "operator"
-                ? "Bạn là admin. Bộ được chọn áp dụng cho landing và studio của mọi người."
-                : "Admin (operator) chọn giao diện cho toàn site."}
-            </p>
-          </div>
-        </div>
-        <SiteThemePicker editable={user?.role === "operator"} />
-      </section>
-
       <div className="hub-grid">
         <section className="panel hub-card">
           <div className="section-head compact">
@@ -221,28 +205,6 @@ export function AccountPage() {
               </button>
             ) : null}
           </div>
-          {providers?.last_script?.provider ? (
-            <div className="provider-row" style={{ marginTop: "10px", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              <StatusPill
-                label={
-                  providers.last_script.provider === "chatgpt-web" || providers.last_script.provider === "llm"
-                    ? `Kịch bản gần nhất: ChatGPT thật (${providers.last_script.provider})`
-                    : `Kịch bản gần nhất: Fallback (${providers.last_script.provider})`
-                }
-                tone={
-                  providers.last_script.provider === "chatgpt-web" || providers.last_script.provider === "llm"
-                    ? "done"
-                    : "failed"
-                }
-              />
-              {providers.last_script.title ? <span className="meta">{providers.last_script.title}</span> : null}
-            </div>
-          ) : null}
-          {providers?.last_script?.note ? (
-            <p className="err" style={{ marginTop: "6px" }}>
-              Lý do fallback lần trước: {providers.last_script.note.slice(0, 180)}
-            </p>
-          ) : null}
           {providers?.chatgpt_web_chat ? <p className="meta">Hội thoại hôm nay đã có. Cửa sổ hub mở đúng phiên đó.</p> : null}
           {chatgptMessage ? <p className="meta">{chatgptMessage}</p> : null}
         </section>

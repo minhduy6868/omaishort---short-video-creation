@@ -222,12 +222,6 @@ def init_db() -> None:
                 "CREATE INDEX IF NOT EXISTS idx_attachments_user ON attachments(user_id, created_at)"
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, created_at)")
-            try:
-                conn.execute(
-                    "UPDATE users SET role = 'operator' WHERE email NOT LIKE '%@example.com' AND role != 'operator'"
-                )
-            except Exception:
-                pass
             conn.commit()
         finally:
             conn.close()

@@ -22,7 +22,13 @@ from omaishort.config import (
     DATA_DIR,
     HUB_HEADLESS,
 )
-from omaishort.providers.chrome_profile import hub_launch_args, playwright_ok, system_chrome_exe
+from omaishort.providers.chrome_profile import (
+    bring_chrome_windows_to_front,
+    hub_launch_args,
+    kill_stale_profile_chrome,
+    playwright_ok,
+    system_chrome_exe,
+)
 
 _CHAT = "https://chatgpt.com"
 _COMPOSER = (
@@ -247,6 +253,7 @@ async def check_live_session() -> dict[str, object]:
     from playwright.async_api import async_playwright
 
     profile_dir().mkdir(parents=True, exist_ok=True)
+    kill_stale_profile_chrome(profile_dir())
     daily = load_daily_chat()
     url = chat_open_url(CHATGPT_WEB_MODEL, daily)
     async with _LOCK:
@@ -337,6 +344,7 @@ async def open_content() -> bool:
     from playwright.async_api import async_playwright
 
     profile_dir().mkdir(parents=True, exist_ok=True)
+    kill_stale_profile_chrome(profile_dir())
     async with async_playwright() as pw:
         launch = {**_launch_args(headed=True), "headless": False}
         try:
@@ -346,8 +354,14 @@ async def open_content() -> bool:
             return False
         await _prepare(ctx)
         page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+        try:
+            await page.bring_to_front()
+        except Exception:
+            pass
+        bring_chrome_windows_to_front()
         print("ChatGPT content window is open. Close it when you finish editing.", flush=True)
         await page.goto(chat_open_url(CHATGPT_WEB_MODEL, load_daily_chat()), wait_until="domcontentloaded")
+        bring_chrome_windows_to_front()
         deadline = time.monotonic() + 30 * 60
         while time.monotonic() < deadline:
             if page.is_closed() or not ctx.pages:
@@ -376,6 +390,7 @@ async def login(on_open=None) -> bool:
     from playwright.async_api import async_playwright
 
     profile_dir().mkdir(parents=True, exist_ok=True)
+    kill_stale_profile_chrome(profile_dir())
     async with async_playwright() as pw:
         launch = {**_launch_args(headed=True), "headless": False}
         if launch.get("channel") == "chrome":
@@ -389,11 +404,20 @@ async def login(on_open=None) -> bool:
         await _prepare(ctx)
         try:
             page = ctx.pages[0] if ctx.pages else await ctx.new_page()
+            try:
+                await page.bring_to_front()
+            except Exception:
+                pass
+            bring_chrome_windows_to_front()
             _opened(None)
             print("Log in to ChatGPT in the window. It stays open until the account is saved.", flush=True)
             await page.goto(f"{_CHAT}/", wait_until="domcontentloaded")
+            bring_chrome_windows_to_front()
             await page.wait_for_timeout(2500)
-            if not await _account_live(page):
+            bring_chrome_windows_to_front()
+            was_already_live = await _account_live(page)
+            saw_logout = not was_already_live
+            if not was_already_live:
                 clear_authed()
                 for cookie_name in _AUTH_COOKIES:
                     try:
@@ -410,7 +434,7 @@ async def login(on_open=None) -> bool:
                     pass
             else:
                 save_authed()
-                await page.wait_for_timeout(3000)
+                save_daily_chat(page.url or "")
 
             deadline = time.monotonic() + 30 * 60
             while time.monotonic() < deadline:
@@ -421,17 +445,23 @@ async def login(on_open=None) -> bool:
                     return saved
                 for p in open_pages:
                     url = p.url or ""
-                    if url.startswith(_CHAT) and "/auth/" not in url:
-                        if await _account_live(p):
+                    if "/auth/" in url or "auth.openai.com" in url:
+                        saw_logout = True
+                    elif url.startswith(_CHAT):
+                        live = await _account_live(p)
+                        if not live:
+                            saw_logout = True
+                        else:
                             save_authed()
                             save_daily_chat(url)
-                            try:
-                                if await p.locator(_COMPOSER).count() > 0:
-                                    await p.wait_for_timeout(1500)
-                                    print(f"Session saved at {profile_dir()}", flush=True)
-                                    return True
-                            except Exception:
-                                pass
+                            if saw_logout:
+                                try:
+                                    if await p.locator(_COMPOSER).count() > 0:
+                                        await p.wait_for_timeout(1500)
+                                        print(f"Session saved at {profile_dir()}", flush=True)
+                                        return True
+                                except Exception:
+                                    pass
                 await asyncio.sleep(2)
             print("Login timed out.", flush=True)
             return False
@@ -535,6 +565,7 @@ async def _complete_once(prompt: str, *, headed: bool, timeout_ms: int) -> str:
     from playwright.async_api import async_playwright
 
     profile_dir().mkdir(parents=True, exist_ok=True)
+    kill_stale_profile_chrome(profile_dir())
     daily = load_daily_chat()
     url = chat_open_url(CHATGPT_WEB_MODEL, daily)
     async with async_playwright() as pw:

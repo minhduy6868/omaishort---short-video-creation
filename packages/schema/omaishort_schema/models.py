@@ -23,7 +23,7 @@ class MixSettings(BaseModel):
     logo_enabled: bool = False
     logo_path: str | None = None
     logo_margin: int = Field(default=48, ge=8, le=200)
-    pause_before_render: bool = False
+    pause_before_render: bool = True
 
     @field_validator("logo_path", mode="before")
     @classmethod

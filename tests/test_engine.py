@@ -9,7 +9,7 @@ from omaishort.engine.captions import (
     words_to_ass,
 )
 from omaishort.engine.fallback import bind_scene_assets, beat_shots, fallback_analyze, fallback_plan, pick_location
-from omaishort.engine.image_prompts import build_scene_prompt
+from omaishort.engine.image_prompts import build_scene_prompt, visual_action
 from omaishort.engine.kenburns import zoompan_expr
 from omaishort.engine.motion_prompt import motion_prompt
 from omaishort.engine.rescale import rescale_to_audio
@@ -373,6 +373,77 @@ def test_scene_prompt_asks_for_face_ref_before_images_exist():
     assert "identity lock" in prompt
     assert "On camera ONLY:" in prompt
     assert "No extra people" in prompt
+
+
+def test_visual_action_uses_vo_gist_not_quote():
+    from omaishort_schema.models import Scene, Shot
+
+    scene = Scene(
+        index=1,
+        duration_sec=6,
+        location="kitchen",
+        location_id="kitchen",
+        characters=["wife"],
+        emotion="suspicious",
+        action="wife unlocks the husband's phone",
+        dialogue_or_vo='She whispered "I found Mara on your lock screen"',
+        lighting="phone glow",
+        mood="tense",
+        still_id="still_01",
+        use_face_ref=True,
+        shots=[Shot(camera="medium", motion="hold", t_start=0, t_end=6, still_id="still_01")],
+    )
+    out = visual_action(scene)
+    assert "wife unlocks the husband's phone" in out
+    assert "lock" in out.lower() or "phone" in out.lower() or "mara" in out.lower()
+    assert '"I found Mara' not in out
+    assert "no text" in out.lower()
+
+
+def test_editorial_visual_action_pins_vo_gist():
+    from omaishort_schema.models import Scene, Shot
+
+    scene = Scene(
+        index=2,
+        duration_sec=12,
+        location="city",
+        location_id="city",
+        characters=[],
+        emotion="rising_action",
+        action="uninhabited empty airport terminal, zero people",
+        dialogue_or_vo='Họ rời Nigeria với hai vali và giấy tờ ly hôn đã ký.',
+        lighting="cold terminal fluorescents",
+        mood="unfold",
+        still_id="still_02",
+        use_face_ref=False,
+        shots=[Shot(camera="medium", motion="pan_left", t_start=0, t_end=12, still_id="still_02")],
+    )
+    out = visual_action(scene)
+    assert "zero people" in out.lower()
+    assert "uninhabited" in out.lower() or "airport" in out.lower()
+    assert "nigeria" in out.lower() or "vali" in out.lower() or "ly" in out.lower()
+    assert '"' not in out
+    assert "soap-opera" in out.lower() or "no narrator" in out.lower()
+
+    bare = Scene(
+        index=1,
+        duration_sec=8,
+        location="graphic",
+        location_id="graphic",
+        characters=[],
+        emotion="hook",
+        action="",
+        dialogue_or_vo="The claim: solar panels cut rooftop bills in half.",
+        lighting="flat editorial",
+        mood="hook",
+        still_id="still_01",
+        use_face_ref=False,
+        shots=[Shot(camera="medium", motion="zoom_in", t_start=0, t_end=8, still_id="still_01")],
+    )
+    bare_out = visual_action(bare)
+    assert "zero people" in bare_out.lower()
+    assert "solar" in bare_out.lower() or "rooftop" in bare_out.lower() or "panels" in bare_out.lower()
+    assert "suggesting" in bare_out.lower()
 
 
 def test_husband_only_when_on_camera():

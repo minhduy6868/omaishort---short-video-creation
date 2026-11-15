@@ -82,15 +82,31 @@ def _attachment_records(story: StoryInput, user_id: str | None) -> list[dict]:
 
 
 async def _speak_voiceover(job_id: str, story: StoryInput, vo: str):
-    """TTS can run while stills are fetched. A miss becomes silence, same as before."""
+    """TTS can run while stills are fetched.
+
+    Empty narration may use silence. Non-empty VO must stay audible — never ship a
+    silent MP4 for news/knowledge/drama just because one edge-tts call failed.
+    """
+    from omaishort.engine.kenburns import is_audible
+
     voice_path = audio_dir(job_id) / "voiceover.mp3"
-    try:
-        tts = await synthesize_speech(vo, voice_path, story.language, story.voice_id)
-        return tts.path, tts.provider, tts.words
-    except Exception:
-        seconds = max(story.target_seconds, len(vo.split()) / 2.5)
-        path = await silence_audio(audio_dir(job_id) / "voiceover.mp3", seconds)
+    text = (vo or "").strip()
+    if not text:
+        seconds = max(1.0, float(story.target_seconds or 1.0))
+        path = await silence_audio(voice_path, seconds)
         return path, "silence", None
+
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            tts = await synthesize_speech(text, voice_path, story.language, story.voice_id)
+            if tts.path.is_file() and is_audible(tts.path):
+                return tts.path, tts.provider, tts.words
+            last_error = RuntimeError(f"TTS inaudible ({tts.provider})")
+        except Exception as exc:
+            last_error = exc
+        await asyncio.sleep(1.2 * (attempt + 1))
+    raise RuntimeError(f"TTS failed for voiceover: {last_error}")
 
 
 def _dump(job_id: str, name: str, payload) -> Path:
@@ -400,6 +416,8 @@ async def run_job(job_id: str) -> None:
                 path, pname = dest, source_kind
             elif is_editorial(story.kind):
                 async with image_slots:
+                    from omaishort.engine.brief_media import beat_still_context
+
                     path, pname = await resolve_scene_still(
                         prompt=scene.image_prompt or scene.action,
                         vo=scene.dialogue_or_vo,
@@ -408,6 +426,8 @@ async def run_job(job_id: str) -> None:
                         source="auto",
                         editorial=True,
                         skip_remote=not _remote_search_enabled(),
+                        action=scene.action or "",
+                        context=beat_still_context(scene, title=board.title or story.text[:80]),
                     )
             else:
                 refs = scene_still_refs(
@@ -431,20 +451,13 @@ async def run_job(job_id: str) -> None:
 
         await asyncio.gather(*[_one_still(scene) for scene in board.scenes])
 
-        pause_requested = _is_paused(job_id) or bool((story.mix or MixSettings()).pause_before_render)
-        if pause_requested:
+        if _is_paused(job_id):
             if speak_task is not None and not speak_task.done():
                 speak_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await speak_task
             artifacts["providers"] = json.dumps(providers)
-            db.update_job(
-                job_id,
-                status=JobStatus.paused.value,
-                stage=JobStage.stills.value,
-                progress="paused:review",
-                artifacts_json=json.dumps(artifacts),
-            )
+            db.update_job(job_id, artifacts_json=json.dumps(artifacts))
             return
 
         if speak_task is not None and not speak_task.done():
@@ -457,6 +470,20 @@ async def run_job(job_id: str) -> None:
         board = rescale_to_audio(board, duration)
         _dump(job_id, "storyboard.json", board)
         artifacts["voiceover"] = voice_path.as_posix()
+        artifacts["providers"] = json.dumps(providers)
+
+        # Review gate: stills + VO ready; pause before captions / I2V render.
+        pause_requested = _is_paused(job_id) or bool((story.mix or MixSettings()).pause_before_render)
+        if pause_requested:
+            db.update_job(
+                job_id,
+                status=JobStatus.paused.value,
+                stage=JobStage.tts.value,
+                progress="paused:review",
+                storyboard_json=board.model_dump_json(),
+                artifacts_json=json.dumps(artifacts),
+            )
+            return
 
         db.update_job(job_id, stage=JobStage.captions.value, progress="captions", storyboard_json=board.model_dump_json())
         stamps, cap_src = resolve_word_stamps(
@@ -477,7 +504,18 @@ async def run_job(job_id: str) -> None:
         db.update_job(job_id, stage=JobStage.render.value, progress="render")
         mp4 = render_dir(job_id) / "short.mp4"
         mix = story.mix or default_mix_settings()
-        await compose_short(board, stills, voice_path, ass_path, mp4, render_dir(job_id), mix=mix)
+        await compose_short(
+            board,
+            stills,
+            voice_path,
+            ass_path,
+            mp4,
+            render_dir(job_id),
+            mix=mix,
+            refs_dir=refs_dir(job_id),
+            location_dir=location_refs_dir(job_id),
+            prop_dir=prop_refs_dir(job_id),
+        )
         if _is_paused(job_id):
             return
         _dump(job_id, "storyboard.json", board)
@@ -493,8 +531,12 @@ async def run_job(job_id: str) -> None:
         size = probe_video_size(mp4)
         if size != (1080, 1920):
             raise RuntimeError(f"mp4 is {size}, expected 1080x1920")
+        from omaishort.engine.kenburns import is_audible
+
         if not has_audio_stream(mp4):
             raise RuntimeError("mp4 has no audio")
+        if is_audible(voice_path) and not is_audible(mp4):
+            raise RuntimeError("mp4 audio is silent after mux")
         artifacts["mp4"] = mp4.as_posix()
         artifacts["timeline"] = timeline_path.as_posix()
         artifacts["providers"] = json.dumps(providers)
@@ -580,6 +622,9 @@ async def regenerate_scene_still(
     )
     src_mode = (source or "auto").strip().lower()
     pname = "generated"
+    from omaishort.engine.brief_media import beat_still_context
+
+    beat_ctx = beat_still_context(target, title=board.title or story.text[:80])
     if src_mode in {"grok", "chatgpt", "search"}:
         _path, pname = await resolve_scene_still(
             prompt=custom_prompt.strip() if (custom_prompt and custom_prompt.strip()) else (target.image_prompt or target.action),
@@ -590,6 +635,8 @@ async def regenerate_scene_still(
             refs=refs,
             editorial=is_editorial(board.kind),
             skip_remote=not _remote_search_enabled(),
+            action=target.action or "",
+            context=beat_ctx,
         )
     elif is_editorial(board.kind) and not (custom_prompt and custom_prompt.strip()):
         sourced, skind = await assign_editorial_stills(
@@ -615,6 +662,8 @@ async def regenerate_scene_still(
                 refs=[],
                 editorial=True,
                 skip_remote=not _remote_search_enabled(),
+                action=target.action or "",
+                context=beat_ctx,
             )
     else:
         _path, pname = await generate_image(
@@ -750,6 +799,8 @@ async def rerender_job(job_id: str, *, regenerate_stills: bool = False) -> None:
                     conform_photo(src_photo, dest)
                     stills[scene.still_id] = dest
                 elif is_editorial(board.kind):
+                    from omaishort.engine.brief_media import beat_still_context
+
                     path, _pname = await resolve_scene_still(
                         prompt=scene.image_prompt or scene.action,
                         vo=scene.dialogue_or_vo,
@@ -758,6 +809,8 @@ async def rerender_job(job_id: str, *, regenerate_stills: bool = False) -> None:
                         source="auto",
                         editorial=True,
                         skip_remote=not _remote_search_enabled(),
+                        action=scene.action or "",
+                        context=beat_still_context(scene, title=board.title or story.text[:80]),
                     )
                     stills[scene.still_id] = path
                 else:
@@ -803,7 +856,18 @@ async def rerender_job(job_id: str, *, regenerate_stills: bool = False) -> None:
         db.update_job(job_id, stage=JobStage.render.value, progress="render")
         mp4 = render_dir(job_id) / "short.mp4"
         mix = story.mix or default_mix_settings()
-        await compose_short(board, stills, voice_path, ass_path, mp4, render_dir(job_id), mix=mix)
+        await compose_short(
+            board,
+            stills,
+            voice_path,
+            ass_path,
+            mp4,
+            render_dir(job_id),
+            mix=mix,
+            refs_dir=refs_dir(job_id),
+            location_dir=location_refs_dir(job_id),
+            prop_dir=prop_refs_dir(job_id),
+        )
         _dump(job_id, "storyboard.json", board)
         motion_path = render_dir(job_id) / "motion.json"
         i2v_ids: set[str] = set()
@@ -817,8 +881,12 @@ async def rerender_job(job_id: str, *, regenerate_stills: bool = False) -> None:
         size = probe_video_size(mp4)
         if size != (1080, 1920):
             raise RuntimeError(f"mp4 is {size}, expected 1080x1920")
+        from omaishort.engine.kenburns import is_audible
+
         if not has_audio_stream(mp4):
             raise RuntimeError("mp4 has no audio")
+        if is_audible(voice_path) and not is_audible(mp4):
+            raise RuntimeError("mp4 audio is silent after mux")
         artifacts["mp4"] = mp4.as_posix()
         artifacts["timeline"] = timeline_path.as_posix()
 

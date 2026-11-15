@@ -120,6 +120,8 @@ CLI extra: a URL as the story argument with default `kind=drama` becomes **knowl
 
 Stages (studio labels = `JobStage`): `analyze → plan → refs → stills → tts → captions → render`.
 
+When `MixSettings.pause_before_render` is true (default), the job pauses after **TTS + rescale** (`progress=paused:review`, stage `tts`) so the user can edit stills/VO, then **resume** continues captions → render (I2V). It does not pause before TTS.
+
 ```mermaid
 flowchart LR
   in[Studio / CLI] --> api[FastAPI + Cloudflare D1]
@@ -128,7 +130,8 @@ flowchart LR
   p --> r[refs]
   r --> s[stills]
   s --> t[tts]
-  t --> c[captions]
+  t --> gate[paused:review]
+  gate --> c[captions]
   c --> x[render]
   x --> mp4[1080x1920 MP4]
 ```
@@ -203,6 +206,8 @@ Then: `fetch_knowledge_topic` (several related Wikipedia pages + CC photos, not 
 
 **ChatGPT web:** headed `--chatgpt-login` once; later jobs headless; **one** `chatgpt.com/c/…` thread per calendar day (`data/chatgpt-web/daily.json`). Not a clone of ChatGPT-Web2API. Timeout → HTTP then wiki; `script.json.note` says why.
 
+**Muse hub / Grok hub:** headed `--muse-login` / `--grok-login` once (or Studio Account); drama I2V uses saved Chromium cookies then Hatch/Imagine protocol — not DOM scrape of the editor UIs.
+
 ---
 
 ## 8. Pictures
@@ -242,7 +247,7 @@ Pollinations (Flux/Kontext) → Gemini HTTP (`GEMINI_API_KEY`, Banana-class + up
 | Rescale | After TTS, scene `duration_sec` + shot windows **sum to probed audio** (`engine/rescale.py`) |
 | Captions | WordBoundary from edge-tts → faster-whisper → even-split → ASS. `SubtitleStyle` (default font 64, highlight karaoke, margin_v 120) |
 | Mix | Optional BGM = first **audio** file in `assets/music/` (not README), ducked under VO. Optional logo `mix.logo_enabled` |
-| I2V | **Drama:** xAI Grok Imagine video (`XAI_API_KEY`) → HF Spaces (`HF_TOKEN`) → WaveSpeed Wan (`WAVESPEED_API_KEY`) → Pollinations Wan (`POLLINATIONS_KEY`), one clip per scene. Start frame = that scene's still, or the previous clip's last frame when the same on-camera ids stay in the same `location_id` (Grok/Wan start-only) or when HTTP Frames landed (do not morph a wife still into a husband still). Last frame = **next** scene still when ids overlap (HTTP Frames: LTX, Pollinations Veo/Seedance `imageEnd`, WaveSpeed `last_image` on FLF2V). Grok Imagine video is start-frame HTTP, not grok.com. Concat clips in scene order; duration stays probed VO (no xfade that shortens). Motion prompt follows beat lenses (hook punch-in → ending pull-out) — camera + action only, no VO text. **News/knowledge:** Ken Burns collage + `xfade` between the five scenes; pad freeze so duration = probed VO. |
+| I2V | **Drama:** Muse hub (logged-in, `MUSE_WEB_*`, Hatch RPC — not muse.ai DOM scrape) → Grok hub (logged-in) → xAI Grok Imagine video (`XAI_API_KEY`) → HF Spaces (`HF_TOKEN`) → WaveSpeed Wan (`WAVESPEED_API_KEY`) → Pollinations Wan (`POLLINATIONS_KEY`), one clip per scene. Muse splits long scenes into up to 6×~10s shots with last-frame continuity and bible passport refs. Start frame = that scene's still, or the previous clip's last frame when the same on-camera ids stay in the same `location_id` (Muse/Grok/Wan start-only) or when HTTP Frames landed (do not morph a wife still into a husband still). Last frame = **next** scene still when ids overlap (HTTP Frames: LTX, Pollinations Veo/Seedance `imageEnd`, WaveSpeed `last_image` on FLF2V). Grok Imagine HTTP is start-frame, not grok.com. Concat clips in scene order; duration stays probed VO (no xfade that shortens). Motion prompt follows beat lenses (hook punch-in → ending pull-out) — camera + action only, no VO text. **News/knowledge:** Ken Burns collage + `xfade` between the five scenes; pad freeze so duration = probed VO. |
 
 ---
 

@@ -53,6 +53,34 @@ _SKIP_WIKI_FILE = (
     "diagram",
     "family tree",
     "svg",
+    # Knowledge/news beats need photograph objects, not recycled macro charts.
+    "chart",
+    "graph",
+    "plot",
+    "choropleth",
+    "infographic",
+    "spreadsheet",
+    "histogram",
+    "line chart",
+    "bar chart",
+    "pie chart",
+    "manuscript",
+    "handwriting",
+    "handwritten",
+    "letter to",
+    "autograph",
+    "inflatie",
+    "inflation rate",
+    "inflation in",
+    "consumer price index",
+    "cpi of",
+    "imf members",
+)
+_CHART_OR_DOC = re.compile(
+    r"\b(chart|graph|plot|choropleth|infographic|spreadsheet|histogram|"
+    r"manuscript|handwrit|letter|autograph|inflatie|inflation rate|"
+    r"consumer price index|cpi)\b",
+    re.I,
 )
 # pattern → Commons query, optional Wikipedia title (MPVSAP proper-noun B-roll).
 _QUERY_ALIASES: tuple[tuple[str, str, str | None], ...] = (
@@ -84,7 +112,8 @@ _VISUAL_ALIASES: tuple[tuple[str, str], ...] = (
     (r"gara|xưởng sửa xe", "car repair garage"),
     (r"cháy|hỏa hoạn|đám cháy|chập điện", "vehicle fire flames"),
     (r"xăng|gas station", "gas station fuel pump"),
-    (r"chỉ số giá|\bcpi\b|lãi suất", "consumer price index chart"),
+    (r"chỉ số giá|\bcpi\b", "grocery receipt shopping basket price tags"),
+    (r"lãi suất|interest rate", "central bank interest rate building"),
     (r"ly hôn|divorce", "divorce empty house"),
     (r"north cyprus|bắc síp", "Northern Cyprus coast"),
     (r"kém \d+\s*tuổi|chênh lệch tuổi|age gap", "age gap couple"),
@@ -118,7 +147,6 @@ _VISUAL_ALIASES: tuple[tuple[str, str], ...] = (
     (r"cọc gỗ|cọc ngầm|cắm cọc", "Battle of Bach Dang"),
     (r"chiến thuyền|thủy chiến", "Bach Dang naval battle"),
     (r"nước triều|thủy triều", "tidal river estuary"),
-    (r"lãi suất|interest rate", "central bank interest rate"),
     (r"tiền giấy|banknotes|currency", "banknotes currency stack"),
     (r"mâu thuẫn|cãi vã", "tense doorway argument still"),
     (r"vé máy bay|máy bay|airport", "airport departure hall"),
@@ -1058,7 +1086,8 @@ def external_terms_for_beat(vo: str, title: str = "") -> list[str]:
     """Queries gather_external_for_beat actually searches.
 
     Once an object alias exists, raw VO tokens are not searched. "thuyền" and a mashed
-    name like "Tiếp Trần" pull unrelated Commons photos.
+    name like "Tiếp Trần" pull unrelated Commons photos. Prefer concrete object queries
+    over bare topic words (inflation / lạm phát) that only fetch macro charts.
     """
     terms = visual_terms_for_beat(vo, title)
     aliased = any(
@@ -1068,7 +1097,15 @@ def external_terms_for_beat(vo: str, title: str = "") -> list[str]:
     if not aliased:
         return terms[:6]
     raw = {noun.lower() for noun in beat_search_nouns(vo)}
-    return [term for term in terms if term.lower() not in raw][:6]
+    cleaned = [term for term in terms if term.lower() not in raw]
+    if wants_object_photo(vo):
+        cleaned = [
+            term
+            for term in cleaned
+            if not re.search(r"^(inflation|lạm phát|cpi)$", term, flags=re.I)
+            and "chart" not in term.lower()
+        ] or cleaned
+    return cleaned[:6]
 
 
 _BEAT_STOP = {
@@ -1101,7 +1138,8 @@ def beat_search_nouns(vo: str) -> list[str]:
 
 
 STILL_OVERLAP = 0.15
-ARTICLE_BASE = 0.3
+# Uncaptioned in-article photos outrank a Commons hit that only matches the English query.
+ARTICLE_BASE = 0.45
 
 
 def dedupe_article_photos(urls: list[str]) -> list[str]:
@@ -1114,12 +1152,158 @@ def dedupe_article_photos(urls: list[str]) -> list[str]:
     return [url for i, url in enumerate(urls) if i in keep]
 
 
+def _fold_vi(text: str) -> str:
+    """Fold Vietnamese diacritics so Bach≈Bạch for Commons English filenames."""
+    table = str.maketrans(
+        {
+            "à": "a",
+            "á": "a",
+            "ả": "a",
+            "ã": "a",
+            "ạ": "a",
+            "ă": "a",
+            "ằ": "a",
+            "ắ": "a",
+            "ẳ": "a",
+            "ẵ": "a",
+            "ặ": "a",
+            "â": "a",
+            "ầ": "a",
+            "ấ": "a",
+            "ẩ": "a",
+            "ẫ": "a",
+            "ậ": "a",
+            "è": "e",
+            "é": "e",
+            "ẻ": "e",
+            "ẽ": "e",
+            "ẹ": "e",
+            "ê": "e",
+            "ề": "e",
+            "ế": "e",
+            "ể": "e",
+            "ễ": "e",
+            "ệ": "e",
+            "ì": "i",
+            "í": "i",
+            "ỉ": "i",
+            "ĩ": "i",
+            "ị": "i",
+            "ò": "o",
+            "ó": "o",
+            "ỏ": "o",
+            "õ": "o",
+            "ọ": "o",
+            "ô": "o",
+            "ồ": "o",
+            "ố": "o",
+            "ổ": "o",
+            "ỗ": "o",
+            "ộ": "o",
+            "ơ": "o",
+            "ờ": "o",
+            "ớ": "o",
+            "ở": "o",
+            "ỡ": "o",
+            "ợ": "o",
+            "ù": "u",
+            "ú": "u",
+            "ủ": "u",
+            "ũ": "u",
+            "ụ": "u",
+            "ư": "u",
+            "ừ": "u",
+            "ứ": "u",
+            "ử": "u",
+            "ữ": "u",
+            "ự": "u",
+            "ỳ": "y",
+            "ý": "y",
+            "ỷ": "y",
+            "ỹ": "y",
+            "ỵ": "y",
+            "đ": "d",
+        }
+    )
+    return (text or "").lower().translate(table)
+
+
 def overlap_score(caption: str, vo: str) -> float:
-    left = set(re.findall(r"\w{4,}", (caption or "").lower()))
-    right = set(re.findall(r"\w{4,}", (vo or "").lower()))
+    left = set(re.findall(r"\w{3,}", _fold_vi(caption or "")))
+    right = set(re.findall(r"\w{3,}", _fold_vi(vo or "")))
     if not left or not right:
         return 0.0
-    return len(left & right) / len(left | right)
+    # Coverage of the shorter side so a long true caption can clear the gate.
+    return len(left & right) / min(len(left), len(right))
+
+
+def _photo_blob(url: str, caption: str = "") -> str:
+    path = urlparse(url).path.replace("_", " ").replace("-", " ")
+    return f"{caption} {path}"
+
+
+def wants_object_photo(vo: str, query: str = "") -> bool:
+    """True when this beat should be a photograph of an object/place, not a macro chart."""
+    blob = f"{vo or ''} {query or ''}"
+    if not blob.strip():
+        return False
+    for pattern, query_text in _VISUAL_ALIASES:
+        if _GENERIC_ALIAS.search(pattern):
+            continue
+        if re.search(pattern, blob, flags=re.I):
+            return True
+        if query and query_text.lower() in query.lower():
+            return True
+    return bool(
+        re.search(
+            r"supermarket|grocery|fuel pump|marketplace|wallet|receipt|basket|"
+            r"garage|fire|wedding|passport|tower|server|airport",
+            query or "",
+            flags=re.I,
+        )
+    )
+
+
+def beat_still_context(scene: object, *, title: str = "") -> str:
+    """Full beat context for search/score: action + VO + place, not a single token."""
+    parts = [
+        str(getattr(scene, "action", "") or "").strip(),
+        str(getattr(scene, "dialogue_or_vo", "") or "").strip(),
+        str(getattr(scene, "location", "") or "").strip(),
+        str(getattr(scene, "emotion", "") or "").strip(),
+        str(title or "").strip()[:80],
+    ]
+    return " ".join(p for p in parts if p)
+
+
+def context_token_set(text: str) -> set[str]:
+    return set(re.findall(r"\w{3,}", _fold_vi(text or "")))
+
+
+def distinctive_context_tokens(this: str, others: list[str]) -> set[str]:
+    """Tokens that mark THIS beat vs the rest of the short (avoid one generic match for all)."""
+    mine = context_token_set(this)
+    shared: set[str] = set()
+    for blob in others:
+        shared |= context_token_set(blob)
+    # Keep tokens unique to this beat; if none, keep content nouns from this beat.
+    unique = mine - shared
+    return unique or mine
+
+
+def url_dedupe_key(url: str) -> str:
+    """Same file under different CDNs / widths counts as one still."""
+    name = urlparse(url or "").path.rsplit("/", 1)[-1].lower()
+    name = re.sub(r"\.(jpg|jpeg|png|webp|gif)$", "", name)
+    name = re.sub(r"[_-]?\d{2,4}x\d{2,4}", "", name)
+    # Strip trailing size/crop codes: img-4302_1433_860 → img-4302
+    while True:
+        nxt = re.sub(r"[_-]\d{2,5}$", "", name)
+        if nxt == name or len(nxt) < 4:
+            break
+        name = nxt
+    stem = re.sub(r"[^a-z0-9]+", "", _fold_vi(name))
+    return stem if len(stem) >= 6 else (url or "").split("?", 1)[0].lower()
 
 
 def editorial_candidate_score(
@@ -1130,53 +1314,107 @@ def editorial_candidate_score(
     query: str = "",
     article: bool = False,
     title: str = "",
+    context: str = "",
+    other_contexts: list[str] | None = None,
 ) -> float:
-    """Rank a photo against one beat's VO.
+    """Rank a photo against one beat's full context (action+VO), not a partial token.
 
     An article's own photo with no caption still belongs to the story, so it ranks above
     weak Commons hits. A captioned article photo that matches neither the beat nor the
     headline is a related-story thumbnail and keeps its raw score.
     """
-    path = urlparse(url).path.replace("_", " ").replace("-", " ")
-    photo = f"{caption} {path}"
-    vo_score = overlap_score(photo, vo)
-    query_score = overlap_score(photo, query) if query else 0.0
+    photo = _photo_blob(url, caption)
+    beat = (context or vo or "").strip()
+    if wants_object_photo(beat, query) and (
+        _CHART_OR_DOC.search(photo) or any(bit in photo.lower() for bit in _SKIP_WIKI_FILE)
+    ):
+        return 0.0
+    vo_score = overlap_score(photo, beat)
+    # Trust a Commons hit when its title/path matches the beat's search query.
+    # Do not boost a Wikipedia page title alone onto a beat that never spoke it.
+    query_score = 0.0
+    if query:
+        raw_q = overlap_score(photo, query)
+        if (
+            article
+            or vo_score > 0
+            or raw_q >= STILL_OVERLAP
+            or overlap_score(query, beat) >= STILL_OVERLAP
+        ):
+            query_score = raw_q
+        else:
+            query_score = raw_q * 0.25
     score = max(vo_score, query_score)
+    # Prefer hits that cover THIS beat's distinctive nouns; penalize if another beat fits better.
+    others = [c for c in (other_contexts or []) if c and c != beat]
+    if others:
+        mine = distinctive_context_tokens(beat, others)
+        photo_toks = context_token_set(photo)
+        if mine:
+            cover = len(mine & photo_toks) / max(1, min(6, len(mine)))
+            score += 0.12 * cover
+        rival = max((overlap_score(photo, other) for other in others), default=0.0)
+        if rival > vo_score + 0.05:
+            score *= 0.45
     if not article:
         return score
     if vo_score >= STILL_OVERLAP:
         return vo_score + 0.18
-    if not caption.strip() or (title and overlap_score(caption, title) >= STILL_OVERLAP):
+    # Uncaptioned article photos still belong to the story; captioned related-story
+    # thumbs must match THIS beat's VO (not merely share a word with the headline).
+    if not caption.strip():
         return max(score, ARTICLE_BASE)
     return score
 
 
-async def gather_external_for_beat(vo: str, title: str, limit: int = 8) -> list[tuple[str, str, str]]:
-    """More Wikimedia / Wikipedia / Openverse hits for this beat. Each row is url, source, query."""
-    found: list[tuple[str, str, str]] = []
+async def gather_external_for_beat(
+    vo: str,
+    title: str,
+    limit: int = 8,
+    *,
+    action: str = "",
+    context: str = "",
+) -> list[tuple[str, str, str, str]]:
+    """More Wikimedia / Openverse hits for this beat. Each row is url, source, query, label."""
+    del title  # Job headline must not drive per-beat Wikipedia lead images.
+    found: list[tuple[str, str, str, str]] = []
     seen: set[str] = set()
-    terms = external_terms_for_beat(vo, title)
+    blob = context or " ".join(p for p in (action, vo) if p).strip() or vo
+    terms = external_terms_for_beat(blob, "")
+    if action:
+        for term in external_terms_for_beat(action, ""):
+            if term not in terms:
+                terms.insert(0, term)
+    terms = terms[:6]
 
-    def push(urls: list[str], tag: str, query: str) -> None:
+    def push(urls: list[str], tag: str, query: str, labels: dict[str, str] | None = None) -> None:
+        labels = labels or {}
         for url in unique_image_urls(urls):
             if len(found) >= limit:
                 return
             if url in seen:
                 continue
             seen.add(url)
-            found.append((url, tag, query))
+            found.append((url, tag, query, labels.get(url, "")))
 
-    for page in wikipedia_titles(title, vo)[:2]:
-        push(await search_wikipedia_original(page), "wikipedia", page)
-        if len(found) >= limit:
-            return found
+    # Object-photo beats: search Commons/Openverse only. Topic Wikipedia lead images
+    # (Inflation / CPI / IMF) were landing on every knowledge beat.
     for term in terms:
         if len(found) >= limit:
             break
-        push(await search_wikimedia(term, limit=6), "wikimedia", term)
+        wiki_hits = await search_wikimedia_hits(term, limit=6)
+        push([u for u, _ in wiki_hits], "wikimedia", term, {u: label for u, label in wiki_hits})
         if len(found) >= limit:
             break
-        push(await search_openverse(term, limit=6), "openverse", term)
+        open_hits = await search_openverse_hits(term, limit=6)
+        push([u for u, _ in open_hits], "openverse", term, {u: label for u, label in open_hits})
+    if found or wants_object_photo(blob):
+        return found
+    # Topic-only beats (no object alias): allow VO-scoped Wikipedia pages.
+    for page in wikipedia_titles("", blob)[:2]:
+        push(await search_wikipedia_original(page), "wikipedia", page)
+        if len(found) >= limit:
+            break
     return found
 
 
@@ -1552,40 +1790,55 @@ async def download_photo(url: str, dest: Path, referer: str | None = None) -> Pa
     return dest
 
 
-async def search_openverse(query: str, limit: int = 6) -> list[str]:
+async def search_openverse_hits(query: str, limit: int = 6) -> list[tuple[str, str]]:
     q = re.sub(r"\s+", " ", query).strip()[:80]
     if len(q) < 4:
         return []
-    params = {"q": q, "page_size": str(max(1, min(limit, 8))), "license": "cc0,by,by-sa"}
-    try:
-        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=_headers()) as client:
-            response = await client.get("https://api.openverse.org/v1/images/", params=params)
-            if response.status_code >= 400:
-                return []
-            data = response.json()
-    except Exception:
-        return []
-    urls: list[str] = []
-    for item in data.get("results") or []:
+    async def _fetch(params: dict[str, str]) -> list[dict]:
+        try:
+            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=_headers()) as client:
+                response = await client.get("https://api.openverse.org/v1/images/", params=params)
+                if response.status_code >= 400:
+                    return []
+                return list((response.json() or {}).get("results") or [])
+        except Exception:
+            return []
+
+    base = {"q": q, "page_size": str(max(1, min(limit * 2, 16))), "license": "cc0,by,by-sa"}
+    results = await _fetch({**base, "category": "photograph"}) or await _fetch(base)
+    hits: list[tuple[str, str]] = []
+    for item in results:
         url = item.get("url") or item.get("thumbnail")
+        title = str(item.get("title") or item.get("id") or "")
+        blob = f"{title} {url or ''}"
+        if wants_object_photo("", query) and _CHART_OR_DOC.search(blob):
+            continue
         if isinstance(url, str) and url.startswith("http"):
-            urls.append(url)
-        if len(urls) >= limit:
+            hits.append((url, title))
+        if len(hits) >= limit:
             break
-    return urls
+    return hits
 
 
-async def search_wikimedia(query: str, limit: int = 4) -> list[str]:
+async def search_openverse(query: str, limit: int = 6) -> list[str]:
+    return [url for url, _title in await search_openverse_hits(query, limit=limit)]
+
+
+async def search_wikimedia_hits(query: str, limit: int = 4) -> list[tuple[str, str]]:
     q = re.sub(r"\s+", " ", query).strip()[:80]
     if len(q) < 4:
         return []
+    # Prefer bitmaps; negative keywords cut chart/map noise for object beats.
+    gsr = q
+    if wants_object_photo("", q):
+        gsr = f"{q} filetype:bitmap -chart -graph -diagram -map -svg"
     params = {
         "action": "query",
         "format": "json",
         "generator": "search",
-        "gsrsearch": q,
+        "gsrsearch": gsr,
         "gsrnamespace": "6",
-        "gsrlimit": str(max(1, min(limit, 8))),
+        "gsrlimit": str(max(1, min(limit * 2, 16))),
         "prop": "imageinfo",
         "iiprop": "url|mime|size",
         "iiurlwidth": "1280",
@@ -1598,7 +1851,7 @@ async def search_wikimedia(query: str, limit: int = 4) -> list[str]:
             data = response.json()
     except Exception:
         return []
-    urls: list[str] = []
+    hits: list[tuple[str, str]] = []
     pages = (data.get("query") or {}).get("pages") or {}
     for page in pages.values():
         title = str(page.get("title") or "")
@@ -1608,10 +1861,15 @@ async def search_wikimedia(query: str, limit: int = 4) -> list[str]:
             continue
         url = info.get("thumburl") or info.get("url")
         if isinstance(url, str) and url.startswith("http"):
-            urls.append(url)
-        if len(urls) >= limit:
+            label = title.replace("File:", "").replace("_", " ")
+            hits.append((url, label))
+        if len(hits) >= limit:
             break
-    return urls
+    return hits
+
+
+async def search_wikimedia(query: str, limit: int = 4) -> list[str]:
+    return [url for url, _title in await search_wikimedia_hits(query, limit=limit)]
 
 
 async def search_wikipedia_original(title: str) -> list[str]:
@@ -1698,15 +1956,24 @@ async def assign_editorial_stills(
     index = 0
     tried: set[str] = set()
     used: set[str] = set()
+    used_keys: set[str] = set()
+    used_queries: set[str] = set()
     locals_ready = [path for path in (local_paths or []) if path.is_file()]
     local_n = len(locals_ready)
-    external_for: list[list[tuple[str, str, str]]] = [[] for _ in scenes]
+    contexts = [beat_still_context(scene, title=title) for scene in scenes]
+    external_for: list[list[tuple[str, str, str, str]]] = [[] for _ in scenes]
     search_slots = asyncio.Semaphore(3)
 
     async def _prefetch(scene_index: int, scene) -> None:
         vo = getattr(scene, "dialogue_or_vo", "") or ""
+        action = getattr(scene, "action", "") or ""
         async with search_slots:
-            external_for[scene_index] = await gather_external_for_beat(vo, title)
+            external_for[scene_index] = await gather_external_for_beat(
+                vo,
+                title,
+                action=action,
+                context=contexts[scene_index],
+            )
 
     await asyncio.gather(
         *[_prefetch(i, scene) for i, scene in enumerate(scenes) if i >= local_n]
@@ -1728,6 +1995,8 @@ async def assign_editorial_stills(
     for scene_index, scene in enumerate(scenes):
         vo = getattr(scene, "dialogue_or_vo", "") or ""
         still_id = getattr(scene, "still_id", f"still_{scene_index + 1:02d}")
+        beat_ctx = contexts[scene_index]
+        other_ctx = [c for i, c in enumerate(contexts) if i != scene_index]
         if locals_ready:
             src = locals_ready.pop(0)
             dest = dest_dir / f"src_{index:02d}.png"
@@ -1740,23 +2009,55 @@ async def assign_editorial_stills(
             if "attachment" not in tags:
                 tags.append("attachment")
             continue
-        ranked: list[tuple[float, str, str]] = []
+        ranked: list[tuple[float, str, str, str]] = []
         for url in unused:
-            if url in used:
+            key = url_dedupe_key(url)
+            if url in used or key in used_keys:
                 continue
             ranked.append(
                 (
-                    editorial_candidate_score(url, vo, caption=caps.get(url, ""), article=True, title=title),
+                    editorial_candidate_score(
+                        url,
+                        vo,
+                        caption=caps.get(url, ""),
+                        article=True,
+                        title=title,
+                        context=beat_ctx,
+                        other_contexts=other_ctx,
+                    ),
                     url,
                     "article",
+                    "",
                 )
             )
-        for url, tag, query in external_for[scene_index]:
-            if url in used:
+        for row in external_for[scene_index]:
+            url, tag, query = row[0], row[1], row[2]
+            label = row[3] if len(row) > 3 else ""
+            key = url_dedupe_key(url)
+            qkey = re.sub(r"\s+", " ", (query or "").lower()).strip()
+            if url in used or key in used_keys:
                 continue
-            ranked.append((editorial_candidate_score(url, vo, caption=caps.get(url, ""), query=query), url, tag))
+            # Same object query already used on an earlier beat → skip (force diversity).
+            if qkey and qkey in used_queries and tag != "article":
+                continue
+            caption = caps.get(url, "") or label
+            ranked.append(
+                (
+                    editorial_candidate_score(
+                        url,
+                        vo,
+                        caption=caption,
+                        query=query,
+                        context=beat_ctx,
+                        other_contexts=other_ctx,
+                    ),
+                    url,
+                    tag,
+                    qkey,
+                )
+            )
         ranked.sort(key=lambda row: row[0], reverse=True)
-        for score, url, tag in ranked:
+        for score, url, tag, qkey in ranked:
             if score < STILL_OVERLAP:
                 continue
             path = await _save(url)
@@ -1764,6 +2065,9 @@ async def assign_editorial_stills(
                 continue
             out[still_id] = path
             used.add(url)
+            used_keys.add(url_dedupe_key(url))
+            if qkey:
+                used_queries.add(qkey)
             if url in unused:
                 unused.remove(url)
             if tag not in tags:

@@ -6,8 +6,6 @@ import {
   readProviders,
   readVoices,
   rewriteScript,
-  startChatgptLogin,
-  startGrokLogin,
   uploadAttachment,
   type AttachmentRow,
   type ProviderStatus,
@@ -139,7 +137,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
   const [scriptBrief, setScriptBrief] = useState("");
   const [bgmEnabled, setBgmEnabled] = useState(true);
   const [logoEnabled, setLogoEnabled] = useState(false);
-  const [pauseBeforeRender, setPauseBeforeRender] = useState(false);
+  const [pauseBeforeRender, setPauseBeforeRender] = useState(true);
   const [voices, setVoices] = useState<VoiceOption[]>(FALLBACK_VOICES);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -148,8 +146,6 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
   const [library, setLibrary] = useState<AttachmentRow[]>([]);
   const [picked, setPicked] = useState<PickedAttachment[]>([]);
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
-  const [chatgptOpening, setChatgptOpening] = useState(false);
-  const [grokOpening, setGrokOpening] = useState(false);
   const [structureDraft, setStructureDraft] = useState<StoryStructureData | null>(null);
   const [draftBusy, setDraftBusy] = useState(false);
   const [rewriteBusy, setRewriteBusy] = useState<string | null>(null);
@@ -173,20 +169,6 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
     void listAttachments().then(setLibrary);
     void readProviders().then(setProviders);
   }, [kind]);
-
-  useEffect(() => {
-    if (!chatgptOpening) return;
-    const timer = window.setInterval(() => {
-      void readProviders().then((status) => {
-        setProviders(status);
-        if (status?.chatgpt_web_authed) {
-          setChatgptOpening(false);
-          setMessage("Đã lưu phiên ChatGPT.");
-        }
-      });
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [chatgptOpening]);
 
   const voiceChoices = useMemo(() => {
     const rows = voices.filter((voice) => voice.language === language);
@@ -541,7 +523,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
                   checked={pauseBeforeRender}
                   onChange={(e) => setPauseBeforeRender(e.target.checked)}
                 />
-                Tạm dừng sau bước tạo Ảnh & Lời để duyệt/sửa trước khi xuất MP4
+                Tạm dừng sau Ảnh + Lời để duyệt/sửa trước khi xuất MP4
               </label>
             </div>
 
@@ -553,56 +535,10 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
                 ))}
               </div>
               {kind === "drama" ? (
-                <p className="meta">Motion hiển thị đúng theo provider: kenburns, i2v hoặc mixed khi backend trả về.</p>
-              ) : null}
-              {kind === "drama" && providers && !providers.grok_hub_authed ? (
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={grokOpening}
-                  onClick={() => {
-                    setMessage(null);
-                    setGrokOpening(true);
-                    void startGrokLogin()
-                      .then(() => {
-                        setMessage("Chrome đang mở Grok. Đăng nhập. Phiên lưu khi cookie SSO xuất hiện.");
-                        const timer = window.setInterval(() => {
-                          void readProviders().then((status) => {
-                            setProviders(status);
-                            if (status?.grok_hub_authed) {
-                              window.clearInterval(timer);
-                              setGrokOpening(false);
-                              setMessage("Đã lưu phiên Grok.");
-                            }
-                          });
-                        }, 3000);
-                      })
-                      .catch((err) => {
-                        setGrokOpening(false);
-                        setMessage(err instanceof Error ? err.message : "Could not open Grok");
-                      });
-                  }}
-                >
-                  {grokOpening ? "Đang chờ Grok…" : "Đăng nhập Grok"}
-                </button>
+                <p className="meta">Motion theo provider (kenburns / i2v / mixed). Đăng nhập Muse/Grok ở Account nếu cần hub.</p>
               ) : null}
               {kind === "knowledge" && providers && !providers.chatgpt_web_authed ? (
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={chatgptOpening}
-                  onClick={() => {
-                    setMessage(null);
-                    void startChatgptLogin()
-                      .then(() => {
-                        setChatgptOpening(true);
-                        setMessage("Chrome đang mở. Đăng nhập ChatGPT. Cửa sổ đóng khi phiên được lưu.");
-                      })
-                      .catch((err) => setMessage(err instanceof Error ? err.message : "Could not open ChatGPT"));
-                  }}
-                >
-                  {chatgptOpening ? "Đang chờ ChatGPT…" : "Sign in to ChatGPT"}
-                </button>
+                <p className="meta">ChatGPT chưa sẵn sàng — đăng nhập ở Account để viết lời knowledge.</p>
               ) : null}
             </div>
           </section>

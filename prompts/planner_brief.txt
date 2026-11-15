@@ -17,6 +17,7 @@ HARD RULES:
 - Each scene has ONE still_id (still_01 … still_05) and 1–2 shots that SHARE that still.
 - Beat lenses: hook → zoom_in; conflict → hold then zoom_in; rising_action → pan then zoom_in; twist → close_up zoom_in; ending → zoom_out.
 - Visuals MUST match THAT beat's VO (MoneyPrinter per-scene terms, not one headline photo for every beat). action describes the still: dating-app beat → phone; wedding beat → rings/ceremony empty of faces if possible; leaving/Nigeria beat → suitcase or map; divorce/assets beat → empty house/keys. Do not recycle the couple mugshot on later beats.
+- action is the editorial photograph for THAT SAME beat as dialogue_or_vo: object, place, evidence, or empty set that illustrates the spoken claim — never paste narration into action (no quote marks, no on-image kicker text, no "VO says …"). Each of the five beats must get a distinct still subject; never reuse the same desk/mugshot on every beat.
 - action MUST say uninhabited / zero people unless the beat is explicitly a published article portrait used only on hook/conflict.
 - dialogue_or_vo is narration only. No on-image kicker text.
 - Set "kind" to the input kind ("news" or "knowledge"), never "brief" or "drama".

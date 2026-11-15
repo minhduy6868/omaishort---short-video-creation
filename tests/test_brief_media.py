@@ -122,8 +122,16 @@ def test_collect_fills_thin_article_gallery(tmp_path, monkeypatch):
         Image.new("RGB", (64, 64), (30, 40, 50)).save(dest, "PNG")
         return dest
 
+    async def fake_wiki_hits(query: str, limit: int = 4):
+        return [(url, url.rsplit("/", 1)[-1]) for url in await fake_wiki(query, limit)]
+
+    async def fake_openverse_hits(query: str, limit: int = 6):
+        return [(url, "") for url in await fake_openverse(query, limit)]
+
     monkeypatch.setattr("omaishort.engine.brief_media.search_wikimedia", fake_wiki)
     monkeypatch.setattr("omaishort.engine.brief_media.search_openverse", fake_openverse)
+    monkeypatch.setattr("omaishort.engine.brief_media.search_wikimedia_hits", fake_wiki_hits)
+    monkeypatch.setattr("omaishort.engine.brief_media.search_openverse_hits", fake_openverse_hits)
     monkeypatch.setattr("omaishort.engine.brief_media.search_wikipedia_original", fake_wikipedia)
     monkeypatch.setattr("omaishort.engine.brief_media.download_photo", fake_download)
 
@@ -172,8 +180,16 @@ def test_assign_retries_cc_when_article_download_fails(tmp_path, monkeypatch):
         Image.new("RGB", (64, 64), (20, 80, 90)).save(dest, "PNG")
         return dest
 
+    async def fake_wiki_hits(query: str, limit: int = 4):
+        return [(url, url.rsplit("/", 1)[-1]) for url in await fake_wiki(query, limit)]
+
+    async def fake_openverse_hits(query: str, limit: int = 6):
+        return [(url, "") for url in await fake_openverse(query, limit)]
+
     monkeypatch.setattr("omaishort.engine.brief_media.search_wikimedia", fake_wiki)
     monkeypatch.setattr("omaishort.engine.brief_media.search_openverse", fake_openverse)
+    monkeypatch.setattr("omaishort.engine.brief_media.search_wikimedia_hits", fake_wiki_hits)
+    monkeypatch.setattr("omaishort.engine.brief_media.search_openverse_hits", fake_openverse_hits)
     monkeypatch.setattr("omaishort.engine.brief_media.search_wikipedia_original", fake_wikipedia)
     monkeypatch.setattr("omaishort.engine.brief_media.download_photo", fake_download)
 
@@ -206,7 +222,7 @@ def test_editorial_beats_search_together(tmp_path, monkeypatch):
 
     started: list[str] = []
 
-    async def fake_gather(vo: str, title: str = "", limit: int = 8):
+    async def fake_gather(vo: str, title: str = "", limit: int = 8, **_kwargs):
         started.append(vo)
         await asyncio.sleep(0.05)
         started.append(f"done:{vo}")
@@ -244,6 +260,80 @@ def test_editorial_score_prefers_the_spoken_place():
         query="divorce Nigeria",
     )
     assert nigeria > beach
+
+
+def test_url_dedupe_and_full_context_prefer_this_beat():
+    from omaishort.engine.brief_media import (
+        beat_still_context,
+        editorial_candidate_score,
+        url_dedupe_key,
+    )
+
+    assert url_dedupe_key("https://a/cdn/img-4302_1433.jpg?w=800") == url_dedupe_key(
+        "https://b/cdn/img-4302_860.png"
+    )
+    class _S:
+        def __init__(self, action: str, vo: str, location: str = "city") -> None:
+            self.action = action
+            self.dialogue_or_vo = vo
+            self.location = location
+            self.emotion = "hook"
+
+    grocery = beat_still_context(
+        _S("uninhabited supermarket prices", "Cầm tiền vào siêu thị, giỏ hàng vơi đi."),
+        title="Lạm phát",
+    )
+    fuel = beat_still_context(
+        _S("uninhabited gas station fuel pump", "Giá xăng và tiền thuê nhà cùng tăng."),
+        title="Lạm phát",
+    )
+    supermarket = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/Supermarket_aisle_food.jpg",
+        grocery,
+        caption="supermarket aisle food prices",
+        query="grocery supermarket food prices",
+        context=grocery,
+        other_contexts=[fuel],
+    )
+    wrong_fuel = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/Gas_station_fuel_pump.jpg",
+        grocery,
+        caption="gas station fuel pump",
+        query="gas station fuel pump",
+        context=grocery,
+        other_contexts=[fuel],
+    )
+    assert supermarket > wrong_fuel
+
+
+def test_object_beats_reject_inflation_charts():
+    from omaishort.engine.brief_media import (
+        editorial_candidate_score,
+        external_terms_for_beat,
+        visual_terms_for_beat,
+    )
+
+    vo = "Bạn cầm 100 nghìn đồng vào siêu thị, giỏ hàng ngày càng vơi. Đó là lạm phát."
+    terms = " ".join(external_terms_for_beat(vo, "Lạm phát")).lower()
+    assert "grocery" in terms or "supermarket" in terms
+    assert "chart" not in terms
+    chart = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/Inflation_rate_chart.png",
+        vo,
+        caption="Inflation rate chart France Germany",
+        query="grocery supermarket food prices",
+    )
+    photo = editorial_candidate_score(
+        "https://upload.wikimedia.org/wikipedia/commons/Supermarket_aisle_food_prices.jpg",
+        vo,
+        caption="supermarket aisle food prices",
+        query="grocery supermarket food prices",
+    )
+    assert chart == 0.0
+    assert photo >= 0.15
+    cpi = " ".join(visual_terms_for_beat("Chỉ số giá tiêu dùng CPI đo rổ hàng.", "Lạm phát")).lower()
+    assert "chart" not in cpi
+    assert "basket" in cpi or "grocery" in cpi or "receipt" in cpi
 
 
 def test_visual_terms_for_beat_follow_the_vo_not_the_headline():

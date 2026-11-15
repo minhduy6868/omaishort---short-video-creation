@@ -2,12 +2,66 @@ import type { CharacterBibleData, Job, JobStorageInfo, StoryDraft, StoryStructur
 
 export type VoiceOption = { id: string; language: string; label: string };
 
+export type BillingSnapshot = {
+  plan_code: string;
+  status: string;
+  credits_remaining: number;
+  credits_total: number;
+  ends_at: string;
+};
+
 export type AuthUser = {
   id: string;
   email: string;
   display_name: string | null;
   role: string;
+  billing?: BillingSnapshot | null;
 };
+
+export type BillingPlan = {
+  code: string;
+  name: string;
+  credits: number;
+  period_days: number;
+  price_vnd: number;
+  active: boolean;
+  features?: { kinds?: string[] } | null;
+};
+
+export type PaymentOrder = {
+  id: string;
+  user_id: string;
+  plan_code: string;
+  amount_vnd: number;
+  status: string;
+  created_at: string;
+  updated_at?: string;
+  paid_at?: string | null;
+  admin_note?: string | null;
+  user_email?: string | null;
+};
+
+export type CreditLedgerRow = {
+  id: string;
+  user_id: string;
+  job_id?: string | null;
+  delta: number;
+  reason: string;
+  note?: string | null;
+  created_at: string;
+};
+
+export class ApiError extends Error {
+  status: number;
+  billing?: BillingSnapshot | null;
+
+  constructor(message: string, status: number, billing?: BillingSnapshot | null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.billing = billing ?? null;
+  }
+}
 
 export type AttachmentRow = {
   id: string;
@@ -67,12 +121,16 @@ function headers(extra?: HeadersInit, json = false): Headers {
 
 async function parseError(res: Response, fallback: string): Promise<Error> {
   try {
-    const data = (await res.json()) as { detail?: unknown };
-    if (typeof data.detail === "string") return new Error(data.detail);
+    const data = (await res.json()) as { detail?: unknown; billing?: BillingSnapshot | null };
+    const detail = typeof data.detail === "string" ? data.detail : fallback;
+    if (res.status === 402) {
+      return new ApiError(detail, 402, data.billing ?? null);
+    }
+    if (typeof data.detail === "string") return new ApiError(data.detail, res.status, data.billing ?? null);
   } catch {
     /* ignore */
   }
-  return new Error(fallback);
+  return new ApiError(fallback, res.status);
 }
 
 // These endpoints must never trigger a refresh retry (they mint/rotate the session themselves).
@@ -198,6 +256,11 @@ export type ProviderStatus = {
   grok_hub?: boolean;
   grok_hub_authed?: boolean;
   grok_opening?: boolean;
+  muse_hub?: boolean;
+  muse_hub_authed?: boolean;
+  muse_hub_challenge?: boolean;
+  muse_hub_checkpoint?: string;
+  muse_opening?: boolean;
   drama_motion?: string;
   image?: Record<string, boolean>;
   video?: Record<string, boolean>;
@@ -235,6 +298,12 @@ export async function checkChatgptSession(): Promise<ChatgptCheckResult> {
 export async function startGrokLogin(): Promise<{ status: string }> {
   const res = await request("/providers/grok-login", { method: "POST" });
   if (!res.ok) throw await parseError(res, "Could not open Grok");
+  return (await res.json()) as { status: string };
+}
+
+export async function startMuseLogin(): Promise<{ status: string }> {
+  const res = await request("/providers/muse-login", { method: "POST" });
+  if (!res.ok) throw await parseError(res, "Could not open Muse");
   return (await res.json()) as { status: string };
 }
 
@@ -349,8 +418,29 @@ export type AdminUserRow = {
   jobs_count: number;
   attachments_count: number;
   attachments_bytes: number;
+  billing?: BillingSnapshot | null;
+  plan_code?: string | null;
+  credits_remaining?: number | null;
   created_at?: string;
   updated_at?: string;
+};
+
+export type BillingMe = {
+  billing: BillingSnapshot | null;
+  ledger: CreditLedgerRow[];
+  pending_order: PaymentOrder | null;
+  transfer_note: string;
+};
+
+export type AdminBillingOverview = {
+  stats: {
+    trials_active: number;
+    subscriptions_active: number;
+    orders_pending: number;
+    credits_used_today: number;
+  };
+  plans: BillingPlan[];
+  transfer_note: string;
 };
 
 export async function compactJobStorage(jobId: string): Promise<JobStorageInfo> {
@@ -456,6 +546,82 @@ export async function saveAdminSettings(body: {
   });
   if (!res.ok) throw await parseError(res, "Không lưu được cài đặt hệ thống");
   return (await res.json()) as AdminSettings;
+}
+
+export async function listBillingPlans(): Promise<{ plans: BillingPlan[]; transfer_note: string }> {
+  const res = await request("/billing/plans");
+  if (!res.ok) throw await parseError(res, "Không tải được bảng giá");
+  return (await res.json()) as { plans: BillingPlan[]; transfer_note: string };
+}
+
+export async function readBillingMe(): Promise<BillingMe> {
+  const res = await request("/billing/me");
+  if (!res.ok) throw await parseError(res, "Không đọc được gói của bạn");
+  return (await res.json()) as BillingMe;
+}
+
+export async function checkoutPlan(planCode: string): Promise<{ order: PaymentOrder; transfer_note: string }> {
+  const res = await request("/billing/checkout", {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify({ plan_code: planCode }),
+  });
+  if (!res.ok) throw await parseError(res, "Không tạo được đơn đăng ký gói");
+  return (await res.json()) as { order: PaymentOrder; transfer_note: string };
+}
+
+export async function readAdminBillingOverview(): Promise<AdminBillingOverview> {
+  const res = await request("/admin/billing/overview");
+  if (!res.ok) throw await parseError(res, "Không tải được tổng quan billing");
+  return (await res.json()) as AdminBillingOverview;
+}
+
+export async function listAdminBillingOrders(statusFilter?: string): Promise<PaymentOrder[]> {
+  const q = statusFilter ? `?status=${encodeURIComponent(statusFilter)}` : "";
+  const res = await request(`/admin/billing/orders${q}`);
+  if (!res.ok) throw await parseError(res, "Không tải được đơn thanh toán");
+  const data = (await res.json()) as { orders?: PaymentOrder[] };
+  return Array.isArray(data.orders) ? data.orders : [];
+}
+
+export async function patchAdminBillingOrder(
+  orderId: string,
+  body: { status: "paid" | "rejected"; admin_note?: string },
+): Promise<{ order: PaymentOrder; billing: BillingSnapshot | null }> {
+  const res = await request(`/admin/billing/orders/${encodeURIComponent(orderId)}`, {
+    method: "PATCH",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không cập nhật được đơn");
+  return (await res.json()) as { order: PaymentOrder; billing: BillingSnapshot | null };
+}
+
+export async function grantAdminCredits(
+  userId: string,
+  body: { credits: number; note?: string; extend_days?: number },
+): Promise<{ subscription: Record<string, unknown>; billing: BillingSnapshot | null }> {
+  const res = await request(`/admin/billing/users/${encodeURIComponent(userId)}/grant`, {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không cấp credit được");
+  return (await res.json()) as { subscription: Record<string, unknown>; billing: BillingSnapshot | null };
+}
+
+export async function patchAdminBillingPlan(
+  code: string,
+  body: { credits?: number; price_vnd?: number; active?: boolean; period_days?: number; name?: string },
+): Promise<BillingPlan> {
+  const res = await request(`/admin/billing/plans/${encodeURIComponent(code)}`, {
+    method: "PATCH",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không sửa được gói");
+  const data = (await res.json()) as { plan: BillingPlan };
+  return data.plan;
 }
 
 export type DraftScriptResponse = {

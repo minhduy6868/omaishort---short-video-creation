@@ -222,9 +222,11 @@ def clear_auth_cookies(response: Response) -> None:
 
 
 def token_payload(user: dict[str, Any], refresh: str) -> dict[str, Any]:
+    from omaishort.billing import public_user_with_billing
+
     access = encode_access(user)
     return {
-        "user": db.public_user(user),
+        "user": public_user_with_billing(user),
         "access_token": access,
         "token_type": "bearer",
         "expires_in": AUTH_ACCESS_TTL_SEC,
@@ -300,9 +302,14 @@ def register_user(body: RegisterBody) -> dict[str, Any]:
         role = "creator"
     name = (body.display_name or "").strip() or email.split("@", 1)[0]
     try:
-        return db.create_user(secrets.token_hex(6), email, hash_password(body.password), name, role)
+        user = db.create_user(secrets.token_hex(6), email, hash_password(body.password), name, role)
     except ValueError:
         raise HTTPException(status.HTTP_409_CONFLICT, "Email này đã có tài khoản. Hãy đăng nhập.") from None
+    if role == "creator":
+        from omaishort.billing import ensure_trial
+
+        ensure_trial(str(user["id"]))
+    return user
 
 
 def authenticate(body: LoginBody) -> dict[str, Any]:

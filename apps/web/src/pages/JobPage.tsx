@@ -359,7 +359,7 @@ export function JobPage({ id }: { id: string }) {
       const updated = await pauseJob(id);
       setJob(updated);
       setEditorMessage(
-        "Đã tạm dừng tiến trình. Bạn có thể sửa cấu trúc 5 phần, lời thoại, hoặc đổi ảnh từng cảnh (từ Grok / ChatGPT / máy tính), sau đó bấm 'Tiếp tục xuất MP4'.",
+        "Đã tạm dừng sau Ảnh + Lời. Sửa lời thoại hoặc đổi ảnh từng cảnh (AI / máy tính), rồi bấm Tiếp tục xuất MP4 — áp dụng drama, news và knowledge.",
       );
     } catch (err) {
       setEditorError(err instanceof Error ? err.message : "Không tạm dừng được job");
@@ -456,7 +456,7 @@ export function JobPage({ id }: { id: string }) {
                   onClick={() => void handleRerender(false)}
                 >
                   {job?.status === "paused"
-                    ? "▶ Tiếp tục xuất MP4 (Giữ ảnh)"
+                    ? "▶ Tiếp tục xuất MP4"
                     : "Render lại MP4 (Giữ ảnh)"}
                 </button>
                 <button
@@ -759,33 +759,17 @@ export function JobPage({ id }: { id: string }) {
                   type="button"
                   className="ghost"
                   disabled={sceneBusy}
-                  onClick={() => void handleFillStills("grok", false)}
+                  onClick={() => void handleFillStills("auto", false)}
                 >
-                  Bù ảnh thiếu từ Grok
+                  Bù ảnh thiếu
                 </button>
                 <button
                   type="button"
                   className="ghost"
                   disabled={sceneBusy}
-                  onClick={() => void handleFillStills("chatgpt", false)}
+                  onClick={() => void handleFillStills("auto", true)}
                 >
-                  Bù ảnh thiếu từ ChatGPT
-                </button>
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={sceneBusy}
-                  onClick={() => void handleFillStills("grok", true)}
-                >
-                  Đổi tất cả ảnh bằng Grok
-                </button>
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={sceneBusy}
-                  onClick={() => void handleFillStills("chatgpt", true)}
-                >
-                  Đổi tất cả ảnh bằng ChatGPT
+                  Đổi tất cả ảnh
                 </button>
               </div>
             ) : null}
@@ -797,6 +781,7 @@ export function JobPage({ id }: { id: string }) {
                 {stills.map((scene) => {
                   const isEditingThis = selectedSceneIdx === scene.index && sceneForm !== null;
                   const primaryShot = scene.shots?.[0];
+                  const canEditScene = job?.status === "paused" || job?.status === "done" || job?.status === "failed";
                   return (
                     <article key={scene.still_id} className="beat-card" style={{ display: "grid", gap: "8px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
@@ -812,11 +797,12 @@ export function JobPage({ id }: { id: string }) {
                           <button
                             type="button"
                             className="ghost"
+                            disabled={!canEditScene && !isEditingThis}
                             onClick={() => {
                               if (isEditingThis) {
                                 setSelectedSceneIdx(null);
                                 setSceneForm(null);
-                              } else {
+                              } else if (canEditScene) {
                                 openSceneEditor(scene);
                               }
                             }}
@@ -826,23 +812,7 @@ export function JobPage({ id }: { id: string }) {
                           <button
                             type="button"
                             className="ghost"
-                            disabled={sceneBusy}
-                            onClick={() => void handleRegenerateStill(scene.index, undefined, "grok")}
-                          >
-                            Ảnh Grok
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost"
-                            disabled={sceneBusy}
-                            onClick={() => void handleRegenerateStill(scene.index, undefined, "chatgpt")}
-                          >
-                            Ảnh ChatGPT
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost"
-                            disabled={sceneBusy}
+                            disabled={sceneBusy || !canEditScene}
                             onClick={() => void handleRegenerateStill(scene.index, undefined, "auto")}
                           >
                             Đổi ảnh AI
@@ -945,20 +915,10 @@ export function JobPage({ id }: { id: string }) {
                               className="ghost"
                               disabled={sceneBusy}
                               onClick={() =>
-                                void handleRegenerateStill(scene.index, sceneForm.image_prompt || sceneForm.action, "grok")
+                                void handleRegenerateStill(scene.index, sceneForm.image_prompt || sceneForm.action, "auto")
                               }
                             >
-                              Lấy ảnh Grok theo Prompt
-                            </button>
-                            <button
-                              type="button"
-                              className="ghost"
-                              disabled={sceneBusy}
-                              onClick={() =>
-                                void handleRegenerateStill(scene.index, sceneForm.image_prompt || sceneForm.action, "chatgpt")
-                              }
-                            >
-                              Lấy ảnh ChatGPT theo Prompt
+                              Đổi ảnh AI
                             </button>
                             <button
                               type="button"
@@ -969,16 +929,6 @@ export function JobPage({ id }: { id: string }) {
                               }
                             >
                               Tìm ảnh Web/Wiki
-                            </button>
-                            <button
-                              type="button"
-                              className="ghost"
-                              disabled={sceneBusy}
-                              onClick={() =>
-                                void handleRegenerateStill(scene.index, sceneForm.image_prompt || sceneForm.action, "auto")
-                              }
-                            >
-                              Tạo ảnh AI
                             </button>
                           </div>
                         </div>

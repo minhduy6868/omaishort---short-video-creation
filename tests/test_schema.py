@@ -167,3 +167,26 @@ def test_public_job_parses_nested_json():
     assert payload["artifacts"]["mp4"].endswith("short.mp4")
     assert "input_json" not in payload
     assert artifacts_of(row)["mp4"].endswith("short.mp4")
+
+
+def test_mix_pause_before_render_defaults_true():
+    from omaishort_schema.models import MixSettings
+
+    assert MixSettings().pause_before_render is True
+    assert MixSettings(pause_before_render=False).pause_before_render is False
+
+
+def test_pipeline_review_gate_sits_after_tts():
+    import inspect
+
+    from omaishort import pipeline
+
+    src = inspect.getsource(pipeline.run_job)
+    voice_idx = src.find("voice_path, tts_name, edge_words = await speak_task")
+    rescale_idx = src.find("rescale_to_audio")
+    pause_idx = src.find('progress="paused:review"')
+    captions_idx = src.find("JobStage.captions.value")
+    assert voice_idx > 0
+    assert rescale_idx > voice_idx
+    assert pause_idx > rescale_idx
+    assert captions_idx > pause_idx

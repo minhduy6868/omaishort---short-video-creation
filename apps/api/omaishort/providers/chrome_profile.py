@@ -151,6 +151,7 @@ def bring_chrome_windows_to_front() -> None:
                     for k in (
                         "chatgpt",
                         "grok",
+                        "muse",
                         "openai",
                         "x.ai",
                         "imagine",

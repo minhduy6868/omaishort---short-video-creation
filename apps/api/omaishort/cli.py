@@ -132,6 +132,7 @@ def main() -> None:
     )
     parser.add_argument("--chatgpt-login", action="store_true", help="Open Chrome once to save a ChatGPT session")
     parser.add_argument("--grok-login", action="store_true", help="Open Chrome once to save a Grok hub session")
+    parser.add_argument("--muse-login", action="store_true", help="Open Chrome once to save a Muse hub session")
     args = parser.parse_args()
     if args.chatgpt_login:
         from omaishort.providers.chatgpt_web import login
@@ -141,6 +142,10 @@ def main() -> None:
         from omaishort.providers.grok_web import login as grok_login
 
         raise SystemExit(0 if asyncio.run(grok_login()) else 1)
+    if args.muse_login:
+        from omaishort.providers.muse_web import login as muse_login
+
+        raise SystemExit(0 if asyncio.run(muse_login()) else 1)
     kind = args.kind
     if looks_like_url(args.story) and kind == "drama":
         kind = "knowledge" if looks_like_github(args.story) else "news"

@@ -19,7 +19,7 @@ const PROGRESS_COPY: Record<string, string> = {
   resume: "Tiếp tục job",
   "resume:queued": "Đang tiếp tục render",
   "rerender:start": "Đang dựng lại MP4",
-  "paused:review": "Tạm dừng — sẵn sàng sửa ảnh & lời",
+  "paused:review": "Tạm dừng — sửa ảnh/lời rồi bấm Tiếp tục xuất MP4",
   "paused:editing": "Đang tạm dừng để chỉnh sửa",
   script: "Đang viết lời",
   analyze: "Đang phân tích",

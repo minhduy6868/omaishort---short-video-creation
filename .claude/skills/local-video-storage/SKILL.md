@@ -8,4 +8,3 @@ description: Manages local video MP4 storage, job disk artifacts, compaction, or
 Canonical skill: [`../../.cursor/skills/local-video-storage/SKILL.md`](../../.cursor/skills/local-video-storage/SKILL.md)
 
 Read that file now and follow it exactly. Do not invent a second workflow.
-

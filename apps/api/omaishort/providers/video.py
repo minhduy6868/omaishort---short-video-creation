@@ -14,6 +14,7 @@ from omaishort.config import (
     HF_I2V_SPACE_URL,
     HF_I2V_WAN_URL,
     HF_TOKEN,
+    MUSE_WEB_VIDEO_ENABLED,
     POLLINATIONS_KEY,
     POLLINATIONS_VIDEO_ENABLED,
     POLLINATIONS_VIDEO_MODEL,
@@ -27,6 +28,7 @@ from omaishort.config import (
     GROK_WEB_VIDEO_ENABLED,
 )
 from omaishort.providers.grok_hub_video import GrokHubVideoProvider
+from omaishort.providers.muse_video import MuseVideoProvider
 from omaishort.providers.pollinations import load_ref_url, looks_like_photo
 from omaishort.providers.xai_video import XaiVideoProvider
 
@@ -139,6 +141,7 @@ class VideoProvider(Protocol):
         still: Path | None = None,
         end_image_url: str | None = None,
         end_still: Path | None = None,
+        identity_refs: list[Path] | None = None,
     ) -> Path | None:
         ...
 
@@ -156,7 +159,9 @@ class ComfyUIVideoProvider:
         still: Path | None = None,
         end_image_url: str | None = None,
         end_still: Path | None = None,
+        identity_refs: list[Path] | None = None,
     ) -> Path | None:
+        del identity_refs
         try:
             async with httpx.AsyncClient(timeout=1.0) as client:
                 ping = await client.get(f"{COMFYUI_URL}/system_stats")
@@ -299,7 +304,9 @@ class HuggingFaceWanFastProvider:
         still: Path | None = None,
         end_image_url: str | None = None,
         end_still: Path | None = None,
+        identity_refs: list[Path] | None = None,
     ) -> Path | None:
+        del end_image_url, end_still, identity_refs
         if not HF_I2V_ENABLED or not HF_TOKEN:
             return None
         compact = " ".join(prompt.split())[:400]
@@ -358,7 +365,9 @@ class HuggingFaceSpaceVideoProvider:
         still: Path | None = None,
         end_image_url: str | None = None,
         end_still: Path | None = None,
+        identity_refs: list[Path] | None = None,
     ) -> Path | None:
+        del identity_refs
         if not HF_I2V_ENABLED or not HF_TOKEN:
             return None
         compact = " ".join(prompt.split())[:400]
@@ -445,7 +454,9 @@ class PollinationsVideoProvider:
         still: Path | None = None,
         end_image_url: str | None = None,
         end_still: Path | None = None,
+        identity_refs: list[Path] | None = None,
     ) -> Path | None:
+        del still, end_still, identity_refs
         if not POLLINATIONS_VIDEO_ENABLED or not POLLINATIONS_KEY or not image_url:
             return None
         compact = " ".join(prompt.split())[:400]
@@ -493,7 +504,9 @@ class WaveSpeedVideoProvider:
         still: Path | None = None,
         end_image_url: str | None = None,
         end_still: Path | None = None,
+        identity_refs: list[Path] | None = None,
     ) -> Path | None:
+        del still, end_still, identity_refs
         if not WAVESPEED_ENABLED or not WAVESPEED_API_KEY or not image_url:
             return None
         compact = " ".join(prompt.split())[:400]
@@ -581,6 +594,7 @@ async def generate_clip(
     *,
     duration: float,
     end_still: Path | None = None,
+    identity_refs: list[Path] | None = None,
 ) -> tuple[Path, str] | None:
     image_url = load_ref_url(still)
     if not image_url and not looks_like_photo(still):
@@ -596,6 +610,7 @@ async def generate_clip(
             still=still,
             end_image_url=end_image_url,
             end_still=end_still,
+            identity_refs=identity_refs,
         )
         if result is not None:
             return result, provider.name
@@ -604,6 +619,8 @@ async def generate_clip(
 
 def i2v_used_end_frame(provider_name: str) -> bool:
     """True when that adapter actually consumes a last frame (not Wan-fast)."""
+    if provider_name in {"muse", "grok_hub_video"}:
+        return False
     if provider_name == "hf_space_ltx":
         return True
     if provider_name == "pollinations_video":
@@ -614,9 +631,10 @@ def i2v_used_end_frame(provider_name: str) -> bool:
 
 
 def i2v_providers(*, wants_end_frame: bool) -> list[VideoProvider]:
-    """Drama continuity: Grok hub (logged-in) then xAI HTTP; last-frame adapters before Wan-fast."""
-    from omaishort.providers import grok_web
+    """Drama continuity: Muse hub → Grok hub → xAI HTTP; last-frame adapters before Wan-fast."""
+    from omaishort.providers import grok_web, muse_web
 
+    muse = MuseVideoProvider()
     grok = XaiVideoProvider()
     hub = GrokHubVideoProvider()
     wan = HuggingFaceWanFastProvider()
@@ -632,4 +650,6 @@ def i2v_providers(*, wants_end_frame: bool) -> list[VideoProvider]:
         chain = [grok, *chain]
     if GROK_WEB_VIDEO_ENABLED and grok_web.is_authed():
         chain = [hub, *chain]
+    if MUSE_WEB_VIDEO_ENABLED and muse_web.is_authed():
+        chain = [muse, *chain]
     return chain

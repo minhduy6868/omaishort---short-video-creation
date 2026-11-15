@@ -50,13 +50,84 @@ def build_prop_prompt(prop: AssetRef) -> str:
     )
 
 
+def _vo_visual_gist(vo: str, *, limit: int = 12) -> str:
+    """Short noun/gesture cues from VO — never a quote for the image model."""
+    text = " ".join(str(vo or "").replace('"', " ").replace("'", " ").split())
+    if not text:
+        return ""
+    stop = {
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "but",
+        "to",
+        "of",
+        "in",
+        "on",
+        "at",
+        "for",
+        "is",
+        "are",
+        "was",
+        "were",
+        "i",
+        "you",
+        "he",
+        "she",
+        "we",
+        "they",
+        "my",
+        "your",
+        "his",
+        "her",
+        "their",
+        "this",
+        "that",
+        "with",
+        "from",
+        "said",
+        "says",
+        "say",
+        "told",
+        "tell",
+    }
+    words: list[str] = []
+    for raw in text.split():
+        token = "".join(ch for ch in raw.lower() if ch.isalnum() or ch == "-")
+        if len(token) < 3 or token in stop:
+            continue
+        if token not in words:
+            words.append(token)
+        if len(words) >= limit:
+            break
+    return " ".join(words)
+
+
 def visual_action(scene: Scene) -> str:
     """Camera action for stills — never dump voiceover into the image prompt."""
     loc = scene.location or "interior"
+    action = " ".join(str(scene.action or "").split())
+    gist = _vo_visual_gist(scene.dialogue_or_vo or "")
     blob = f"{scene.location} {scene.dialogue_or_vo} {scene.action}".lower()
     if not scene.use_face_ref and not scene.characters:
-        return scene.action or (
-            f"uninhabited editorial still of {loc}, zero people, zero faces"
+        # News/knowledge ảnh ghép: keep uninhabited, pin still to this beat's VO gist.
+        base = action or f"uninhabited editorial still of {loc}"
+        cue = ""
+        if gist:
+            missing = [
+                token
+                for token in gist.split()
+                if token not in base.lower()
+            ]
+            if missing:
+                cue = f", suggesting {' '.join(missing[:8])}"
+            elif not action:
+                cue = f", suggesting {gist}"
+        return (
+            f"{base}{cue}, zero people, zero faces, no text on image, "
+            "no soap-opera couple, no narrator portrait"
         )
     if not scene.use_face_ref:
         if any(token in blob for token in ("phone", "lock screen", "message", "screenshot")):
@@ -70,9 +141,11 @@ def visual_action(scene: Scene) -> str:
     light = (scene.lighting or "").strip()
     mood = (scene.mood or beat).strip()
     look = f", {light}" if light else ""
+    moment = action or (f"moment suggesting {gist}" if gist else "silent beat")
+    cue = f", visual cue: {gist}" if gist and gist.lower() not in moment.lower() else ""
     return (
-        f"only {who} in {loc}, {beat} beat, {mood} mood{look}, "
-        "silent photographic moment, do not illustrate spoken dialogue or off-screen people"
+        f"only {who} in {loc}, {moment}{cue}, {beat} beat, {mood} mood{look}, "
+        "silent photographic moment, no text, no speech bubbles, do not quote dialogue"
     )
 
 

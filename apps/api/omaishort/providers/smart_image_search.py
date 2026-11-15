@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import re
+import shutil
 from pathlib import Path
 
 import httpx
@@ -12,13 +14,17 @@ from PIL import Image
 
 from omaishort.config import GROK_WEB_ENABLED, GROK_WEB_TIMEOUT_MIN
 from omaishort.engine.brief_media import (
+    STILL_OVERLAP,
     conform_photo,
     download_photo,
-    search_openverse,
-    search_wikimedia,
+    editorial_candidate_score,
+    external_terms_for_beat,
+    search_openverse_hits,
+    search_wikimedia_hits,
     search_wikipedia_original,
     unique_image_urls,
     visual_terms_for_beat,
+    wants_object_photo,
     wikipedia_titles,
 )
 from omaishort.providers import chatgpt_web, grok_web
@@ -224,13 +230,17 @@ async def extract_visual_search_plan(
             if isinstance(u, str) and u.strip().startswith("http"):
                 img_urls.append(u.strip())
 
-    # Always append deterministic visual terms as backup
-    for term in visual_terms_for_beat(query_or_vo, title):
+    # Prefer deterministic object terms from the spoken beat over LLM topic pages.
+    for term in external_terms_for_beat(query_or_vo, title) or visual_terms_for_beat(query_or_vo, title):
         if term not in queries:
-            queries.append(term)
-    for wtitle in wikipedia_titles(title, query_or_vo):
-        if wtitle not in wiki_list:
-            wiki_list.append(wtitle)
+            queries.insert(0, term)
+    # Object-photo beats: do not prepend Inflation/CPI Wikipedia lead images.
+    if not wants_object_photo(query_or_vo):
+        for wtitle in wikipedia_titles("", query_or_vo):
+            if wtitle not in wiki_list:
+                wiki_list.append(wtitle)
+    else:
+        wiki_list = []
     if query_or_vo.strip() and len(query_or_vo.strip()) <= 80:
         queries.insert(0, query_or_vo.strip())
 
@@ -244,23 +254,38 @@ async def search_and_download_web_still(
     *,
     prefer: str = "auto",
 ) -> tuple[Path | None, str]:
-    """Search Wikipedia, Wikimedia Commons, and Openverse using AI-assisted queries and conform to 9:16."""
+    """Search Wikimedia/Openverse, rank by beat overlap, then conform to 9:16."""
     queries, wiki_list, direct_urls = await extract_visual_search_plan(query_or_vo, title, prefer=prefer)
-    candidate_urls: list[tuple[str, str]] = []
+    ranked: list[tuple[float, str, str]] = []
     for u in direct_urls:
-        candidate_urls.append((u, f"{prefer}_direct"))
-    for wpage in wiki_list:
-        for u in await search_wikipedia_original(wpage):
-            candidate_urls.append((u, f"{prefer}_wikipedia" if prefer in {"grok", "chatgpt"} else "wikipedia"))
+        ranked.append((editorial_candidate_score(u, query_or_vo, query=query_or_vo), u, f"{prefer}_direct"))
+    if not wants_object_photo(query_or_vo):
+        for wpage in wiki_list:
+            for u in await search_wikipedia_original(wpage):
+                tag = f"{prefer}_wikipedia" if prefer in {"grok", "chatgpt"} else "wikipedia"
+                ranked.append((editorial_candidate_score(u, query_or_vo, caption=wpage), u, tag))
     for q in queries:
-        for u in await search_wikimedia(q, limit=4):
-            candidate_urls.append((u, f"{prefer}_wikimedia" if prefer in {"grok", "chatgpt"} else "wikimedia"))
-        for u in await search_openverse(q, limit=4):
-            candidate_urls.append((u, f"{prefer}_openverse" if prefer in {"grok", "chatgpt"} else "openverse"))
+        tag_w = f"{prefer}_wikimedia" if prefer in {"grok", "chatgpt"} else "wikimedia"
+        tag_o = f"{prefer}_openverse" if prefer in {"grok", "chatgpt"} else "openverse"
+        for u, label in await search_wikimedia_hits(q, limit=6):
+            ranked.append((editorial_candidate_score(u, query_or_vo, caption=label, query=q), u, tag_w))
+        for u, label in await search_openverse_hits(q, limit=6):
+            ranked.append((editorial_candidate_score(u, query_or_vo, caption=label, query=q), u, tag_o))
 
+    ranked.sort(key=lambda row: row[0], reverse=True)
     seen: set[str] = set()
     dest.parent.mkdir(parents=True, exist_ok=True)
-    for url, tag in candidate_urls:
+    for score, url, tag in ranked:
+        if not url or url in seen:
+            continue
+        if score < STILL_OVERLAP and wants_object_photo(query_or_vo):
+            continue
+        seen.add(url)
+        saved = await download_photo(url, dest)
+        if saved and saved.is_file():
+            return saved, tag
+    # Last resort: best remaining download even under the gate (still better than random wiki lead).
+    for score, url, tag in ranked:
         if not url or url in seen:
             continue
         seen.add(url)
@@ -268,6 +293,13 @@ async def search_and_download_web_still(
         if saved and saved.is_file():
             return saved, tag
     return None, "none"
+
+
+def _copy_still(src: Path, dest: Path) -> Path:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if src.resolve() != dest.resolve():
+        shutil.copy2(src, dest)
+    return dest
 
 
 async def resolve_scene_still(
@@ -280,59 +312,109 @@ async def resolve_scene_still(
     refs: list[Path] | None = None,
     editorial: bool = False,
     skip_remote: bool = False,
+    action: str = "",
+    context: str = "",
+    avoid_urls: set[str] | None = None,
 ) -> tuple[Path, str]:
     """Generate or search a scene still using the requested source ('grok', 'chatgpt', 'search', or 'auto')."""
+    del avoid_urls  # reserved for callers that already reserved article/CC URLs
     dest.parent.mkdir(parents=True, exist_ok=True)
     src = (source or "auto").strip().lower()
     search_text = prompt.strip() or vo.strip() or title.strip()
-    query_input = (
-        f"{search_text}\n{vo.strip()}".strip()
-        if search_text and search_text != vo.strip()
-        else (vo.strip() or search_text)
-    )
+    beat_blob = (context or " ".join(p for p in (action, vo) if p).strip() or vo).strip()
+    # Editorial search must follow the spoken beat + action, not the full BRIEF blob.
+    if editorial and beat_blob:
+        query_input = beat_blob
+        terms = external_terms_for_beat(beat_blob, title)
+        if terms:
+            query_input = f"{terms[0]}\n{beat_blob}"
+    else:
+        query_input = (
+            f"{search_text}\n{vo.strip()}".strip()
+            if search_text and search_text != vo.strip()
+            else (vo.strip() or search_text)
+        )
 
     if skip_remote:
         return await generate_image(search_text, dest, refs, photo=False, skip_remote=True)
 
     if src == "grok":
-        # 1. Official xAI Grok Imagine API
-        xai = await XaiImageProvider().generate(search_text, dest, refs)
-        if xai and xai.is_file():
-            return xai, "grok_xai"
-        # 2. Logged-in Grok Web Hub (grok.com/imagine)
-        ghub = await generate_or_search_via_grok_hub(search_text, dest)
-        if ghub and ghub.is_file():
-            return ghub, "grok_hub"
-        # 3. Grok-assisted Web / Wikimedia / Openverse visual search
-        found, tag = await search_and_download_web_still(query_input, title, dest, prefer="grok")
-        if found and found.is_file():
-            return found, tag
-        # 4. Fallback to general image generator
+        # Parallel: xAI / hub search path + photographic generate — take first usable, prefer search.
+        search_dest = dest.with_name(f"{dest.stem}.search{dest.suffix}")
+        gen_dest = dest.with_name(f"{dest.stem}.gen{dest.suffix}")
+
+        async def _grok_search() -> tuple[Path | None, str]:
+            xai = await XaiImageProvider().generate(search_text, search_dest, refs)
+            if xai and xai.is_file():
+                return xai, "grok_xai"
+            ghub = await generate_or_search_via_grok_hub(search_text, search_dest)
+            if ghub and ghub.is_file():
+                return ghub, "grok_hub"
+            return await search_and_download_web_still(query_input, title, search_dest, prefer="grok")
+
+        found_pair, gen_pair = await asyncio.gather(
+            _grok_search(),
+            generate_image(search_text, gen_dest, refs, photo=True),
+            return_exceptions=True,
+        )
+        if not isinstance(found_pair, BaseException):
+            found, tag = found_pair
+            if found and found.is_file():
+                return _copy_still(found, dest), tag
+        if not isinstance(gen_pair, BaseException):
+            gpath, gtag = gen_pair
+            if gpath and Path(gpath).is_file():
+                return _copy_still(Path(gpath), dest), gtag
         return await generate_image(search_text, dest, refs, photo=False)
 
     if src == "chatgpt":
-        # 1. OpenAI Image API (DALL-E / gpt-image-1)
-        oai = await OpenAIImageProvider().generate(search_text, dest, refs)
-        if oai and oai.is_file():
-            return oai, "chatgpt_openai"
-        # 2. ChatGPT Web assisted visual search (Wikipedia / Wikimedia / Openverse)
-        found, tag = await search_and_download_web_still(query_input, title, dest, prefer="chatgpt")
-        if found and found.is_file():
-            return found, tag
-        # 3. Fallback to general image generator
+        search_dest = dest.with_name(f"{dest.stem}.search{dest.suffix}")
+        gen_dest = dest.with_name(f"{dest.stem}.gen{dest.suffix}")
+
+        async def _chatgpt_search() -> tuple[Path | None, str]:
+            oai = await OpenAIImageProvider().generate(search_text, search_dest, refs)
+            if oai and oai.is_file():
+                return oai, "chatgpt_openai"
+            return await search_and_download_web_still(query_input, title, search_dest, prefer="chatgpt")
+
+        found_pair, gen_pair = await asyncio.gather(
+            _chatgpt_search(),
+            generate_image(search_text, gen_dest, refs, photo=True),
+            return_exceptions=True,
+        )
+        if not isinstance(found_pair, BaseException):
+            found, tag = found_pair
+            if found and found.is_file():
+                return _copy_still(found, dest), tag
+        if not isinstance(gen_pair, BaseException):
+            gpath, gtag = gen_pair
+            if gpath and Path(gpath).is_file():
+                return _copy_still(Path(gpath), dest), gtag
         return await generate_image(search_text, dest, refs, photo=False)
 
     if src == "search":
         found, tag = await search_and_download_web_still(query_input, title, dest, prefer="auto")
         if found and found.is_file():
             return found, tag
-        return await generate_image(search_text, dest, refs, photo=False)
+        return await generate_image(search_text, dest, refs, photo=True)
 
-    # Default 'auto': for editorial, try web search first, then Grok/ChatGPT/Pollinations
+    # Default 'auto': race web search + AI generate so stills don't wait in series.
     if editorial:
-        found, tag = await search_and_download_web_still(query_input, title, dest, prefer="auto")
-        if found and found.is_file():
-            return found, tag
+        search_dest = dest.with_name(f"{dest.stem}.search{dest.suffix}")
+        gen_dest = dest.with_name(f"{dest.stem}.gen{dest.suffix}")
+        found_pair, gen_pair = await asyncio.gather(
+            search_and_download_web_still(query_input, title, search_dest, prefer="auto"),
+            generate_image(search_text, gen_dest, refs, photo=True),
+            return_exceptions=True,
+        )
+        if not isinstance(found_pair, BaseException):
+            found, tag = found_pair
+            if found and found.is_file():
+                return _copy_still(found, dest), tag
+        if not isinstance(gen_pair, BaseException):
+            gpath, gtag = gen_pair
+            if gpath and Path(gpath).is_file():
+                return _copy_still(Path(gpath), dest), gtag
         ghub = await generate_or_search_via_grok_hub(search_text, dest)
         if ghub and ghub.is_file():
             return ghub, "grok_hub"

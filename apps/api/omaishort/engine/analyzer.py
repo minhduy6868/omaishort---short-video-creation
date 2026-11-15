@@ -5,7 +5,6 @@ import re
 from omaishort.engine.brief_media import knowledge_spoken_from_notes, knowledge_spoken_from_wiki
 from omaishort.engine.fallback import fallback_analyze, stamp_identity_locks
 from omaishort.providers.llm import complete_json, complete_json_result, load_prompt
-from omaishort.providers.tts import ensure_spoken_stops
 from omaishort_schema.models import CharacterBible, StoryInput, StoryStructure, is_editorial
 
 _SCRIPT_KEYS = ("hook", "conflict", "rising_action", "twist", "ending")
@@ -70,6 +69,8 @@ async def write_knowledge_script(
     prompt_name: str = "knowledge_script.txt",
 ) -> tuple[str, str, str]:
     """ChatGPT writes the VO first. Wikipedia / README notes are fallback."""
+    from omaishort.providers.tts import ensure_spoken_stops
+
     system = load_prompt(prompt_name)
     user = knowledge_script_user(
         title, extract, language, target_seconds, topic=topic, script_brief=script_brief
@@ -282,6 +283,8 @@ async def rewrite_content_beats(
     user_lines.append("CURRENT_STRUCTURE:")
     for key in _SCRIPT_KEYS:
         user_lines.append(f"{key}: {current.get(key) or ''}")
+    from omaishort.providers.tts import ensure_spoken_stops
+
     raw, src, _err = await complete_json_result(system, "\n".join(user_lines))
     updated = dict(current)
     if isinstance(raw, dict):
@@ -297,7 +300,6 @@ async def rewrite_content_beats(
             return updated, src or "llm"
 
     # Smart local polish when LLM/ChatGPT is offline
-    vi = (language or "vi").lower().startswith("vi")
     keys_to_update = _SCRIPT_KEYS if beat == "all" else tuple(k for k in _SCRIPT_KEYS if k == beat)
     hint = re.sub(r"\s+", " ", instruction.strip())
     for k in keys_to_update:

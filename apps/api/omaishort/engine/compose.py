@@ -8,6 +8,8 @@ from omaishort.config import (
     ASSETS_DIR,
     HF_I2V_ENABLED,
     HF_TOKEN,
+    MUSE_WEB_ENABLED,
+    MUSE_WEB_VIDEO_ENABLED,
     POLLINATIONS_KEY,
     POLLINATIONS_VIDEO_ENABLED,
     WAVESPEED_API_KEY,
@@ -19,10 +21,13 @@ from omaishort.config import (
 )
 from omaishort.engine.fallback import apply_beat_lenses, infer_beat
 from omaishort.engine.i2v_bridge import pick_end_scene, pick_start_frame
+from omaishort.engine.image_prompts import scene_still_refs
 from omaishort.engine.kenburns import (
     conform_clip,
     extract_last_frame,
     ffmpeg_path,
+    has_audio_stream,
+    is_audible,
     probe_duration,
     render_shot_clip,
 )
@@ -50,6 +55,11 @@ def editorial_xfade_offsets(durations: list[float], fade: float = EDITORIAL_XFAD
 
 
 def i2v_ready() -> bool:
+    if MUSE_WEB_ENABLED and MUSE_WEB_VIDEO_ENABLED:
+        from omaishort.providers import muse_web
+
+        if muse_web.is_authed():
+            return True
     if GROK_WEB_ENABLED and GROK_WEB_VIDEO_ENABLED:
         from omaishort.providers import grok_web
 
@@ -112,6 +122,10 @@ async def compose_short(
     dest: Path,
     work_dir: Path,
     mix: MixSettings | None = None,
+    *,
+    refs_dir: Path | None = None,
+    location_dir: Path | None = None,
+    prop_dir: Path | None = None,
 ) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     work_dir = work_dir.resolve()
@@ -130,75 +144,95 @@ async def compose_short(
     prev_scene = None
     prev_tail: Path | None = None
     prev_used_end = False
-    for i, scene in enumerate(board.scenes):
-        still = stills[scene.still_id]
-        i2v_used = False
-        group: list[Path] = []
-        if want_i2v:
-            beat = infer_beat(scene, i, total)
-            start_still = pick_start_frame(
-                scene,
-                still,
-                prev=prev_scene,
-                prev_tail=prev_tail,
-                prev_used_end_frame=prev_used_end,
-            )
-            chained = start_still != still
-            end_scene = pick_end_scene(board.scenes, i, stills)
-            end_still = stills.get(end_scene.still_id) if end_scene is not None else None
-            prompt = motion_prompt(
-                scene,
-                beat=beat,
-                has_end_frame=end_still is not None,
-                chained=chained,
-            )
-            raw = work_dir / "i2v" / f"{scene.still_id}.mp4"
-            generated = await generate_clip(
-                prompt,
-                raw,
-                start_still,
-                duration=scene.duration_sec,
-                end_still=end_still,
-            )
-            if generated is not None:
-                n += 1
-                clip = clips_dir / f"clip_{n:03d}.mp4"
-                await conform_clip(generated[0], clip, scene.duration_sec)
-                clip_paths.append(clip)
-                group.append(clip)
-                i2v_ids.append(scene.still_id)
-                used_end = bool(end_still) and i2v_used_end_frame(generated[1])
-                tail = work_dir / "i2v" / f"{scene.still_id}_last.png"
-                try:
-                    await extract_last_frame(clip, tail)
-                    prev_tail = tail
-                except RuntimeError:
-                    prev_tail = None
-                    used_end = False
-                prev_scene = scene
-                prev_used_end = used_end
-                frames.append(
-                    {
-                        "still_id": scene.still_id,
-                        "end_still_id": end_scene.still_id if end_scene is not None else None,
-                        "start": "prev_last_frame" if chained else "still",
-                        "used_end_frame": used_end,
-                        "provider": generated[1],
-                        "beat": beat,
-                    }
+
+    async def _compose_scenes() -> None:
+        nonlocal n, prev_scene, prev_tail, prev_used_end
+        for i, scene in enumerate(board.scenes):
+            still = stills[scene.still_id]
+            i2v_used = False
+            group: list[Path] = []
+            if want_i2v:
+                beat = infer_beat(scene, i, total)
+                start_still = pick_start_frame(
+                    scene,
+                    still,
+                    prev=prev_scene,
+                    prev_tail=prev_tail,
+                    prev_used_end_frame=prev_used_end,
                 )
-                i2v_used = True
-        if not i2v_used:
-            for shot in scene.shots:
-                n += 1
-                clip = clips_dir / f"clip_{n:03d}.mp4"
-                await render_shot_clip(still, shot, clip, editorial=editorial)
-                clip_paths.append(clip)
-                group.append(clip)
-            prev_scene = scene
-            prev_tail = None
-            prev_used_end = False
-        scene_clip_groups.append(group)
+                chained = start_still != still
+                end_scene = pick_end_scene(board.scenes, i, stills)
+                end_still = stills.get(end_scene.still_id) if end_scene is not None else None
+                prompt = motion_prompt(
+                    scene,
+                    beat=beat,
+                    has_end_frame=end_still is not None,
+                    chained=chained,
+                )
+                identity: list[Path] = []
+                if refs_dir is not None:
+                    identity = scene_still_refs(
+                        scene,
+                        refs_dir=refs_dir,
+                        location_dir=location_dir or (refs_dir / "locations"),
+                        prop_dir=prop_dir or (refs_dir / "props"),
+                    )
+                raw = work_dir / "i2v" / f"{scene.still_id}.mp4"
+                generated = await generate_clip(
+                    prompt,
+                    raw,
+                    start_still,
+                    duration=scene.duration_sec,
+                    end_still=end_still,
+                    identity_refs=identity or None,
+                )
+                if generated is not None:
+                    n += 1
+                    clip = clips_dir / f"clip_{n:03d}.mp4"
+                    await conform_clip(generated[0], clip, scene.duration_sec)
+                    clip_paths.append(clip)
+                    group.append(clip)
+                    i2v_ids.append(scene.still_id)
+                    used_end = bool(end_still) and i2v_used_end_frame(generated[1])
+                    tail = work_dir / "i2v" / f"{scene.still_id}_last.png"
+                    try:
+                        await extract_last_frame(clip, tail)
+                        prev_tail = tail
+                    except RuntimeError:
+                        prev_tail = None
+                        used_end = False
+                    prev_scene = scene
+                    prev_used_end = used_end
+                    frames.append(
+                        {
+                            "still_id": scene.still_id,
+                            "end_still_id": end_scene.still_id if end_scene is not None else None,
+                            "start": "prev_last_frame" if chained else "still",
+                            "used_end_frame": used_end,
+                            "provider": generated[1],
+                            "beat": beat,
+                        }
+                    )
+                    i2v_used = True
+            if not i2v_used:
+                for shot in scene.shots:
+                    n += 1
+                    clip = clips_dir / f"clip_{n:03d}.mp4"
+                    await render_shot_clip(still, shot, clip, editorial=editorial)
+                    clip_paths.append(clip)
+                    group.append(clip)
+                prev_scene = scene
+                prev_tail = None
+                prev_used_end = False
+            scene_clip_groups.append(group)
+
+    if want_i2v and MUSE_WEB_ENABLED and MUSE_WEB_VIDEO_ENABLED:
+        from omaishort.providers.muse_video import muse_job_hub
+
+        async with muse_job_hub():
+            await _compose_scenes()
+    else:
+        await _compose_scenes()
     if not i2v_ids:
         mode = "kenburns"
     elif len(i2v_ids) == len(board.scenes):
@@ -232,6 +266,16 @@ async def compose_short(
         except RuntimeError:
             await _concat(concat_file, silent, work_dir, copy=False)
 
+    if not audio_path.is_file():
+        raise RuntimeError(f"voiceover missing: {audio_path}")
+    if not has_audio_stream(audio_path):
+        raise RuntimeError(f"voiceover has no audio stream: {audio_path}")
+    vo_dur = probe_duration(audio_path) or 0.0
+    if vo_dur < 0.2:
+        raise RuntimeError(f"voiceover too short ({vo_dur:.2f}s): {audio_path}")
+    # -shortest must not truncate VO: pad silent video up to the spoken length first.
+    silent = await _pad_video_to_duration(silent, vo_dur, work_dir)
+
     mix = mix or MixSettings()
     bgm = pick_bgm() if mix.bgm_enabled else None
     logo = pick_logo(mix)
@@ -263,12 +307,52 @@ async def compose_short(
                 duck=duck,
                 subtitles=subtitles,
                 logo=mix_logo,
+                audio_duration=vo_dur,
             )
-            if dest.exists() and dest.stat().st_size > 0:
-                return dest
+            if dest.exists() and dest.stat().st_size > 0 and has_audio_stream(dest):
+                # Fancy filters (BGM duck / ASS) must not leave a silent track.
+                if is_audible(dest) or not is_audible(audio_path):
+                    return dest
+                last_error = RuntimeError("mux produced inaudible audio")
         except RuntimeError as exc:
             last_error = exc
+    # Last-resort: stream-copy video + AAC voiceover, no filters.
+    try:
+        dest.unlink(missing_ok=True)
+        await _mux_voice_only(silent, audio_path, dest, work_dir, audio_duration=vo_dur)
+        if dest.exists() and dest.stat().st_size > 0 and has_audio_stream(dest):
+            return dest
+    except RuntimeError as exc:
+        last_error = exc
     raise last_error
+
+
+async def _pad_video_to_duration(video: Path, seconds: float, work_dir: Path) -> Path:
+    """Ensure the silent picture track is at least as long as the VO."""
+    current = probe_duration(video) or 0.0
+    need = max(0.2, float(seconds))
+    if current >= need - 0.05:
+        return video
+    pad = need - current + 0.08
+    out = work_dir / f"{video.stem}.vo_pad{video.suffix}"
+    cmd = [
+        ffmpeg_path(),
+        "-y",
+        "-i",
+        video.name,
+        "-vf",
+        f"tpad=stop_mode=clone:stop_duration={pad:.3f}",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-preset",
+        "veryfast",
+        out.name,
+    ]
+    await _run(cmd, cwd=work_dir)
+    return out if out.is_file() else video
 
 
 async def _concat_editorial_xfade(
@@ -362,6 +446,7 @@ async def _mux(
     duck: bool,
     subtitles: bool,
     logo: Path | None = None,
+    audio_duration: float | None = None,
 ) -> None:
     filter_parts: list[str] = []
     inputs = ["-i", silent.name, "-i", str(audio_path.resolve())]
@@ -384,15 +469,22 @@ async def _mux(
     if bgm is not None:
         inputs += ["-stream_loop", "-1", "-i", str(bgm.resolve())]
         vol = max(0.0, min(1.0, mix.bgm_volume))
+        # Keep VO as the duration master; BGM is ducked under speech, never replaces it.
         filter_parts.append("[1:a]aformat=sample_fmts=fltp:channel_layouts=stereo,volume=1.0[vo]")
-        filter_parts.append(f"[{next_idx}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,volume={vol:.3f}[bg]")
+        filter_parts.append(
+            f"[{next_idx}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,volume={vol:.3f}[bg]"
+        )
         if duck:
             filter_parts.append(
                 "[bg][vo]sidechaincompress=threshold=0.05:ratio=8:attack=150:release=600:makeup=1[ducked]"
             )
-            filter_parts.append("[vo][ducked]amix=inputs=2:duration=first:dropout_transition=2[a]")
+            filter_parts.append(
+                "[vo][ducked]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[a]"
+            )
         else:
-            filter_parts.append("[vo][bg]amix=inputs=2:duration=first:dropout_transition=2[a]")
+            filter_parts.append(
+                "[vo][bg]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[a]"
+            )
         maps = ["-map", vmap, "-map", "[a]"]
     cmd = [
         ffmpeg_path(),
@@ -409,12 +501,92 @@ async def _mux(
         "yuv420p",
         "-c:a",
         "aac",
-        "-shortest",
+        "-ac",
+        "2",
+        "-ar",
+        "44100",
+    ]
+    # Cut on VO length after video was padded to >= VO — never drop the spoken track early.
+    if audio_duration and audio_duration > 0.2:
+        cmd += ["-t", f"{audio_duration:.3f}"]
+    else:
+        cmd.append("-shortest")
+    cmd += [
         "-movflags",
         "+faststart",
         str(dest.resolve()),
     ]
     await _run(cmd, cwd=work_dir)
+
+
+async def _mux_voice_only(
+    silent: Path,
+    audio_path: Path,
+    dest: Path,
+    work_dir: Path,
+    *,
+    audio_duration: float | None = None,
+) -> None:
+    """Bulletproof VO mux: no subtitles/BGM/logo filters."""
+    cmd = [
+        ffmpeg_path(),
+        "-y",
+        "-i",
+        silent.name,
+        "-i",
+        str(audio_path.resolve()),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-ac",
+        "2",
+        "-ar",
+        "44100",
+    ]
+    if audio_duration and audio_duration > 0.2:
+        cmd += ["-t", f"{audio_duration:.3f}"]
+    else:
+        cmd.append("-shortest")
+    cmd += ["-movflags", "+faststart", str(dest.resolve())]
+    try:
+        await _run(cmd, cwd=work_dir)
+    except RuntimeError:
+        # copy may fail across codecs — re-encode video once.
+        cmd = [
+            ffmpeg_path(),
+            "-y",
+            "-i",
+            silent.name,
+            "-i",
+            str(audio_path.resolve()),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-preset",
+            "veryfast",
+            "-c:a",
+            "aac",
+            "-ac",
+            "2",
+            "-ar",
+            "44100",
+        ]
+        if audio_duration and audio_duration > 0.2:
+            cmd += ["-t", f"{audio_duration:.3f}"]
+        else:
+            cmd.append("-shortest")
+        cmd += ["-movflags", "+faststart", str(dest.resolve())]
+        await _run(cmd, cwd=work_dir)
 
 
 async def _run(cmd: list[str], cwd: Path | None = None) -> None:

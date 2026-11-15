@@ -12,6 +12,8 @@ from omaishort.config import (
     GEMINI_API_KEY,
     HF_I2V_ENABLED,
     HF_TOKEN,
+    MUSE_WEB_ENABLED,
+    MUSE_WEB_VIDEO_ENABLED,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
     OPENAI_MODEL,
@@ -26,7 +28,7 @@ from omaishort.config import (
     GROK_WEB_ENABLED,
     GROK_WEB_VIDEO_ENABLED,
 )
-from omaishort.providers import chatgpt_web, elevenlabs_hub, grok_web
+from omaishort.providers import chatgpt_web, elevenlabs_hub, grok_web, muse_web
 
 _OPENAI_CLOUD = {"https://api.openai.com/v1", "https://api.openai.com"}
 _WEB2API_BASE = "http://127.0.0.1:8080/v1"
@@ -88,8 +90,11 @@ def llm_status() -> dict[str, object]:
     wavespeed = bool(WAVESPEED_ENABLED and WAVESPEED_API_KEY)
     pollen_video = bool(POLLINATIONS_VIDEO_ENABLED and POLLINATIONS_KEY)
     grok_hub = bool(GROK_WEB_ENABLED and GROK_WEB_VIDEO_ENABLED and grok_web.is_authed())
+    muse_hub = bool(MUSE_WEB_ENABLED and MUSE_WEB_VIDEO_ENABLED and muse_web.is_authed())
     motion = "kenburns"
-    if grok_hub:
+    if muse_hub:
+        motion = "muse"
+    elif grok_hub:
         motion = "grok_hub"
     elif grok_video:
         motion = "grok"
@@ -110,6 +115,10 @@ def llm_status() -> dict[str, object]:
         "grok_video": grok_video,
         "grok_hub": bool(GROK_WEB_ENABLED and grok_web.playwright_ok()),
         "grok_hub_authed": grok_web.is_authed(),
+        "muse_hub": bool(MUSE_WEB_ENABLED and muse_web.playwright_ok()),
+        "muse_hub_authed": muse_web.is_authed(),
+        "muse_hub_challenge": muse_web.is_challenge(),
+        "muse_hub_checkpoint": muse_web.checkpoint_url() or "",
         "image": {
             "pollinations": POLLINATIONS_ENABLED,
             "gemini": bool(GEMINI_API_KEY),
@@ -117,6 +126,7 @@ def llm_status() -> dict[str, object]:
             "openai": bool(OPENAI_API_KEY),
         },
         "video": {
+            "muse": muse_hub,
             "grok": grok_video,
             "grok_hub": grok_hub,
             "hf": hf_video,

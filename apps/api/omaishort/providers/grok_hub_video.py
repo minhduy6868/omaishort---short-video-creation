@@ -122,8 +122,9 @@ class GrokHubVideoProvider:
         still: Path | None = None,
         end_image_url: str | None = None,
         end_still: Path | None = None,
+        identity_refs: list[Path] | None = None,
     ) -> Path | None:
-        del end_image_url, end_still, image_url
+        del end_image_url, end_still, image_url, identity_refs
         if not GROK_WEB_ENABLED or not GROK_WEB_VIDEO_ENABLED:
             return None
         if not grok_web.playwright_ok() or not grok_web.is_authed():

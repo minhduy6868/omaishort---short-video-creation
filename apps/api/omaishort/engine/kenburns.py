@@ -71,6 +71,44 @@ def has_audio_stream(path: Path) -> bool:
     return "Audio:" in ffmpeg_info(path)
 
 
+def probe_mean_volume_db(path: Path) -> float | None:
+    """Return ffmpeg volumedetect mean_volume in dB, or None if unreadable."""
+    if not path.is_file():
+        return None
+    result = subprocess.run(
+        [
+            ffmpeg_path(),
+            "-hide_banner",
+            "-i",
+            str(path),
+            "-af",
+            "volumedetect",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    blob = f"{result.stderr or ''}{result.stdout or ''}"
+    match = re.search(r"mean_volume:\s*(-?\d+(?:[.,]\d+)?)\s*dB", blob)
+    if not match:
+        return None
+    return float(match.group(1).replace(",", "."))
+
+
+def is_audible(path: Path, *, min_mean_db: float = -45.0) -> bool:
+    """True when the file has an audio stream that is not near-silence."""
+    if not has_audio_stream(path):
+        return False
+    mean = probe_mean_volume_db(path)
+    if mean is None:
+        # Stream exists but volumedetect failed — treat as present.
+        return path.stat().st_size > 2000
+    return mean >= min_mean_db
+
+
 def zoompan_expr(shot: Shot, frames: int, *, editorial: bool = False) -> str:
     duration = max(1, frames)
     table = _ZOOM_EDITORIAL if editorial else _ZOOM

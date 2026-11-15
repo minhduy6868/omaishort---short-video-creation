@@ -9,5 +9,7 @@ edge-tts>=7.3.0
 pillow>=10.4.0
 imageio-ffmpeg>=0.5.1
 playwright>=1.49.0
+websockets>=14.0
+cryptography>=43.0.0
 
 

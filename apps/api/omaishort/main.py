@@ -143,6 +143,8 @@ _chatgpt_gate = threading.Lock()
 _chatgpt_opening = False
 _grok_gate = threading.Lock()
 _grok_opening = False
+_muse_gate = threading.Lock()
+_muse_opening = False
 
 
 @app.get("/providers")
@@ -151,6 +153,7 @@ def providers() -> dict[str, object]:
         **llm_status(),
         "chatgpt_opening": bool(_chatgpt_opening),
         "grok_opening": bool(_grok_opening),
+        "muse_opening": bool(_muse_opening),
     }
 
 
@@ -284,6 +287,59 @@ def start_grok_login(_user: CurrentUser) -> dict[str, str]:
     if box.get("error"):
         with _grok_gate:
             _grok_opening = False
+        raise HTTPException(status_code=503, detail=box["error"])
+    return {"status": "opening"}
+
+
+@app.post("/providers/muse-login")
+def start_muse_login(_user: CurrentUser) -> dict[str, str]:
+    """Open headed Chrome until Muse Hatch cookies exist. Drama motion only."""
+    global _muse_opening
+    from omaishort.providers.chrome_profile import playwright_ok
+    from omaishort.providers.muse_web import chrome_launch_error
+    from omaishort.providers.muse_web import login as muse_login
+    from omaishort.providers.muse_web import session_lock as muse_busy
+
+    if not playwright_ok():
+        raise HTTPException(status_code=503, detail="Playwright Chromium is not installed")
+    if muse_busy.locked():
+        raise HTTPException(
+            status_code=409,
+            detail="Một job đang dùng phiên Muse để dựng chuyển động. Chờ cảnh đó xong rồi bấm lại.",
+        )
+
+    opened = threading.Event()
+    box: dict[str, str] = {}
+
+    def _on_open(exc: BaseException | None) -> None:
+        if exc is not None:
+            box["error"] = chrome_launch_error(exc)
+        opened.set()
+
+    def _run() -> None:
+        global _muse_opening
+        try:
+            asyncio.run(muse_login(on_open=_on_open))
+        except Exception as exc:
+            box.setdefault("error", chrome_launch_error(exc))
+            opened.set()
+        finally:
+            opened.set()
+            with _muse_gate:
+                _muse_opening = False
+
+    with _muse_gate:
+        if _muse_opening:
+            raise HTTPException(
+                status_code=409,
+                detail="Cửa sổ Muse đang mở. Đăng nhập trên cửa sổ đó, hoặc đóng rồi bấm lại.",
+            )
+        _muse_opening = True
+    threading.Thread(target=_run, name="muse-login", daemon=True).start()
+    opened.wait(30)
+    if box.get("error"):
+        with _muse_gate:
+            _muse_opening = False
         raise HTTPException(status_code=503, detail=box["error"])
     return {"status": "opening"}
 

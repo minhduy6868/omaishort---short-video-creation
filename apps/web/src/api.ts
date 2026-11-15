@@ -198,6 +198,11 @@ export type ProviderStatus = {
   grok_hub?: boolean;
   grok_hub_authed?: boolean;
   grok_opening?: boolean;
+  muse_hub?: boolean;
+  muse_hub_authed?: boolean;
+  muse_hub_challenge?: boolean;
+  muse_hub_checkpoint?: string;
+  muse_opening?: boolean;
   drama_motion?: string;
   image?: Record<string, boolean>;
   video?: Record<string, boolean>;
@@ -235,6 +240,12 @@ export async function checkChatgptSession(): Promise<ChatgptCheckResult> {
 export async function startGrokLogin(): Promise<{ status: string }> {
   const res = await request("/providers/grok-login", { method: "POST" });
   if (!res.ok) throw await parseError(res, "Could not open Grok");
+  return (await res.json()) as { status: string };
+}
+
+export async function startMuseLogin(): Promise<{ status: string }> {
+  const res = await request("/providers/muse-login", { method: "POST" });
+  if (!res.ok) throw await parseError(res, "Could not open Muse");
   return (await res.json()) as { status: string };
 }
 

@@ -78,8 +78,9 @@ class XaiVideoProvider:
         still: Path | None = None,
         end_image_url: str | None = None,
         end_still: Path | None = None,
+        identity_refs: list[Path] | None = None,
     ) -> Path | None:
-        del end_image_url, end_still
+        del end_image_url, end_still, identity_refs
         if not XAI_VIDEO_ENABLED or not XAI_API_KEY:
             return None
         start = image_url if image_url and image_url.startswith("http") else None

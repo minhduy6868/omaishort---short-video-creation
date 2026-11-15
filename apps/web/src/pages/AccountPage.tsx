@@ -1,20 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   checkChatgptSession,
+  checkoutPlan,
   listAttachments,
+  listBillingPlans,
   openChatgptContent,
+  readBillingMe,
   readElevenLabs,
+  readMe,
   readProviders,
   saveElevenLabs,
   startChatgptLogin,
   startGrokLogin,
   startMuseLogin,
   type AttachmentRow,
+  type BillingMe,
+  type BillingPlan,
   type ElevenLabsHub,
   type ProviderStatus,
 } from "../api";
 import { CounterCard, PageHeader, StatusPill } from "../components";
 import { useSession } from "../session";
+
+function formatVnd(amount: number): string {
+  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 }).format(amount);
+}
 
 function chips(status: ProviderStatus): { id: string; on: boolean; label: string }[] {
   const image = status.image ?? {};
@@ -51,9 +61,13 @@ function formatDate(value: string): string {
 }
 
 export function AccountPage() {
-  const { user } = useSession();
+  const { user, setUser } = useSession();
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
+  const [billingMe, setBillingMe] = useState<BillingMe | null>(null);
+  const [plans, setPlans] = useState<BillingPlan[]>([]);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingMessage, setBillingMessage] = useState<string | null>(null);
   const [chatgptOpening, setChatgptOpening] = useState(false);
   const [chatgptChecking, setChatgptChecking] = useState(false);
   const [chatgptMessage, setChatgptMessage] = useState<string | null>(null);
@@ -73,6 +87,12 @@ export function AccountPage() {
   useEffect(() => {
     void readProviders().then(setProviders);
     void listAttachments().then(setAttachments);
+    void readBillingMe()
+      .then(setBillingMe)
+      .catch((err) => setBillingMessage(err instanceof Error ? err.message : "Không đọc được gói"));
+    void listBillingPlans()
+      .then((data) => setPlans(data.plans.filter((p) => p.code !== "trial" || p.price_vnd === 0)))
+      .catch(() => undefined);
     void readElevenLabs()
       .then((hub) => {
         setEleven(hub);
@@ -149,6 +169,107 @@ export function AccountPage() {
         title={user?.display_name || user?.email || "Account"}
         lede={user ? `${user.email} · ${user.role}` : "Phiên đăng nhập hiện tại"}
       />
+
+      <section className="panel">
+        <div className="section-head compact">
+          <div>
+            <p className="kicker">Gói & credit</p>
+            <h2>Dùng thử và nâng cấp</h2>
+          </div>
+          <StatusPill
+            label={billingMe?.billing?.status || (user?.role === "operator" ? "operator" : "none")}
+            tone={billingMe?.billing && billingMe.billing.credits_remaining > 0 ? "done" : "idle"}
+          />
+        </div>
+        {user?.role === "operator" ? (
+          <p className="meta">Tài khoản operator không bị trừ credit khi tạo job.</p>
+        ) : (
+          <>
+            <div className="hub-grid">
+              <CounterCard
+                label="Credit còn"
+                value={billingMe?.billing?.credits_remaining ?? user?.billing?.credits_remaining ?? 0}
+                hint={billingMe?.billing?.plan_code || user?.billing?.plan_code || "chưa có gói"}
+              />
+              <CounterCard
+                label="Tổng credit gói"
+                value={billingMe?.billing?.credits_total ?? user?.billing?.credits_total ?? 0}
+                hint={
+                  billingMe?.billing?.ends_at
+                    ? `Hết hạn ${formatDate(billingMe.billing.ends_at)}`
+                    : user?.billing?.ends_at
+                      ? `Hết hạn ${formatDate(user.billing.ends_at)}`
+                      : "—"
+                }
+              />
+            </div>
+            {billingMe?.pending_order ? (
+              <p className="meta">
+                Đơn <code>{billingMe.pending_order.id}</code> · {billingMe.pending_order.plan_code} ·{" "}
+                {formatVnd(billingMe.pending_order.amount_vnd)} đang chờ admin duyệt.{" "}
+                {billingMe.transfer_note}
+              </p>
+            ) : (
+              <p className="meta">{billingMe?.transfer_note}</p>
+            )}
+            <div className="job-table-wrap">
+              <table className="job-table">
+                <thead>
+                  <tr>
+                    <th>Gói</th>
+                    <th>Credit</th>
+                    <th>Thời hạn</th>
+                    <th>Giá</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plans
+                    .filter((p) => p.active && p.code !== "trial")
+                    .map((plan) => (
+                      <tr key={plan.code}>
+                        <td>
+                          <strong>{plan.name}</strong>
+                        </td>
+                        <td>{plan.credits}</td>
+                        <td>{plan.period_days} ngày</td>
+                        <td>{formatVnd(plan.price_vnd)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={billingBusy || Boolean(billingMe?.pending_order)}
+                            onClick={() => {
+                              setBillingBusy(true);
+                              setBillingMessage(null);
+                              void checkoutPlan(plan.code)
+                                .then(async (result) => {
+                                  setBillingMessage(
+                                    `Đã tạo đơn ${result.order.id}. ${result.transfer_note}`,
+                                  );
+                                  const me = await readBillingMe();
+                                  setBillingMe(me);
+                                  const fresh = await readMe();
+                                  if (fresh) setUser(fresh);
+                                })
+                                .catch((err) =>
+                                  setBillingMessage(err instanceof Error ? err.message : "Không tạo được đơn"),
+                                )
+                                .finally(() => setBillingBusy(false));
+                            }}
+                          >
+                            Đăng ký gói
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            {billingMessage ? <p className="meta">{billingMessage}</p> : null}
+          </>
+        )}
+      </section>
 
       <div className="hub-grid">
         <section className="panel hub-card">

@@ -8,6 +8,7 @@ This file is the **product contract**. Schema (`packages/schema/omaishort_schema
 | --- | --- |
 | This file | What a short **must** be; numbers and routing |
 | [AUTH.md](AUTH.md) | Accounts, cookies/JWT, job ownership, user attachments |
+| [BILLING.md](BILLING.md) | Trial, paid plans, credits, manual payment orders |
 | [RESEARCH.md](RESEARCH.md) | Why: contracts stolen, repos not forked |
 | [ROADMAP.md](ROADMAP.md) | Later work — do not implement in an unrelated change |
 | `.cursor/rules/quality.mdc` | Quality bar (intent). This file has the exact tables |
@@ -28,6 +29,7 @@ A change is out of product if it breaks any of these.
 7. No Pexels. No HyperFrames HTML templates. No Gemini/Midjourney **UI** scrape. No AGPL vendoring.
 8. Secrets stay in `.env`. CI never needs keys. Do not commit `data/jobs/` (demo MP4s live only in `docs/demo/`).
 9. HTTP jobs and `/files` are **per-user**. Studio register/login is required for the API. CLI jobs stay `user_id` null. Full contract: [AUTH.md](AUTH.md).
+10. Creator HTTP `POST /jobs` consumes **1 credit** (hold on create, refund on `failed`). Trial and paid plans: [BILLING.md](BILLING.md). Operator and CLI are not metered.
 
 ---
 
@@ -283,6 +285,8 @@ Each FR is observable on a finished job or a unit test.
 
 **FR14 Attachments** — Upload sniff + quotas in AUTH.md §6. Drama uses `face`/`location`/`prop` as passports when bound. Editorial collage uses `editorial` stills **before** article/CC photos. Do not put faces on news/knowledge stills.
 
+**FR15 Billing** — Creator HTTP jobs consume 1 credit (hold on create, refund on failed). Trial on register; paid plans via manual transfer orders. Operator bypass. Contract: [BILLING.md](BILLING.md).
+
 ---
 
 ## 11. Non-functional
@@ -310,6 +314,7 @@ See [ROADMAP.md](ROADMAP.md). Do not pull these into an unrelated PR.
 - P6: Part 1..N factory, “scene 5 darker” edit-agent, Redis queue
 - Never default: Pexels; HyperFrames; AGPL copy; auto social upload; Gemini/Midjourney UI scrape
 - Hosted IdP, 2FA, email verify, S3 attachments, public unauthenticated `/files`
+- Card/QR payment gateways (SePay, Stripe, …) — manual bank-transfer orders only until asked ([BILLING.md](BILLING.md))
 
 ---
 
@@ -326,6 +331,7 @@ See [ROADMAP.md](ROADMAP.md). Do not pull these into an unrelated PR.
 - `render/motion.json` exists; Ken Burns jobs are not `type=video` on stills
 - Unauthenticated `POST /jobs` is 401; owner isolation 404; `/files` rejects leftover `omaishort.db`
 - Attachment upload rejects SVG; drama `face` bind writes `refs/<id>.png` without a new generated passport
+- Creator register gets trial credits; exhausted credits return 402; operator/CLI are not metered ([BILLING.md](BILLING.md))
 
 ---
 
@@ -337,6 +343,6 @@ Python 3.11, FastAPI, Pydantic v2, Cloudflare D1 for accounts and job rows (pyte
 
 ## 15. Change gate
 
-Same PR must update this file when you change: beat lens pairs, scene counts, still waterfall, ChatGPT session rules, image/TTS/video provider **order**, `StoryInput` fields, job stages, or auth/attachment rules in [AUTH.md](AUTH.md).
+Same PR must update this file when you change: beat lens pairs, scene counts, still waterfall, ChatGPT session rules, image/TTS/video provider **order**, `StoryInput` fields, job stages, auth/attachment rules in [AUTH.md](AUTH.md), or credit/plan rules in [BILLING.md](BILLING.md).
 
 Do **not** “fix quality” by adding a new product surface (new kind, new UI app, new stock provider). Fix identity (bible → kontext) or motion (I2V keys / Ken Burns lenses).

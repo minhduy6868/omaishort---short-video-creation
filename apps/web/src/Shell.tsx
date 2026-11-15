@@ -140,7 +140,18 @@ export function Shell({ children }: { children: ReactNode }) {
               <span className="topbar-dot" aria-hidden="true" />
               Local Engine
             </span>
-            <span className="topbar-role">{user?.role || "user"}</span>
+            {user?.role === "operator" ? (
+              <span className="topbar-role">operator</span>
+            ) : user?.billing ? (
+              <span className="topbar-role" title={`Hết hạn ${user.billing.ends_at}`}>
+                {user.billing.status === "trial" ? "Trial" : user.billing.plan_code} · còn{" "}
+                {user.billing.credits_remaining}
+              </span>
+            ) : user ? (
+              <span className="topbar-role">Hết lượt</span>
+            ) : (
+              <span className="topbar-role">user</span>
+            )}
           </div>
         </header>
         <div className="stage">{children}</div>

@@ -178,7 +178,7 @@ def test_full_flow_login_to_rendered_mp4_and_local_storage_management(
     from omaishort.engine.fallback import fallback_analyze, fallback_plan
     from omaishort.engine.image_prompts import fill_image_prompts
     from omaishort.providers.image import PlaceholderImageProvider
-    from omaishort.providers.tts import TTSResult, silence_audio
+    from omaishort.providers.tts import TTSResult
 
     # Keep the full pipeline 100% deterministic & offline while running real FFmpeg 1080x1920 render
     async def _fast_analyze(story):
@@ -195,8 +195,31 @@ def test_full_flow_login_to_rendered_mp4_and_local_storage_management(
         return out or dest, "placeholder"
 
     async def _fast_tts(text: str, dest: Path, language: str = "vi", voice_id: str | None = None):
-        path = await silence_audio(dest, 3.0)
-        return TTSResult(path=path, provider="silence", words=None)
+        # Must be audible: review-gate rejects near-silence VO before render.
+        import asyncio
+
+        from omaishort.engine.kenburns import ffmpeg_path
+
+        dest = dest.with_suffix(".wav")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            ffmpeg_path(),
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=44100",
+            "-t",
+            "3.0",
+            str(dest),
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+        )
+        await proc.wait()
+        if proc.returncode != 0 or not dest.exists():
+            raise RuntimeError("failed to write audible test audio")
+        return TTSResult(path=dest, provider="tone", words=None)
 
     async def _fast_topic(text: str, language: str = "vi"):
         from omaishort.engine.brief_media import ArticlePage
@@ -266,7 +289,7 @@ def test_full_flow_login_to_rendered_mp4_and_local_storage_management(
                 {"id": face_id, "bind": "linh"},
                 {"id": logo_id},
             ],
-            "mix": {"bgm_enabled": False, "logo_enabled": True},
+            "mix": {"bgm_enabled": False, "logo_enabled": True, "pause_before_render": False},
         },
         headers=headers,
     )

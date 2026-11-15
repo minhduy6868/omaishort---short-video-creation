@@ -27,11 +27,14 @@ def _admin_user_view(
     row: dict[str, Any],
     job_counts: dict[str, int] | None = None,
 ) -> dict[str, Any]:
+    from omaishort.billing import entitlement
+
     now = datetime.now(timezone.utc)
     locked_dt = _parse_iso(row.get("locked_until"))
     is_locked = bool(locked_dt and locked_dt > now)
     uid = str(row["id"])
     att_count, att_bytes = db.attachment_quota(uid)
+    billing = entitlement(uid)
     return {
         "id": uid,
         "email": row["email"],
@@ -43,6 +46,9 @@ def _admin_user_view(
         "jobs_count": (job_counts or {}).get(uid, 0),
         "attachments_count": att_count,
         "attachments_bytes": att_bytes,
+        "billing": billing,
+        "plan_code": billing.get("plan_code") if billing else None,
+        "credits_remaining": billing.get("credits_remaining") if billing else None,
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
     }

@@ -7,7 +7,17 @@ import traceback
 from pathlib import Path
 
 from omaishort import config, db
+from omaishort.billing import refund_job_credit
 from omaishort.config import WHISPER_MODEL, default_mix_settings, default_subtitle_style
+
+
+def _refund_failed_job(job_id: str) -> None:
+    row = db.get_job(job_id)
+    if not row:
+        return
+    uid = row.get("user_id")
+    if uid:
+        refund_job_credit(str(uid), job_id)
 from omaishort.engine.apply_attachments import apply_attachment_files
 from omaishort.engine.analyzer import analyze_story, write_knowledge_script
 from omaishort.engine.brief_media import (
@@ -572,6 +582,7 @@ async def run_job(job_id: str) -> None:
             progress="failed",
             error=f"{exc}\n{traceback.format_exc()[-2000:]}",
         )
+        _refund_failed_job(job_id)
         raise
 
 

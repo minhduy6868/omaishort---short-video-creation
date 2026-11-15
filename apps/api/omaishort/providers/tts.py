@@ -150,15 +150,21 @@ class EdgeTTSProvider:
                 dest.write_bytes(bytes(audio))
                 if dest.exists() and dest.stat().st_size > 0:
                     return TTSResult(path=dest, provider=self.name, words=words or None)
-        except Exception:
+        except Exception as stream_exc:
             words = []
+            last_exc: Exception | None = stream_exc
+        else:
+            last_exc = None
         try:
             communicate = edge_tts.Communicate(text, voice)
             await communicate.save(str(dest))
             if dest.exists() and dest.stat().st_size > 0:
                 return TTSResult(path=dest, provider=self.name, words=None)
-        except Exception:
-            return None
+        except Exception as save_exc:
+            last_exc = save_exc
+        if last_exc is not None:
+            # Keep the Microsoft 403 / network detail for the outer RuntimeError.
+            self._last_error = last_exc
         return None
 
 
@@ -284,7 +290,11 @@ async def synthesize_speech(
                         break
                     await asyncio.sleep(1.5 * (attempt + 1))
                 if result is None or not part.exists() or part.stat().st_size <= 0:
-                    raise RuntimeError(f"{provider.name} failed chunk {i}")
+                    detail = getattr(provider, "_last_error", None)
+                    raise RuntimeError(
+                        f"{provider.name} failed chunk {i}"
+                        + (f": {detail}" if detail else " (upgrade edge-tts>=7.3.1 if Microsoft 403)")
+                    )
                 if result.words:
                     for stamp in result.words:
                         words.append(

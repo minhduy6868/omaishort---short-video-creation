@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  ApiError,
   createJob,
   draftScript,
   listAttachments,
@@ -205,7 +206,16 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
       go(`/watch/${data.id}`);
     } catch (err) {
       setBusy(false);
-      setMessage(err instanceof Error ? err.message : "Could not create job");
+      if (err instanceof ApiError && err.status === 402) {
+        const left = err.billing?.credits_remaining ?? 0;
+        setMessage(
+          left <= 0
+            ? "Hết lượt tạo video. Vào Tài khoản để đăng ký gói hoặc chờ admin cấp credit."
+            : `${err.message}. Vào Tài khoản để xem gói và nâng cấp.`,
+        );
+      } else {
+        setMessage(err instanceof Error ? err.message : "Could not create job");
+      }
     }
   }
 

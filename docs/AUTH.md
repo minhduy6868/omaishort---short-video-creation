@@ -32,12 +32,12 @@ Creators need:
 
 | Actor | How they enter | What they own |
 | --- | --- | --- |
-| Creator | Studio register/login | Own jobs, own attachments |
-| Operator | First registered user (`role=operator`), or CLI | Own HTTP jobs; may read CLI jobs (`user_id` null); CLI still bypasses HTTP |
+| Creator | Studio register/login | Own jobs, own attachments, trial/paid credits ([BILLING.md](BILLING.md)) |
+| Operator | First registered user (`role=operator`), or CLI | Own HTTP jobs; may read CLI jobs (`user_id` null); CLI still bypasses HTTP; admin console (`/admin`) including billing grant/orders |
 | Anonymous | `/health`, `/`, `/docs`, `/providers`, `/voices` | Nothing else |
 | Agent / CI | pytest with temp DB | Isolated users, no live providers |
 
-Roles are **not** a permission matrix beyond operator-can-read-unowned-jobs. Do not add admin UI.
+Roles stay small: `creator` vs `operator`. Operator may manage users, storage, site theme, and billing. Entitlements are not a second permission matrix — see [BILLING.md](BILLING.md).
 
 ---
 
@@ -203,7 +203,7 @@ All JSON. Errors use FastAPI `{ "detail": "..." }` (string or list).
 204. Clears cookies. Revokes the presented refresh. Idempotent if already logged out.
 
 **`GET /auth/me`**  
-200 `{ id, email, display_name, role }`. 401 if anonymous.
+200 `{ id, email, display_name, role, billing }` where `billing` is the current entitlement snapshot or `null` ([BILLING.md](BILLING.md)). 401 if anonymous.
 
 ### 5.2 Jobs (delta)
 
@@ -338,6 +338,7 @@ Leave on the roadmap until asked:
 - Attachment as I2V clip or user BGM (BGM stays `assets/music/`)
 - `POST /jobs/{id}/approve` (P3)
 - Binding the API on `0.0.0.0` without TLS (keep default `API_HOST=127.0.0.1`)
+- Card gateways (SePay / Stripe) — manual transfer orders only until asked; see [BILLING.md](BILLING.md)
 
 ---
 

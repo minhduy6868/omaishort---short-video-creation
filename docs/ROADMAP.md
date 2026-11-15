@@ -20,6 +20,11 @@ flowchart LR
 
 Studio register/login, Cloudflare D1 users (`D1_WORKER_URL`), job ownership, user attachments (`face` / editorial / logo / …). Contract: [AUTH.md](AUTH.md). Not an IdP. Not P6 Redis.
 
+## Billing (trial + manual plans)
+
+- **Shipped with billing PR:** trial 3 credits / 14 days on creator register; 1 credit per HTTP job (hold + refund on failed); plans `starter`/`pro`; pending bank-transfer orders; admin grant/approve. Contract: [BILLING.md](BILLING.md).
+- **Later (asked):** SePay / VietQR / Stripe webhooks, invoices, kind-gated SKUs.
+
 ## P0 — shipped
 
 Analyzer, bible, planner (1 still / scene, multi-shot), placeholder/Comfy/OpenAI images, edge-tts, rescale, ASS, FFmpeg 1080×1920, studio UI, pytest, CI.

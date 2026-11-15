@@ -8,10 +8,17 @@ import uuid
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from omaishort import admin, config, db, storage, uploads
+from omaishort import admin, billing, config, db, storage, uploads
+from omaishort.billing import (
+    CreditsExhausted,
+    assert_can_create_job,
+    credits_exhausted_response,
+    hold_job_credit,
+    public_user_with_billing,
+)
 from omaishort.auth import (
     CurrentUser,
     LoginBody,
@@ -69,6 +76,12 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="omaishort", version="0.1.0", lifespan=lifespan)
 app.include_router(admin.router)
+app.include_router(billing.router)
+
+
+@app.exception_handler(CreditsExhausted)
+async def _credits_exhausted_handler(_request: Request, exc: CreditsExhausted) -> JSONResponse:
+    return credits_exhausted_response(exc)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -426,7 +439,7 @@ def auth_logout(request: Request, response: Response, body: RefreshBody | None =
 
 @app.get("/auth/me")
 def auth_me(user: CurrentUser) -> dict:
-    return db.public_user(user)
+    return public_user_with_billing(user)
 
 
 @app.post("/attachments", status_code=201)
@@ -465,8 +478,14 @@ def remove_attachment(attachment_id: str, user: CurrentUser) -> None:
 @app.post("/jobs")
 async def create_job(story: StoryInput, background: BackgroundTasks, user: CurrentUser) -> dict[str, str]:
     uploads.load_job_files(user["id"], story.attachments)
+    assert_can_create_job(user)
     job_id = uuid.uuid4().hex[:12]
     db.create_job(job_id, story.model_dump_json(), user_id=user["id"])
+    try:
+        hold_job_credit(user, job_id)
+    except CreditsExhausted:
+        db.delete_job(job_id)
+        raise
     background.add_task(run_job, job_id)
     return {"id": job_id, "status": "queued"}
 

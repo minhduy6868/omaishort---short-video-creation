@@ -85,7 +85,15 @@ export default defineConfig({
       "/providers": "http://127.0.0.1:8765",
       "/auth": "http://127.0.0.1:8765",
       "/attachments": "http://127.0.0.1:8765",
-      "/admin": "http://127.0.0.1:8765",
+      // SPA route is exactly /admin; API lives under /admin/...
+      "/admin": {
+        target: "http://127.0.0.1:8765",
+        bypass(req) {
+          const path = (req.url ?? "").split("?")[0];
+          if (path === "/admin") return "/admin";
+        },
+      },
+      "/billing": "http://127.0.0.1:8765",
       "/storage": "http://127.0.0.1:8765",
     },
   },

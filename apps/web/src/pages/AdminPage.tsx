@@ -3,10 +3,15 @@ import {
   cleanupAdminStorage,
   compactJobStorage,
   deleteAdminJob,
+  grantAdminCredits,
+  listAdminBillingOrders,
   listAdminJobs,
   listAdminUsers,
   openChatgptContent,
+  patchAdminBillingOrder,
+  patchAdminBillingPlan,
   patchAdminUser,
+  readAdminBillingOverview,
   readAdminOverview,
   readAdminStorage,
   readProviders,
@@ -14,9 +19,11 @@ import {
   saveAdminSettings,
   startChatgptLogin,
   startGrokLogin,
+  type AdminBillingOverview,
   type AdminOverview,
   type AdminUserRow,
   type LocalVideoEntry,
+  type PaymentOrder,
   type ProviderStatus,
   type StorageSummary,
 } from "../api";
@@ -35,11 +42,12 @@ import { useSession } from "../session";
 import { SiteThemePicker } from "../theme";
 import type { Job } from "../types";
 
-type AdminTab = "overview" | "users" | "jobs" | "storage";
+type AdminTab = "overview" | "users" | "jobs" | "storage" | "billing";
 
 const TABS: { id: AdminTab; label: string }[] = [
   { id: "overview", label: "Tổng quan & Cloudflare" },
   { id: "users", label: "Người dùng" },
+  { id: "billing", label: "Gói & đơn" },
   { id: "jobs", label: "Toàn bộ Job" },
   { id: "storage", label: "Lưu trữ Video Local" },
 ];
@@ -89,6 +97,10 @@ export function AdminPage() {
   const [jobFilter, setJobFilter] = useState<string>("all");
   const [storageData, setStorageData] = useState<{ summary: StorageSummary; videos: LocalVideoEntry[] } | null>(null);
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
+  const [billingOverview, setBillingOverview] = useState<AdminBillingOverview | null>(null);
+  const [billingOrders, setBillingOrders] = useState<PaymentOrder[]>([]);
+  const [grantUserId, setGrantUserId] = useState("");
+  const [grantCredits, setGrantCredits] = useState(3);
   const [chatgptOpening, setChatgptOpening] = useState(false);
   const [grokOpening, setGrokOpening] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -101,18 +113,22 @@ export function AdminPage() {
     if (!isOperator) return;
     setError(null);
     try {
-      const [ov, usr, jb, st, prov] = await Promise.all([
+      const [ov, usr, jb, st, prov, bill, orders] = await Promise.all([
         readAdminOverview(),
         listAdminUsers(),
         listAdminJobs(),
         readAdminStorage(),
         readProviders(),
+        readAdminBillingOverview(),
+        listAdminBillingOrders(),
       ]);
       setOverview(ov);
       setUsers(usr);
       setJobs(jb);
       setStorageData(st);
       setProviders(prov);
+      setBillingOverview(bill);
+      setBillingOrders(orders);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không tải được dữ liệu quản trị");
     }
@@ -369,6 +385,7 @@ export function AdminPage() {
                 <tr>
                   <th>Người dùng</th>
                   <th>Vai trò</th>
+                  <th>Gói</th>
                   <th>Trạng thái</th>
                   <th>Số Job</th>
                   <th>Attachments</th>
@@ -389,6 +406,10 @@ export function AdminPage() {
                       </td>
                       <td>
                         <span className="table-badge">{row.role}</span>
+                      </td>
+                      <td>
+                        {row.plan_code || "—"}
+                        {typeof row.credits_remaining === "number" ? ` · ${row.credits_remaining}` : ""}
                       </td>
                       <td>
                         <StatusPill label={row.locked ? "locked" : "active"} tone={row.locked ? "failed" : "done"} />
@@ -442,6 +463,202 @@ export function AdminPage() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "billing" ? (
+        <section className="panel">
+          <div className="section-head">
+            <div>
+              <p className="kicker">Billing</p>
+              <h2>Gói & đơn chuyển khoản</h2>
+              <p className="panel-subtitle">Duyệt đơn pending, cấp credit tay, chỉnh giá gói seed.</p>
+            </div>
+          </div>
+          <div className="hub-grid">
+            <CounterCard label="Trial đang chạy" value={billingOverview?.stats.trials_active ?? 0} />
+            <CounterCard label="Gói active" value={billingOverview?.stats.subscriptions_active ?? 0} />
+            <CounterCard label="Đơn pending" value={billingOverview?.stats.orders_pending ?? 0} />
+            <CounterCard label="Credit dùng hôm nay" value={billingOverview?.stats.credits_used_today ?? 0} />
+          </div>
+          <p className="meta">{billingOverview?.transfer_note}</p>
+
+          <div className="section-head compact">
+            <div>
+              <p className="kicker">Grant</p>
+              <h2>Cấp credit</h2>
+            </div>
+          </div>
+          <div className="hub-actions">
+            <select value={grantUserId} onChange={(e) => setGrantUserId(e.target.value)}>
+              <option value="">Chọn user…</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.email} ({u.plan_code || "no plan"} · {u.credits_remaining ?? 0})
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              value={grantCredits}
+              onChange={(e) => setGrantCredits(Number(e.target.value) || 1)}
+              style={{ width: "6rem" }}
+            />
+            <button
+              type="button"
+              disabled={busy || !grantUserId}
+              onClick={() => {
+                setBusy(true);
+                void grantAdminCredits(grantUserId, { credits: grantCredits, note: "admin grant", extend_days: 14 })
+                  .then(() => {
+                    setMessage(`Đã cấp ${grantCredits} credit.`);
+                    return refreshAll();
+                  })
+                  .catch((err) => setError(err instanceof Error ? err.message : "Lỗi grant"))
+                  .finally(() => setBusy(false));
+              }}
+            >
+              Cấp credit
+            </button>
+          </div>
+
+          <div className="section-head compact">
+            <div>
+              <p className="kicker">Plans</p>
+              <h2>Bảng gói</h2>
+            </div>
+          </div>
+          <div className="job-table-wrap">
+            <table className="job-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Tên</th>
+                  <th>Credit</th>
+                  <th>Ngày</th>
+                  <th>Giá VND</th>
+                  <th>Active</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(billingOverview?.plans || []).map((plan) => (
+                  <tr key={plan.code}>
+                    <td>
+                      <code>{plan.code}</code>
+                    </td>
+                    <td>{plan.name}</td>
+                    <td>{plan.credits}</td>
+                    <td>{plan.period_days}</td>
+                    <td>{plan.price_vnd}</td>
+                    <td>
+                      <StatusPill label={plan.active ? "on" : "off"} tone={plan.active ? "done" : "idle"} />
+                    </td>
+                    <td>
+                      {plan.code !== "trial" ? (
+                        <button
+                          type="button"
+                          className="ghost"
+                          disabled={busy}
+                          onClick={() => {
+                            setBusy(true);
+                            void patchAdminBillingPlan(plan.code, { active: !plan.active })
+                              .then(() => refreshAll())
+                              .catch((err) => setError(err instanceof Error ? err.message : "Lỗi plan"))
+                              .finally(() => setBusy(false));
+                          }}
+                        >
+                          {plan.active ? "Tắt" : "Bật"}
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="section-head compact">
+            <div>
+              <p className="kicker">Orders</p>
+              <h2>Đơn thanh toán ({billingOrders.length})</h2>
+            </div>
+          </div>
+          <div className="job-table-wrap">
+            <table className="job-table">
+              <thead>
+                <tr>
+                  <th>Mã</th>
+                  <th>User</th>
+                  <th>Gói</th>
+                  <th>Số tiền</th>
+                  <th>Trạng thái</th>
+                  <th>Tạo lúc</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {billingOrders.map((order) => (
+                  <tr key={order.id}>
+                    <td>
+                      <code>{order.id}</code>
+                    </td>
+                    <td>{order.user_email || order.user_id}</td>
+                    <td>{order.plan_code}</td>
+                    <td>{order.amount_vnd}</td>
+                    <td>
+                      <StatusPill
+                        label={order.status}
+                        tone={order.status === "paid" ? "done" : order.status === "pending" ? "running" : "failed"}
+                      />
+                    </td>
+                    <td>{formatDate(order.created_at)}</td>
+                    <td>
+                      {order.status === "pending" ? (
+                        <div className="hub-actions">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              setBusy(true);
+                              void patchAdminBillingOrder(order.id, { status: "paid" })
+                                .then(() => {
+                                  setMessage(`Đã duyệt đơn ${order.id}.`);
+                                  return refreshAll();
+                                })
+                                .catch((err) => setError(err instanceof Error ? err.message : "Lỗi duyệt"))
+                                .finally(() => setBusy(false));
+                            }}
+                          >
+                            Duyệt paid
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={busy}
+                            onClick={() => {
+                              setBusy(true);
+                              void patchAdminBillingOrder(order.id, { status: "rejected", admin_note: "rejected by admin" })
+                                .then(() => {
+                                  setMessage(`Đã từ chối đơn ${order.id}.`);
+                                  return refreshAll();
+                                })
+                                .catch((err) => setError(err instanceof Error ? err.message : "Lỗi từ chối"))
+                                .finally(() => setBusy(false));
+                            }}
+                          >
+                            Từ chối
+                          </button>
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

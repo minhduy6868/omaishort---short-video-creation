@@ -286,6 +286,86 @@ def test_compose_writes_1080x1920_with_audio(tmp_path: Path):
     assert motion["frames"] == []
 
 
+def test_editorial_news_compose_keeps_audible_voice(tmp_path: Path):
+    """News xfade mux must not drop or silence the VO track."""
+    from omaishort.engine.kenburns import ffmpeg_path, is_audible
+
+    stills: dict[str, Path] = {}
+    scenes: list[Scene] = []
+    for i in range(3):
+        sid = f"still_{i + 1:02d}"
+        still = _still(tmp_path / f"{sid}.png")
+        stills[sid] = still
+        scenes.append(
+            Scene(
+                index=i + 1,
+                duration_sec=1.0,
+                location="studio",
+                location_id="studio",
+                characters=[],
+                emotion="hook",
+                action="uninhabited desk",
+                dialogue_or_vo=f"ban tin so {i + 1} ve ha tang.",
+                lighting="broadcast",
+                mood="hook",
+                still_id=sid,
+                use_face_ref=False,
+                shots=[
+                    Shot(camera=Camera.medium, motion=Motion.zoom_in, t_start=0, t_end=1.0, still_id=sid),
+                ],
+            )
+        )
+    board = Storyboard(
+        title="news audio gate",
+        target_seconds=3.0,
+        language="vi",
+        kind="news",
+        scenes=scenes,
+    )
+    work = tmp_path / "render"
+    # Audible sine tone as stand-in for TTS (not anullsrc silence).
+    audio = tmp_path / "vo.wav"
+    import asyncio as _asyncio
+    from omaishort.engine.kenburns import ffmpeg_path as _ff
+
+    async def _tone() -> Path:
+        cmd = [
+            _ff(),
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:sample_rate=44100:duration=3",
+            str(audio),
+        ]
+        proc = await _asyncio.create_subprocess_exec(
+            *cmd, stdout=_asyncio.subprocess.DEVNULL, stderr=_asyncio.subprocess.DEVNULL
+        )
+        await proc.wait()
+        assert proc.returncode == 0 and audio.is_file()
+        return audio
+
+    vo = asyncio.run(_tone())
+    assert is_audible(vo)
+    ass = words_to_ass(even_split("ban tin so mot hai ba", 3.0), work / "captions.ass")
+    dest = work / "short.mp4"
+    asyncio.run(
+        compose_short(
+            board,
+            stills,
+            vo,
+            ass,
+            dest,
+            work,
+            mix=MixSettings(bgm_enabled=False, pause_before_render=False),
+        )
+    )
+    assert dest.exists()
+    assert has_audio_stream(dest)
+    assert is_audible(dest)
+    assert abs(probe_duration(dest) - 3.0) < 0.35
+
+
 def test_compose_overlays_logo_when_enabled(tmp_path: Path):
     still = _still(tmp_path / "still.png")
     logo = tmp_path / "mark.png"

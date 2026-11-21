@@ -145,7 +145,8 @@ def test_only_the_operator_can_click_the_site_theme(studio_url, browser):
 
     page.goto(f"{studio_url}/account")
     page.get_by_role("heading", name="Dùng thử và nâng cấp").wait_for()
-    assert page.get_by_role("button", name="Kiểm tra ChatGPT thật").count() == 0
+    page.get_by_role("button", name="Kiểm tra ChatGPT thật").wait_for()
+    assert page.get_by_role("button", name="Kiểm tra ChatGPT thật").is_visible()
     assert page.get_by_role("radiogroup", name="Giao diện toàn site").count() == 0
     context.close()
 

@@ -834,16 +834,12 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
               </div>
               {kind === "drama" ? (
                 <p className="meta">
-                  {user?.role === "operator"
-                    ? "Motion theo provider (kenburns / i2v / mixed). Đăng nhập Muse/Grok ở Account nếu cần hub."
-                    : "Motion tự động theo cấu hình studio (Ken Burns hoặc I2V)."}
+                  Motion theo provider (kenburns / i2v / mixed). Đăng nhập Muse/Grok ở trang Tài khoản nếu cần hub.
                 </p>
               ) : null}
               {kind === "knowledge" && providers && !providers.chatgpt_web_authed ? (
                 <p className="meta">
-                  {user?.role === "operator"
-                    ? "ChatGPT chưa sẵn sàng — đăng nhập ở Account để viết lời knowledge."
-                    : "Hệ thống đang dùng bộ soạn kịch bản chuẩn (operator có thể bật thêm ChatGPT Hub)."}
+                  ChatGPT chưa sẵn sàng — đăng nhập ở trang Tài khoản để viết lời knowledge.
                 </p>
               ) : null}
             </div>

@@ -23,7 +23,6 @@ from omaishort.billing import (
 from omaishort.auth import (
     CurrentUser,
     LoginBody,
-    OperatorUser,
     RefreshBody,
     RegisterBody,
     authenticate,
@@ -176,7 +175,7 @@ def providers() -> dict[str, object]:
 
 
 @app.post("/providers/chatgpt-login")
-def start_chatgpt_login(_user: OperatorUser) -> dict[str, str]:
+def start_chatgpt_login(_user: CurrentUser) -> dict[str, str]:
     """Open headed Chrome on this PC until a ChatGPT session cookie exists."""
     global _chatgpt_opening
     from omaishort.providers.chatgpt_web import login as chatgpt_login
@@ -222,7 +221,7 @@ def start_chatgpt_login(_user: OperatorUser) -> dict[str, str]:
 
 
 @app.post("/providers/chatgpt-open")
-def open_chatgpt_content(_user: OperatorUser) -> dict[str, str]:
+def open_chatgpt_content(_user: CurrentUser) -> dict[str, str]:
     """Open today's ChatGPT thread in Chrome so the operator can edit the script."""
     global _chatgpt_opening
     from omaishort.providers.chatgpt_web import is_authed, open_content
@@ -250,7 +249,7 @@ def open_chatgpt_content(_user: OperatorUser) -> dict[str, str]:
 
 
 @app.post("/providers/chatgpt-check")
-async def check_chatgpt_status(_user: OperatorUser) -> dict[str, object]:
+async def check_chatgpt_status(_user: CurrentUser) -> dict[str, object]:
     """Verify live ChatGPT Web session and report whether ChatGPT or Wikipedia fallback was used."""
     from omaishort.providers.chatgpt_web import check_live_session
 
@@ -263,7 +262,7 @@ async def check_chatgpt_status(_user: OperatorUser) -> dict[str, object]:
 
 
 @app.post("/providers/grok-login")
-def start_grok_login(_user: OperatorUser) -> dict[str, str]:
+def start_grok_login(_user: CurrentUser) -> dict[str, str]:
     """Open headed Chrome on this PC until a Grok SSO cookie exists. Drama motion only."""
     global _grok_opening
     from omaishort.providers.chrome_profile import playwright_ok
@@ -310,7 +309,7 @@ def start_grok_login(_user: OperatorUser) -> dict[str, str]:
 
 
 @app.post("/providers/muse-login")
-def start_muse_login(_user: OperatorUser) -> dict[str, str]:
+def start_muse_login(_user: CurrentUser) -> dict[str, str]:
     """Open headed Chrome until Muse Hatch cookies exist. Drama motion only."""
     global _muse_opening
     from omaishort.providers.chrome_profile import playwright_ok
@@ -363,12 +362,12 @@ def start_muse_login(_user: OperatorUser) -> dict[str, str]:
 
 
 @app.get("/providers/elevenlabs")
-def elevenlabs_hub(_user: OperatorUser) -> dict[str, object]:
+def elevenlabs_hub(_user: CurrentUser) -> dict[str, object]:
     return load_status()
 
 
 @app.put("/providers/elevenlabs")
-def save_elevenlabs_hub(body: ElevenLabsHubBody, _user: OperatorUser) -> dict[str, object]:
+def save_elevenlabs_hub(body: ElevenLabsHubBody, _user: CurrentUser) -> dict[str, object]:
     try:
         return update_elevenlabs(body)
     except ValueError as exc:

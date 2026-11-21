@@ -127,11 +127,14 @@ def ensure_portable_env(env_path: Path, data_dir: Path) -> Path:
         return env_path
     env_path.parent.mkdir(parents=True, exist_ok=True)
     db_file = (data_dir / "omaishort.db").resolve().as_posix()
+    default_cloud = os.environ.get("OMAISHORT_DEFAULT_CLOUD_URL", "").strip().rstrip("/")
+    cloud_line = f"CLOUD_API_URL={default_cloud}" if default_cloud else "# CLOUD_API_URL=https://omaishort-db.<subdomain>.workers.dev"
     lines = [
         "# Auto-generated on first launch by omaishort portable desktop.",
         f"AUTH_SECRET={secrets.token_urlsafe(32)}",
         f"DATABASE_URL=sqlite:///{db_file}",
         f"DATA_DIR={data_dir.resolve().as_posix()}",
+        cloud_line,
         "POLLINATIONS_ENABLED=1",
         "CHATGPT_WEB_ENABLED=1",
         "MUSE_WEB_ENABLED=1",

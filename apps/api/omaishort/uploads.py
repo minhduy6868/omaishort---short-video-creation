@@ -101,7 +101,7 @@ async def save_upload(user_id: str, kind: AttachmentKind, upload: UploadFile) ->
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(data)
     content_b64 = base64.b64encode(data).decode("ascii") if len(data) <= 600 * 1024 else None
-    return db.insert_attachment(
+    row = db.insert_attachment(
         attachment_id,
         user_id,
         kind.value,
@@ -112,6 +112,11 @@ async def save_upload(user_id: str, kind: AttachmentKind, upload: UploadFile) ->
         rel.as_posix(),
         content_b64=content_b64,
     )
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.attachments_create(row)
+    return row
 
 
 def disk_path(row: dict) -> Path:
@@ -141,7 +146,14 @@ def attachment_abs(row: dict) -> Path:
 
 
 def require_owned_attachment(attachment_id: str, user_id: str) -> dict:
+    from omaishort import cloud_client
+
     row = db.get_attachment(attachment_id)
+    if (not row or row["user_id"] != user_id) and cloud_client.cloud_mode_enabled():
+        cloud_row = cloud_client.attachments_get(attachment_id)
+        if cloud_row and cloud_row.get("user_id") == user_id:
+            disk_path(cloud_row)
+            return cloud_row
     if not row or row["user_id"] != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "attachment not found")
     return row
@@ -159,8 +171,12 @@ def load_job_files(user_id: str, links: list) -> list[dict]:
 
 
 def delete_owned(attachment_id: str, user_id: str) -> None:
+    from omaishort import cloud_client
+
     row = require_owned_attachment(attachment_id, user_id)
     path = config.DATA_DIR / str(row["rel_path"])
     db.delete_attachment(attachment_id)
+    if cloud_client.cloud_mode_enabled():
+        cloud_client.attachments_delete(attachment_id)
     if path.is_file():
         path.unlink()

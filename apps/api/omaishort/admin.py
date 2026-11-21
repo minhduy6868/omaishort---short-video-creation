@@ -73,6 +73,15 @@ class StorageCleanupBody(BaseModel):
 
 @router.get("/admin/overview")
 def admin_overview(_admin: OperatorUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        data = cloud_client.admin_overview()
+        return {
+            **data,
+            "storage": storage.storage_summary(),
+            "providers": llm_status(),
+        }
     return {
         "stats": db.admin_stats(),
         "storage": storage.storage_summary(),
@@ -87,6 +96,10 @@ def admin_overview(_admin: OperatorUser) -> dict[str, Any]:
 
 @router.get("/admin/users")
 def admin_list_users(_admin: OperatorUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.admin_users_list()
     users = db.list_users()
     all_jobs = db.list_all_jobs(limit=200)
     counts: dict[str, int] = {}
@@ -99,6 +112,11 @@ def admin_list_users(_admin: OperatorUser) -> dict[str, Any]:
 
 @router.patch("/admin/users/{user_id}")
 def admin_patch_user(user_id: str, body: AdminUserPatch, caller: OperatorUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        payload = {k: v for k, v in body.model_dump().items() if v is not None}
+        return cloud_client.admin_users_patch(user_id, payload)
     target = db.get_user_by_id(user_id)
     if not target:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
@@ -143,6 +161,18 @@ def admin_list_jobs(
     job_status: str | None = Query(None, alias="status"),
     user_id: str | None = Query(None),
 ) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        params: dict[str, Any] = {"limit": limit}
+        if job_status:
+            params["status"] = job_status
+        if user_id:
+            params["user_id"] = user_id
+        data = cloud_client.admin_jobs_list(params)
+        for item in data.get("jobs") or []:
+            item["storage"] = storage.inspect_job_storage(str(item["id"]))
+        return data
     rows = db.list_all_jobs(limit=limit, status=job_status, user_id=user_id)
     users_map = {str(u["id"]): u for u in db.list_users()}
     out: list[dict[str, Any]] = []
@@ -200,6 +230,11 @@ def admin_cleanup_storage(body: StorageCleanupBody, _admin: OperatorUser) -> dic
 
 @router.put("/admin/settings")
 def admin_save_settings(body: AdminSettingsBody, _admin: OperatorUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        payload = {k: v for k, v in body.model_dump().items() if v is not None}
+        return cloud_client.admin_settings(payload)
     if body.site_theme is not None:
         if body.site_theme not in SITE_THEMES:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"theme must be one of {', '.join(SITE_THEMES)}")
@@ -243,6 +278,14 @@ def remove_job(
     user: CurrentUser,
     keep_db: bool = Query(False),
 ) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        if not cloud_client.jobs_get(job_id):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "job not found")
+        if not keep_db:
+            cloud_client.sync_job_delete(job_id)
+        return storage.delete_job_storage(job_id, delete_db_row=not keep_db)
     require_job(job_id, user)
     return storage.delete_job_storage(job_id, delete_db_row=not keep_db)
 

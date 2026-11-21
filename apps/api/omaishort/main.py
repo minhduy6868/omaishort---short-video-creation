@@ -391,11 +391,19 @@ def site_theme_value() -> str:
 
 @app.get("/site/theme")
 def read_site_theme() -> dict[str, object]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.site_theme_get()
     return {"theme": site_theme_value(), "themes": list(SITE_THEMES)}
 
 
 @app.put("/site/theme")
 def save_site_theme(body: SiteThemeBody, user: CurrentUser) -> dict[str, object]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.site_theme_put(body.theme)
     if user.get("role") != "operator":
         raise HTTPException(status_code=403, detail="Chỉ admin (operator) đổi được giao diện.")
     if body.theme not in SITE_THEMES:
@@ -406,21 +414,41 @@ def save_site_theme(body: SiteThemeBody, user: CurrentUser) -> dict[str, object]
 
 @app.post("/auth/register", status_code=201)
 def auth_register(body: RegisterBody, request: Request, response: Response) -> dict:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        payload = cloud_client.auth_register(
+            body.email, body.password, body.display_name, request.headers.get("user-agent")
+        )
+        set_auth_cookies(response, payload["access_token"], payload["refresh_token"])
+        return payload
     user = register_user(body)
     return session_from_user(user, response, request.headers.get("user-agent"))
 
 
 @app.post("/auth/login")
 def auth_login(body: LoginBody, request: Request, response: Response) -> dict:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        payload = cloud_client.auth_login(body.email, body.password, request.headers.get("user-agent"))
+        set_auth_cookies(response, payload["access_token"], payload["refresh_token"])
+        return payload
     user = authenticate(body)
     return session_from_user(user, response, request.headers.get("user-agent"))
 
 
 @app.post("/auth/refresh")
 def auth_refresh(request: Request, response: Response, body: RefreshBody | None = None) -> dict:
+    from omaishort import cloud_client
+
     raw = (body.refresh_token if body else None) or request.cookies.get("omaishort_rt")
     if not raw:
         raise HTTPException(401, "not authenticated")
+    if cloud_client.cloud_mode_enabled():
+        payload = cloud_client.auth_refresh(raw)
+        set_auth_cookies(response, payload["access_token"], payload["refresh_token"])
+        return payload
     user, refresh = rotate_refresh(raw, request.headers.get("user-agent"))
     payload = token_payload(user, refresh)
     set_auth_cookies(response, payload["access_token"], refresh)
@@ -429,7 +457,13 @@ def auth_refresh(request: Request, response: Response, body: RefreshBody | None 
 
 @app.post("/auth/logout", status_code=204, response_model=None)
 def auth_logout(request: Request, response: Response, body: RefreshBody | None = None) -> None:
+    from omaishort import cloud_client
+
     raw = (body.refresh_token if body else None) or request.cookies.get("omaishort_rt")
+    if cloud_client.cloud_mode_enabled():
+        cloud_client.auth_logout(raw)
+        clear_auth_cookies(response)
+        return
     if raw:
         row = db.get_refresh_by_hash(hash_refresh(raw))
         if row:
@@ -439,6 +473,10 @@ def auth_logout(request: Request, response: Response, body: RefreshBody | None =
 
 @app.get("/auth/me")
 def auth_me(user: CurrentUser) -> dict:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return user
     return public_user_with_billing(user)
 
 
@@ -454,6 +492,11 @@ async def create_attachment(
 
 @app.get("/attachments")
 def list_attachment_rows(user: CurrentUser) -> dict:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        rows = cloud_client.attachments_list()
+        return {"attachments": [db.public_attachment(row) for row in rows]}
     return {"attachments": [db.public_attachment(row) for row in db.list_attachments(user["id"])]}
 
 
@@ -477,21 +520,39 @@ def remove_attachment(attachment_id: str, user: CurrentUser) -> None:
 
 @app.post("/jobs")
 async def create_job(story: StoryInput, background: BackgroundTasks, user: CurrentUser) -> dict[str, str]:
+    from omaishort import cloud_client
+
     uploads.load_job_files(user["id"], story.attachments)
     assert_can_create_job(user)
     job_id = uuid.uuid4().hex[:12]
-    db.create_job(job_id, story.model_dump_json(), user_id=user["id"])
+    input_raw = story.model_dump_json()
+    db.create_job(job_id, input_raw, user_id=user["id"])
+    if cloud_client.cloud_mode_enabled():
+        cloud_client.bind_job_token(job_id)
     try:
         hold_job_credit(user, job_id)
     except CreditsExhausted:
         db.delete_job(job_id)
         raise
+    if cloud_client.cloud_mode_enabled():
+        cloud_client.jobs_create(job_id, input_raw)
     background.add_task(run_job, job_id)
     return {"id": job_id, "status": "queued"}
 
 
 @app.get("/jobs")
 def list_job_rows(user: CurrentUser, limit: int = Query(20, ge=1, le=50)) -> dict:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        cloud_jobs = cloud_client.jobs_list(limit=limit)
+        out = []
+        for item in cloud_jobs:
+            jid = str(item["id"])
+            local_row = db.get_job(jid)
+            item["storage"] = storage.inspect_job_storage(jid, local_row)
+            out.append(item)
+        return {"jobs": out}
     out = []
     for row in db.list_jobs(user["id"], limit):
         pub = db.public_job(row)
@@ -502,6 +563,20 @@ def list_job_rows(user: CurrentUser, limit: int = Query(20, ge=1, le=50)) -> dic
 
 @app.get("/jobs/{job_id}")
 def read_job(job_id: str, user: CurrentUser) -> dict:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        cloud_client.bind_job_token(job_id)
+        local_row = db.get_job(job_id)
+        if local_row and (local_row.get("user_id") == user["id"] or user.get("role") == "operator"):
+            pub = db.public_job(local_row)
+            pub["storage"] = storage.inspect_job_storage(job_id, local_row)
+            return pub
+        remote = cloud_client.jobs_get(job_id)
+        if not remote:
+            raise HTTPException(404, "job not found")
+        remote["storage"] = storage.inspect_job_storage(job_id)
+        return remote
     row = require_job(job_id, user)
     pub = db.public_job(row)
     pub["storage"] = storage.inspect_job_storage(job_id, row)
@@ -1226,30 +1301,55 @@ async def reverse_video_template(
             )
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Không dịch ngược được video: {exc}") from exc
-    return blueprint.model_dump(mode="json")
+    data = blueprint.model_dump(mode="json")
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        try:
+            cloud_client.templates_create(data)
+        except Exception:
+            pass
+    return data
 
 
 @app.get("/templates")
 def list_video_templates(user: CurrentUser) -> dict:
+    from omaishort import cloud_client
     from omaishort.engine.video_reverse import list_blueprints
 
-    rows = list_blueprints(user["id"])
-    return {"templates": [item.model_dump(mode="json") for item in rows]}
+    local_rows = [item.model_dump(mode="json") for item in list_blueprints(user["id"])]
+    if cloud_client.cloud_mode_enabled():
+        by_id = {row["id"]: row for row in local_rows}
+        for remote in cloud_client.templates_list():
+            rid = str(remote.get("id") or "")
+            if rid and rid not in by_id:
+                by_id[rid] = remote
+        merged = sorted(by_id.values(), key=lambda x: str(x.get("created_at") or ""), reverse=True)
+        return {"templates": merged}
+    return {"templates": local_rows}
 
 
 @app.get("/templates/{template_id}")
 def read_video_template(template_id: str, user: CurrentUser) -> dict:
+    from omaishort import cloud_client
     from omaishort.engine.video_reverse import load_blueprint
 
     bp = load_blueprint(user["id"], template_id)
-    if not bp:
-        raise HTTPException(status_code=404, detail="template not found")
-    return bp.model_dump(mode="json")
+    if bp:
+        return bp.model_dump(mode="json")
+    if cloud_client.cloud_mode_enabled():
+        remote = cloud_client.templates_get(template_id)
+        if remote:
+            return remote
+    raise HTTPException(status_code=404, detail="template not found")
 
 
 @app.delete("/templates/{template_id}", status_code=204, response_model=None)
 def delete_video_template(template_id: str, user: CurrentUser) -> None:
+    from omaishort import cloud_client
     from omaishort.engine.video_reverse import delete_blueprint
 
-    if not delete_blueprint(user["id"], template_id):
+    removed_local = delete_blueprint(user["id"], template_id)
+    removed_cloud = cloud_client.templates_delete(template_id) if cloud_client.cloud_mode_enabled() else False
+    if not removed_local and not removed_cloud:
         raise HTTPException(status_code=404, detail="template not found")

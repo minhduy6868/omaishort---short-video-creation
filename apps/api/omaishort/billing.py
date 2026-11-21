@@ -150,7 +150,16 @@ class CreditsExhausted(Exception):
 
 
 def assert_can_create_job(user: dict[str, Any]) -> None:
+    from omaishort import cloud_client
+
     if user.get("role") == "operator":
+        return
+    if cloud_client.cloud_mode_enabled():
+        billing = user.get("billing")
+        if not billing:
+            raise CreditsExhausted("no subscription", None)
+        if int(billing.get("credits_remaining") or 0) <= 0:
+            raise CreditsExhausted("credits exhausted", billing)
         return
     sub = db.current_subscription(str(user["id"]))
     snap = entitlement_snapshot(sub)
@@ -167,7 +176,12 @@ def assert_can_create_job(user: dict[str, Any]) -> None:
 
 
 def hold_job_credit(user: dict[str, Any], job_id: str) -> None:
+    from omaishort import cloud_client
+
     if user.get("role") == "operator":
+        return
+    if cloud_client.cloud_mode_enabled():
+        cloud_client.billing_hold(job_id)
         return
     try:
         db.hold_credit_atomic(str(user["id"]), job_id, secrets.token_hex(8))
@@ -180,7 +194,12 @@ def hold_job_credit(user: dict[str, Any], job_id: str) -> None:
 
 
 def refund_job_credit(user_id: str | None, job_id: str) -> None:
+    from omaishort import cloud_client
+
     if not user_id:
+        return
+    if cloud_client.cloud_mode_enabled():
+        cloud_client.billing_refund(job_id)
         return
     user = db.get_user_by_id(user_id)
     if user and user.get("role") == "operator":
@@ -222,12 +241,20 @@ def public_plan(row: dict[str, Any]) -> dict[str, Any]:
 
 @router.get("/billing/plans")
 def list_billing_plans() -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.billing_plans()
     plans = [public_plan(p) for p in db.list_plans(active_only=True)]
     return {"plans": plans, "transfer_note": transfer_note()}
 
 
 @router.get("/billing/me")
 def billing_me(user: CurrentUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.billing_me()
     return {
         "billing": entitlement(str(user["id"])),
         "ledger": db.list_ledger(str(user["id"]), limit=20),
@@ -242,6 +269,10 @@ class CheckoutBody(BaseModel):
 
 @router.post("/billing/checkout", status_code=201)
 def billing_checkout(body: CheckoutBody, user: CurrentUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.billing_checkout(body.plan_code)
     if user.get("role") == "operator":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "operator does not need a paid plan")
     code = body.plan_code.strip().lower()
@@ -263,6 +294,10 @@ def billing_checkout(body: CheckoutBody, user: CurrentUser) -> dict[str, Any]:
 
 @router.get("/admin/billing/overview")
 def admin_billing_overview(_admin: OperatorUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.admin_billing_overview()
     return {
         "stats": db.billing_overview_stats(),
         "plans": [public_plan(p) for p in db.list_plans()],
@@ -276,6 +311,13 @@ def admin_list_orders(
     order_status: str | None = Query(None, alias="status"),
     limit: int = Query(50, ge=1, le=200),
 ) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        params: dict[str, Any] = {"limit": limit}
+        if order_status:
+            params["status"] = order_status
+        return cloud_client.admin_billing_orders(params)
     orders = db.list_payment_orders(status=order_status, limit=limit)
     users = {str(u["id"]): u for u in db.list_users()}
     out = []
@@ -295,6 +337,12 @@ class OrderPatchBody(BaseModel):
 
 @router.patch("/admin/billing/orders/{order_id}")
 def admin_patch_order(order_id: str, body: OrderPatchBody, _admin: OperatorUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.admin_billing_order_patch(
+            order_id, {"status": body.status, "admin_note": body.admin_note}
+        )
     order = db.get_payment_order(order_id)
     if not order:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "order not found")
@@ -322,6 +370,13 @@ class GrantBody(BaseModel):
 
 @router.post("/admin/billing/users/{user_id}/grant")
 def admin_grant(user_id: str, body: GrantBody, _admin: OperatorUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        return cloud_client.admin_billing_grant(
+            user_id,
+            {"credits": body.credits, "note": body.note, "extend_days": body.extend_days},
+        )
     target = db.get_user_by_id(user_id)
     if not target:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "user not found")
@@ -345,6 +400,11 @@ class PlanPatchBody(BaseModel):
 
 @router.patch("/admin/billing/plans/{code}")
 def admin_patch_plan(code: str, body: PlanPatchBody, _admin: OperatorUser) -> dict[str, Any]:
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        payload = {k: v for k, v in body.model_dump().items() if v is not None}
+        return cloud_client.admin_billing_plan_patch(code, payload)
     plan = db.get_plan(code)
     if not plan:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "plan not found")

@@ -1,4 +1,14 @@
-import type { CharacterBibleData, Job, JobStorageInfo, StoryDraft, StoryStructureData, VideoBlueprint } from "./types";
+import type {
+  CaptionPreset,
+  CharacterBibleData,
+  Job,
+  JobStorageInfo,
+  StoryDraft,
+  StoryStructureData,
+  VideoBlueprint,
+  ViralPreset,
+  ViralScoreResult,
+} from "./types";
 
 export type VoiceOption = { id: string; language: string; label: string };
 
@@ -854,4 +864,67 @@ export async function listTemplates(): Promise<VideoBlueprint[]> {
 export async function deleteTemplate(templateId: string): Promise<void> {
   const res = await request(`/templates/${encodeURIComponent(templateId)}`, { method: "DELETE" });
   if (!res.ok) throw await parseError(res, "Không xoá được mẫu video");
+}
+
+export async function deleteAttachment(attachmentId: string): Promise<void> {
+  const res = await request(`/attachments/${encodeURIComponent(attachmentId)}`, { method: "DELETE" });
+  if (!res.ok) throw await parseError(res, "Không xoá được file đính kèm");
+}
+
+export async function readScriptPresets(): Promise<{
+  viral_presets: Record<string, ViralPreset[]>;
+  caption_presets: CaptionPreset[];
+}> {
+  const res = await fetch("/scripts/presets", { credentials: "include" });
+  if (!res.ok) return { viral_presets: {}, caption_presets: [] };
+  return (await res.json()) as {
+    viral_presets: Record<string, ViralPreset[]>;
+    caption_presets: CaptionPreset[];
+  };
+}
+
+export async function scoreViralScript(body: {
+  kind: string;
+  text: string;
+  language: string;
+  target_seconds: number;
+  structure?: StoryStructureData | null;
+}): Promise<ViralScoreResult> {
+  const res = await request("/scripts/viral-score", {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không chấm được điểm viral");
+  return (await res.json()) as ViralScoreResult;
+}
+
+export async function boostViralScript(body: {
+  kind: string;
+  title?: string;
+  text: string;
+  language: string;
+  target_seconds: number;
+  instruction?: string;
+  structure?: StoryStructureData | null;
+}): Promise<{
+  structure: StoryStructureData;
+  text: string;
+  provider: string;
+  before: ViralScoreResult;
+  after: ViralScoreResult;
+}> {
+  const res = await request("/scripts/viral-boost", {
+    method: "POST",
+    headers: headers(undefined, true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw await parseError(res, "Không tối ưu viral được kịch bản");
+  return (await res.json()) as {
+    structure: StoryStructureData;
+    text: string;
+    provider: string;
+    before: ViralScoreResult;
+    after: ViralScoreResult;
+  };
 }

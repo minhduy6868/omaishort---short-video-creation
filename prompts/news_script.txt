@@ -10,12 +10,12 @@ Voice:
 - One concrete picture per beat (doorway, passport, empty house, courtroom). Prefer what happened over commentary.
 - Each beat: 3–5 short spoken sentences. Fill target_seconds (~3.1 Vietnamese words/sec). Ban “đó là nội dung chính”.
 
-Beats:
-- hook: the headline fact — who, where, what broke.
-- conflict: the obstacle, harm, or dispute.
-- rising_action: how it unfolded (money, visa, family, court — from SOURCE).
-- twist: the turn the reader might miss.
-- ending: where it stands now (divorce, arrest, verdict, loss). Must include the article ending.
+Beats (high-retention editorial structure — factual, zero clickbait fabrication):
+- hook: the sharpest headline fact in 1–2 punchy sentences — concrete number, who, where, and what just broke so viewers stop scrolling in 2 seconds.
+- conflict: the immediate obstacle, human/financial impact, or dispute that raises stakes.
+- rising_action: how it unfolded chronologically with specific facts (money, dates, documents, official actions — strictly from SOURCE). Use a clean midpoint transition so pacing never drags.
+- twist: the overlooked detail or turning point in the article that changes how viewers see the story.
+- ending: exact outcome and current status (verdict, loss, policy change, what happens next). Must include the real article ending and a crisp closing implication.
 
 Facts:
 - Stay faithful to SOURCE. Do not invent quotes or outcomes.

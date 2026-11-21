@@ -133,6 +133,54 @@ export type VideoKind = "drama" | "news" | "knowledge";
 
 export type DramaShape = "infer" | "default" | "custom";
 
+export type SubtitleStyleData = {
+  font?: string;
+  font_size?: number;
+  primary_hex?: string;
+  highlight_hex?: string;
+  outline_hex?: string;
+  outline?: number;
+  margin_v?: number;
+};
+
+export type ViralMetric = {
+  score: number;
+  max: number;
+  label: string;
+};
+
+export type ViralScoreResult = {
+  score: number;
+  grade: "S" | "A" | "B" | "C";
+  word_count: number;
+  estimated_seconds: number;
+  filled_beats: number;
+  metrics: {
+    hook: ViralMetric;
+    curiosity: ViralMetric;
+    pacing: ViralMetric;
+    value: ViralMetric;
+    visual: ViralMetric;
+  };
+  tips: string[];
+};
+
+export type ViralPreset = {
+  id: string;
+  name: string;
+  tag: string;
+  summary: string;
+  brief: string;
+};
+
+export type CaptionPreset = {
+  id: string;
+  name: string;
+  tag: string;
+  description: string;
+  subtitle: SubtitleStyleData;
+};
+
 export type StoryDraft = {
   mode: "script" | "idea";
   kind: VideoKind;
@@ -145,6 +193,7 @@ export type StoryDraft = {
   source_url?: string | null;
   script_brief?: string | null;
   reference_template_id?: string | null;
+  subtitle?: SubtitleStyleData | null;
   attachments?: { id: string; bind?: string | null }[];
   mix?: {
     bgm_enabled?: boolean;

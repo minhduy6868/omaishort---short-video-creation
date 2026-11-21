@@ -447,6 +447,122 @@ def get_job(job_id: str) -> dict[str, Any] | None:
             conn.close()
 
 
+def _to_json_col(val: Any) -> str | None:
+    if val is None:
+        return None
+    if isinstance(val, str):
+        return val
+    return json.dumps(val)
+
+
+def upsert_job_from_cloud(pub: dict[str, Any]) -> dict[str, Any]:
+    """Materialize a cloud-fetched public job into local SQLite without bouncing a PATCH back to cloud."""
+    job_id = str(pub["id"])
+    now = _now()
+    created_at = str(pub.get("created_at") or now)
+    updated_at = str(pub.get("updated_at") or now)
+    input_raw = _to_json_col(pub.get("input")) or _to_json_col(pub.get("input_json")) or "{}"
+    bible_raw = _to_json_col(pub.get("bible")) if "bible" in pub else _to_json_col(pub.get("bible_json"))
+    structure_raw = _to_json_col(pub.get("structure")) if "structure" in pub else _to_json_col(pub.get("structure_json"))
+    storyboard_raw = (
+        _to_json_col(pub.get("storyboard")) if "storyboard" in pub else _to_json_col(pub.get("storyboard_json"))
+    )
+    timeline_raw = _to_json_col(pub.get("timeline")) if "timeline" in pub else _to_json_col(pub.get("timeline_json"))
+    artifacts_raw = _to_json_col(pub.get("artifacts")) if "artifacts" in pub else _to_json_col(pub.get("artifacts_json"))
+    storage_raw = _to_json_col(pub.get("storage")) if "storage" in pub else _to_json_col(pub.get("storage_json"))
+    with _lock:
+        conn = connect()
+        try:
+            conn.execute(
+                _sql(
+                    """
+                    INSERT INTO jobs (
+                        id, status, stage, error, created_at, updated_at,
+                        input_json, bible_json, structure_json, storyboard_json,
+                        timeline_json, artifacts_json, storage_json, progress, user_id
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        status = excluded.status,
+                        stage = excluded.stage,
+                        error = excluded.error,
+                        updated_at = excluded.updated_at,
+                        input_json = excluded.input_json,
+                        bible_json = COALESCE(excluded.bible_json, jobs.bible_json),
+                        structure_json = COALESCE(excluded.structure_json, jobs.structure_json),
+                        storyboard_json = COALESCE(excluded.storyboard_json, jobs.storyboard_json),
+                        timeline_json = COALESCE(excluded.timeline_json, jobs.timeline_json),
+                        artifacts_json = COALESCE(excluded.artifacts_json, jobs.artifacts_json),
+                        storage_json = COALESCE(excluded.storage_json, jobs.storage_json),
+                        progress = excluded.progress,
+                        user_id = COALESCE(excluded.user_id, jobs.user_id)
+                    """
+                ),
+                (
+                    job_id,
+                    str(pub.get("status") or "queued"),
+                    str(pub.get("stage") or "queued"),
+                    pub.get("error"),
+                    created_at,
+                    updated_at,
+                    input_raw,
+                    bible_raw,
+                    structure_raw,
+                    storyboard_raw,
+                    timeline_raw,
+                    artifacts_raw,
+                    storage_raw,
+                    pub.get("progress"),
+                    pub.get("user_id"),
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    row = get_job(job_id)
+    assert row
+    return row
+
+
+def upsert_attachment_from_cloud(att: dict[str, Any]) -> dict[str, Any]:
+    """Cache a cloud attachment row in local SQLite so pipeline & /files resolve it seamlessly."""
+    att_id = str(att["id"])
+    with _lock:
+        conn = connect()
+        try:
+            conn.execute(
+                _sql(
+                    """
+                    INSERT INTO attachments (
+                        id, user_id, kind, filename, mime, byte_size, sha256, rel_path, content_b64, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (id) DO UPDATE SET
+                        content_b64 = COALESCE(excluded.content_b64, attachments.content_b64),
+                        rel_path = excluded.rel_path
+                    """
+                ),
+                (
+                    att_id,
+                    str(att["user_id"]),
+                    str(att["kind"]),
+                    str(att["filename"]),
+                    str(att.get("mime") or "application/octet-stream"),
+                    int(att.get("byte_size") or 0),
+                    str(att.get("sha256") or ""),
+                    str(att.get("rel_path") or ""),
+                    att.get("content_b64"),
+                    str(att.get("created_at") or _now()),
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+    row = get_attachment(att_id)
+    assert row
+    return row
+
+
 def list_jobs(user_id: str, limit: int = 20) -> list[dict[str, Any]]:
     cap = min(50, max(1, limit))
     with _lock:

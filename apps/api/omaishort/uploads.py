@@ -152,8 +152,9 @@ def require_owned_attachment(attachment_id: str, user_id: str) -> dict:
     if (not row or row["user_id"] != user_id) and cloud_client.cloud_mode_enabled():
         cloud_row = cloud_client.attachments_get(attachment_id)
         if cloud_row and cloud_row.get("user_id") == user_id:
-            disk_path(cloud_row)
-            return cloud_row
+            cached = db.upsert_attachment_from_cloud(cloud_row)
+            disk_path(cached)
+            return cached
     if not row or row["user_id"] != user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "attachment not found")
     return row

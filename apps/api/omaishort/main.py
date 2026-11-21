@@ -18,10 +18,12 @@ from omaishort.billing import (
     credits_exhausted_response,
     hold_job_credit,
     public_user_with_billing,
+    refund_job_credit,
 )
 from omaishort.auth import (
     CurrentUser,
     LoginBody,
+    OperatorUser,
     RefreshBody,
     RegisterBody,
     authenticate,
@@ -162,8 +164,11 @@ _muse_opening = False
 
 @app.get("/providers")
 def providers() -> dict[str, object]:
+    raw = dict(llm_status())
+    raw.pop("chatgpt_web_profile", None)
+    raw.pop("last_script", None)
     return {
-        **llm_status(),
+        **raw,
         "chatgpt_opening": bool(_chatgpt_opening),
         "grok_opening": bool(_grok_opening),
         "muse_opening": bool(_muse_opening),
@@ -171,7 +176,7 @@ def providers() -> dict[str, object]:
 
 
 @app.post("/providers/chatgpt-login")
-def start_chatgpt_login(_user: CurrentUser) -> dict[str, str]:
+def start_chatgpt_login(_user: OperatorUser) -> dict[str, str]:
     """Open headed Chrome on this PC until a ChatGPT session cookie exists."""
     global _chatgpt_opening
     from omaishort.providers.chatgpt_web import login as chatgpt_login
@@ -217,7 +222,7 @@ def start_chatgpt_login(_user: CurrentUser) -> dict[str, str]:
 
 
 @app.post("/providers/chatgpt-open")
-def open_chatgpt_content(_user: CurrentUser) -> dict[str, str]:
+def open_chatgpt_content(_user: OperatorUser) -> dict[str, str]:
     """Open today's ChatGPT thread in Chrome so the operator can edit the script."""
     global _chatgpt_opening
     from omaishort.providers.chatgpt_web import is_authed, open_content
@@ -245,7 +250,7 @@ def open_chatgpt_content(_user: CurrentUser) -> dict[str, str]:
 
 
 @app.post("/providers/chatgpt-check")
-async def check_chatgpt_status(_user: CurrentUser) -> dict[str, object]:
+async def check_chatgpt_status(_user: OperatorUser) -> dict[str, object]:
     """Verify live ChatGPT Web session and report whether ChatGPT or Wikipedia fallback was used."""
     from omaishort.providers.chatgpt_web import check_live_session
 
@@ -258,7 +263,7 @@ async def check_chatgpt_status(_user: CurrentUser) -> dict[str, object]:
 
 
 @app.post("/providers/grok-login")
-def start_grok_login(_user: CurrentUser) -> dict[str, str]:
+def start_grok_login(_user: OperatorUser) -> dict[str, str]:
     """Open headed Chrome on this PC until a Grok SSO cookie exists. Drama motion only."""
     global _grok_opening
     from omaishort.providers.chrome_profile import playwright_ok
@@ -305,7 +310,7 @@ def start_grok_login(_user: CurrentUser) -> dict[str, str]:
 
 
 @app.post("/providers/muse-login")
-def start_muse_login(_user: CurrentUser) -> dict[str, str]:
+def start_muse_login(_user: OperatorUser) -> dict[str, str]:
     """Open headed Chrome until Muse Hatch cookies exist. Drama motion only."""
     global _muse_opening
     from omaishort.providers.chrome_profile import playwright_ok
@@ -358,12 +363,12 @@ def start_muse_login(_user: CurrentUser) -> dict[str, str]:
 
 
 @app.get("/providers/elevenlabs")
-def elevenlabs_hub(_user: CurrentUser) -> dict[str, object]:
+def elevenlabs_hub(_user: OperatorUser) -> dict[str, object]:
     return load_status()
 
 
 @app.put("/providers/elevenlabs")
-def save_elevenlabs_hub(body: ElevenLabsHubBody, _user: CurrentUser) -> dict[str, object]:
+def save_elevenlabs_hub(body: ElevenLabsHubBody, _user: OperatorUser) -> dict[str, object]:
     try:
         return update_elevenlabs(body)
     except ValueError as exc:
@@ -535,7 +540,12 @@ async def create_job(story: StoryInput, background: BackgroundTasks, user: Curre
         db.delete_job(job_id)
         raise
     if cloud_client.cloud_mode_enabled():
-        cloud_client.jobs_create(job_id, input_raw)
+        try:
+            cloud_client.jobs_create(job_id, input_raw)
+        except Exception:
+            refund_job_credit(str(user["id"]), job_id)
+            db.delete_job(job_id)
+            raise
     background.add_task(run_job, job_id)
     return {"id": job_id, "status": "queued"}
 
@@ -550,7 +560,8 @@ def list_job_rows(user: CurrentUser, limit: int = Query(20, ge=1, le=50)) -> dic
         for item in cloud_jobs:
             jid = str(item["id"])
             local_row = db.get_job(jid)
-            item["storage"] = storage.inspect_job_storage(jid, local_row)
+            remote_st = item.get("storage")
+            item["storage"] = storage.merge_remote_storage(storage.inspect_job_storage(jid, local_row), remote_st)
             out.append(item)
         return {"jobs": out}
     out = []
@@ -575,7 +586,9 @@ def read_job(job_id: str, user: CurrentUser) -> dict:
         remote = cloud_client.jobs_get(job_id)
         if not remote:
             raise HTTPException(404, "job not found")
-        remote["storage"] = storage.inspect_job_storage(job_id)
+        db.upsert_job_from_cloud(remote)
+        remote_st = remote.get("storage")
+        remote["storage"] = storage.merge_remote_storage(storage.inspect_job_storage(job_id), remote_st)
         return remote
     row = require_job(job_id, user)
     pub = db.public_job(row)

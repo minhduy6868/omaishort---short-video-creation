@@ -227,7 +227,23 @@ def list_local_videos(user: dict[str, Any], *, all_users: bool = False, limit: i
     return [_job_video_entry(row, users_map) for row in rows]
 
 
+def merge_remote_storage(local_info: dict[str, Any], remote_info: Any) -> dict[str, Any]:
+    """Preserve remote metadata (duration/dimensions/size) when MP4 was rendered on another machine."""
+    merged = dict(local_info)
+    if not isinstance(remote_info, dict):
+        return merged
+    if not merged.get("mp4_ready"):
+        for key in ("duration_sec", "width", "height"):
+            if merged.get(key) is None and remote_info.get(key) is not None:
+                merged[key] = remote_info[key]
+        if not merged.get("mp4_bytes") and remote_info.get("mp4_bytes"):
+            merged["remote_mp4_bytes"] = remote_info["mp4_bytes"]
+    return merged
+
+
 def storage_summary() -> dict[str, Any]:
+    from omaishort import cloud_client
+
     jobs_root = config.DATA_DIR / "jobs"
     att_root = config.DATA_DIR / "attachments"
     jobs_bytes, jobs_files = _dir_bytes(jobs_root)
@@ -236,6 +252,7 @@ def storage_summary() -> dict[str, Any]:
     mp4_bytes = 0
     job_dirs_count = 0
     orphan_job_ids: list[str] = []
+    cloud_mode = cloud_client.cloud_mode_enabled()
 
     if jobs_root.is_dir():
         for child in sorted(jobs_root.iterdir()):
@@ -249,7 +266,7 @@ def storage_summary() -> dict[str, Any]:
                     mp4_bytes += mp4.stat().st_size
                 except OSError:
                     pass
-            if db.get_job(child.name) is None:
+            if not cloud_mode and db.get_job(child.name) is None:
                 orphan_job_ids.append(child.name)
 
     return {

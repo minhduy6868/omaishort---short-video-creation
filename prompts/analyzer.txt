@@ -22,6 +22,11 @@ Rules:
 - personality MUST name the relationship to other bible ids AND the emotional state. Later stills reuse this lock.
 - Also emit locations[] and props[] with stable ids. Same place across scenes = one location id.
 - Structure MUST contain hook, conflict, rising_action, twist, ending. Default: insult → deepen → tension → reveal → karma quote **using their people**. Custom: map the five keys onto **their** arc.
+- Viral retention craft:
+  * hook (0–3s): Drop straight into the most shocking line, concrete detail, or visceral confrontation — NEVER start with background exposition or generic setups. Open a curiosity loop the viewer must finish watching to close.
+  * conflict & rising_action: Escalate stakes every 5–8 seconds and plant a sharp midpoint re-hook (a suspicious detail, a quiet witness, a sudden phone buzz) so retention never dips.
+  * twist: Deliver a clear, earned status reversal or hidden truth that reframes the opening.
+  * ending: Close with one unforgettable cold quote, karmic payoff, or circular callback that makes viewers want to replay or share.
 - Beat seconds should sum near target_seconds.
 - Extra names become unnamed extras, not bible entries.
 - If the paste is character dialogue (Vợ: … / Wife: …), treat as **custom** unless USER_BRIEF asks for the viral shape. Ids follow speaker labels.

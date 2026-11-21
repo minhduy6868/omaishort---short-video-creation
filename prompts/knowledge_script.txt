@@ -12,11 +12,11 @@ Voice:
 - Each beat: 3–5 short spoken sentences (one breath each). Fill target_seconds (~3.1 Vietnamese words/sec; ~90s unless target_seconds says otherwise).
 
 Beats (must all be present — follow a high-retention 5-part Viral Documentary / Storytelling Arc, NEVER dry textbook definitions):
-- hook (Mở đầu gây tò mò): Open with a striking paradox, surprising number, or real-life scene that stops the viewer in the first 3 seconds. Who/what and why it matters right now.
-- conflict (Vấn đề cốt lõi & Tác động): The real human, historical, or practical problem/stakes — why the listener feels the urgency or impact in real life.
-- rising_action (Giải mã & Câu chuyện thực tế): Walk through how it actually unfolded or works step-by-step using vivid narrative, concrete examples, or real workflow steps. Chronological and story-driven.
-- twist (Góc khuất bất ngờ & Phản trực giác): The counter-intuitive truth, hidden turning point, or the biggest misconception 90% of people get wrong.
-- ending (Đúc kết & Ứng dụng): The sharp takeaway or memorable mental model the viewer brings home (and if SOURCE has a clear start/install path, state it cleanly).
+- hook (Mở đầu gây tò mò — 0–3s Pattern Interrupt + Curiosity Gap): Open immediately with a striking paradox, surprising number, or vivid real-life scene that stops the scroll in 2 seconds AND opens an information gap (hint at the surprising "why" or hidden mistake without spoiling it yet).
+- conflict (Vấn đề cốt lõi & Tác động): Raise personal/practical stakes immediately — why this affects the viewer's money, time, decisions, or worldview right now.
+- rising_action (Giải mã & Câu chuyện thực tế + Midpoint Re-Hook): Walk through how it actually unfolded or works step-by-step using vivid scenes, concrete numbers, and human examples. Include a crisp midpoint pivot ("Nhưng điều ít ai để ý là…" / "Here is where it gets strange…") to reset attention halfway through.
+- twist (Góc khuất bất ngờ & Phản trực giác): Deliver the counter-intuitive truth, hidden turning point, or the #1 misconception 90% of people get wrong — closing the curiosity loop opened in the hook.
+- ending (Đúc kết & Ứng dụng — Shareable Payoff): Leave one sharp, quotable mental model or practical takeaway the viewer wants to save/share (and if SOURCE has a clear start/install path, state it cleanly). Echo the opening theme for a satisfying loop feel.
 
 Facts:
 - Stay faithful to SOURCE. Do not invent battles, quotes, versions, or commands that are not there.

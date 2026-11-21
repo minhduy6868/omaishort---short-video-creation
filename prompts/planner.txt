@@ -17,7 +17,7 @@ HARD RULES:
 - use_face_ref is false when the action is back-turned, far away, or face is hidden.
 - use_location_ref is false for inserts: phone screen, lock screen, hands-only, extreme object close-up.
 - dialogue_or_vo is the spoken LINE for that scene (what the character says), not a narrator recap. If the script is dialogue (Name: line), one scene per spoken beat; on-camera characters = speaker plus anyone sharing the frame. Do not rewrite speech into "she said / he told". Total spoken time should fit ~target_seconds.
-- action is the still photograph for THAT SAME beat as dialogue_or_vo: who is in frame, gesture, prop, eye-line — the visual moment the line is spoken over. Never paste spoken words into action (no quote marks, no text-on-image, no "she says …"). If VO mentions a phone / door / kiss, action must show that object or gesture in the same instant.
+- action is the still photograph for THAT SAME beat as dialogue_or_vo: who is in frame, gesture, prop, eye-line — the visual moment the line is spoken over. Never paste spoken words into action (no quote marks, no text-on-image, no "she says …"). If VO mentions a phone / door / kiss, action must show that object or gesture in the same instant. Vary visual composition across consecutive scenes (foreground prop, reaction over-the-shoulder, tight eye-line, wide tension) to maintain visual pattern-interrupts every few seconds while keeping exact bible locks.
 - consistency_notes mention wardrobe/location continuity from the previous scene.
 
 JSON shape:

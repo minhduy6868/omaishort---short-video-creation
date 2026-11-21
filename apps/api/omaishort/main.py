@@ -602,11 +602,65 @@ class RewriteScriptBody(BaseModel):
     structure: dict[str, object]
 
 
+class ViralScoreBody(BaseModel):
+    kind: str = "drama"
+    text: str = ""
+    language: str = "vi"
+    target_seconds: int = 60
+    structure: dict[str, object] | None = None
+
+
+class ViralBoostBody(BaseModel):
+    kind: str = "drama"
+    title: str = ""
+    text: str = ""
+    language: str = "vi"
+    target_seconds: int = 60
+    instruction: str = ""
+    structure: dict[str, object] | None = None
+
+
+@app.get("/scripts/presets")
+def script_presets() -> dict[str, object]:
+    from omaishort.engine.viral_score import CAPTION_PRESETS, VIRAL_PRESETS
+
+    return {"viral_presets": VIRAL_PRESETS, "caption_presets": CAPTION_PRESETS}
+
+
+@app.post("/scripts/viral-score")
+def viral_score_endpoint(body: ViralScoreBody, _user: CurrentUser) -> dict[str, object]:
+    from omaishort.engine.viral_score import evaluate_viral_script
+
+    return evaluate_viral_script(
+        body.text,
+        structure=body.structure,
+        kind=body.kind,
+        language=body.language,
+        target_seconds=body.target_seconds,
+    )
+
+
+@app.post("/scripts/viral-boost")
+async def viral_boost_endpoint(body: ViralBoostBody, _user: CurrentUser) -> dict[str, object]:
+    from omaishort.engine.viral_score import boost_viral_script
+
+    return await boost_viral_script(
+        text=body.text,
+        structure=body.structure,
+        kind=body.kind,
+        language=body.language,
+        target_seconds=body.target_seconds,
+        instruction=body.instruction,
+        title=body.title,
+    )
+
+
 @app.post("/scripts/draft")
 async def draft_script_endpoint(body: DraftScriptBody, _user: CurrentUser) -> dict[str, object]:
     from omaishort.engine.analyzer import draft_content_structure
+    from omaishort.engine.viral_score import evaluate_viral_script
 
-    return await draft_content_structure(
+    result = await draft_content_structure(
         kind=body.kind,
         text=body.text,
         language=body.language,
@@ -614,6 +668,14 @@ async def draft_script_endpoint(body: DraftScriptBody, _user: CurrentUser) -> di
         source_url=body.source_url,
         script_brief=body.script_brief,
     )
+    result["viral"] = evaluate_viral_script(
+        str(result.get("text") or ""),
+        structure=result.get("structure") if isinstance(result.get("structure"), dict) else None,
+        kind=body.kind,
+        language=body.language,
+        target_seconds=body.target_seconds,
+    )
+    return result
 
 
 @app.post("/scripts/rewrite")

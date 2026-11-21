@@ -47,6 +47,8 @@ def database_url() -> str:
         "on",
     }:
         return f"sqlite:///{(config.DATA_DIR / 'omaishort.db').as_posix()}"
+    if os.environ.get("CLOUD_API_URL", "").strip() or getattr(config, "CLOUD_API_URL", ""):
+        return f"sqlite:///{(config.DATA_DIR / 'omaishort.db').as_posix()}"
     return _DEFAULT_PG
 
 
@@ -419,6 +421,7 @@ def create_job(job_id: str, input_json: str, user_id: str | None = None) -> None
 def update_job(job_id: str, **fields: Any) -> None:
     if not fields:
         return
+    sync_payload = dict(fields)
     fields["updated_at"] = _now()
     assignments = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [job_id]
@@ -429,6 +432,9 @@ def update_job(job_id: str, **fields: Any) -> None:
             conn.commit()
         finally:
             conn.close()
+    from omaishort import cloud_client
+
+    cloud_client.sync_job_fields(job_id, sync_payload)
 
 
 def get_job(job_id: str) -> dict[str, Any] | None:

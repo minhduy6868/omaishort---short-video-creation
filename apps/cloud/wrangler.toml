@@ -1,6 +1,7 @@
 name = "omaishort-db"
 main = "src/index.js"
 compatibility_date = "2026-09-27"
+compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
 binding = "DB"

@@ -103,9 +103,23 @@ CREATE TABLE IF NOT EXISTS payment_orders (
     admin_note TEXT
 );
 
+CREATE TABLE IF NOT EXISTS templates (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    source_filename TEXT NOT NULL,
+    duration_sec REAL NOT NULL DEFAULT 0,
+    pacing TEXT NOT NULL DEFAULT 'medium',
+    blueprint_json TEXT NOT NULL,
+    video_md TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_attachments_user ON attachments(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_templates_user ON templates(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, created_at);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_ledger_user ON credit_ledger(user_id, created_at);

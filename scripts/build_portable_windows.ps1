@@ -16,11 +16,17 @@
 param(
   [string]$PythonVersion = "3.11.9",
   [string]$OutName = "omaishort-win-x64",
+  [string]$CloudApiUrl = "",
   [switch]$SkipWebBuild,
   [switch]$NoZip
 )
 
 $ErrorActionPreference = "Stop"
+if (-not $CloudApiUrl -and $env:OMAISHORT_CLOUD_API_URL) {
+  $CloudApiUrl = $env:OMAISHORT_CLOUD_API_URL.Trim().TrimEnd("/")
+} else {
+  $CloudApiUrl = $CloudApiUrl.Trim().TrimEnd("/")
+}
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $DistRoot = Join-Path $RepoRoot "dist"
 $CacheDir = Join-Path $DistRoot ".cache"
@@ -124,8 +130,9 @@ Copy-CleanTree (Join-Path $RepoRoot "prompts")                        (Join-Path
 Copy-CleanTree (Join-Path $RepoRoot "assets")                         (Join-Path $AppDir "assets")
 Copy-CleanTree (Join-Path $RepoRoot "samples")                        (Join-Path $AppDir "samples")
 
-# Write 1-click launcher: Omaishort.bat
-$LauncherBat = @'
+# Write 1-click launcher: Omaishort.bat (never contains secrets; optional public CLOUD_API_URL only)
+$CloudEnvLine = if ($CloudApiUrl) { "set `"OMAISHORT_DEFAULT_CLOUD_URL=$CloudApiUrl`"" } else { "rem Optional: set OMAISHORT_DEFAULT_CLOUD_URL=https://omaishort-db.<subdomain>.workers.dev" }
+$LauncherBat = @"
 @echo off
 setlocal
 chcp 65001 >nul
@@ -138,6 +145,7 @@ set "OMAISHORT_WEB_DIST=%BASE%\app\apps\web\dist"
 set "OMAISHORT_ENV_FILE=%BASE%\.env"
 set "DATA_DIR=%BASE%\data"
 set "FFMPEG_PATH=%BASE%\bin\ffmpeg.exe"
+$CloudEnvLine
 set "PATH=%BASE%\bin;%BASE%\python;%PATH%"
 echo Dang khoi dong omaishort Studio...
 "%BASE%\python\python.exe" -m omaishort.desktop
@@ -146,11 +154,11 @@ if errorlevel 1 (
   echo [LOI] omaishort dung dot ngot. Xem log ben tren.
   pause
 )
-'@
+"@
 Set-Content -Path (Join-Path $StageDir "Omaishort.bat") -Value $LauncherBat -Encoding ASCII
 
 # Write CLI helper: Omaishort-CLI.bat
-$CliBat = @'
+$CliBat = @"
 @echo off
 setlocal
 chcp 65001 >nul
@@ -161,9 +169,10 @@ set "OMAISHORT_ROOT=%BASE%\app"
 set "OMAISHORT_ENV_FILE=%BASE%\.env"
 set "DATA_DIR=%BASE%\data"
 set "FFMPEG_PATH=%BASE%\bin\ffmpeg.exe"
+$CloudEnvLine
 set "PATH=%BASE%\bin;%BASE%\python;%PATH%"
 "%BASE%\python\python.exe" -m omaishort %*
-'@
+"@
 Set-Content -Path (Join-Path $StageDir "Omaishort-CLI.bat") -Value $CliBat -Encoding ASCII
 
 # Write end-user Vietnamese guide

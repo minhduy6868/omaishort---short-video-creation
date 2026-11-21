@@ -28,6 +28,8 @@ jobs:
 
       - name: Build Windows portable bundle
         shell: pwsh
+        env:
+          OMAISHORT_CLOUD_API_URL: ${{ vars.OMAISHORT_CLOUD_API_URL }}
         run: .\scripts\build_portable_windows.ps1
 
       - name: Upload workflow artifact

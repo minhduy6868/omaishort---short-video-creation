@@ -353,13 +353,19 @@ async def get_current_user(
     authorization: Annotated[str | None, Header()] = None,
     omaishort_at: Annotated[str | None, Cookie()] = None,
 ) -> dict[str, Any]:
+    from omaishort import cloud_client
+
     token = None
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization[7:].strip()
     elif omaishort_at:
         token = omaishort_at
     if not token:
+        cloud_client.set_request_token(None)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
+    if cloud_client.cloud_mode_enabled():
+        cloud_client.set_request_token(token)
+        return cloud_client.auth_me(token)
     payload = decode_access(token)
     user = db.get_user_by_id(str(payload.get("sub") or ""))
     if not user:

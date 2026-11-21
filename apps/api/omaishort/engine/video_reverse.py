@@ -750,6 +750,15 @@ def load_blueprint(owner_id: str | None, template_id: str) -> VideoBlueprint | N
                 return VideoBlueprint.model_validate_json(path.read_text(encoding="utf-8"))
             except Exception:
                 return None
+    from omaishort import cloud_client
+
+    if cloud_client.cloud_mode_enabled():
+        try:
+            remote = cloud_client.templates_get(tid)
+            if remote:
+                return VideoBlueprint.model_validate(remote)
+        except Exception:
+            return None
     return None
 
 

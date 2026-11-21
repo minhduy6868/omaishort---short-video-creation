@@ -49,6 +49,7 @@ def test_desktop_window_opens_the_studio_not_the_landing(monkeypatch) -> None:
             self._target()
 
     monkeypatch.setattr(desktop, "attach_studio", lambda *_args: None)
+    monkeypatch.setattr(desktop, "pick_desktop_port", lambda _h, p: (p, False))
     monkeypatch.setattr(desktop, "_wait_until_up", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(desktop, "open_studio_window", opened.append)
     monkeypatch.setattr(threading, "Thread", InlineThread)
@@ -58,6 +59,32 @@ def test_desktop_window_opens_the_studio_not_the_landing(monkeypatch) -> None:
 
     assert len(opened) == 1
     assert opened[0].endswith("/work"), "/ redirects to the /vi landing since fix/remake-ui"
+
+
+def test_portable_mode_defaults_to_local_sqlite_and_generates_env(tmp_path: Path, monkeypatch) -> None:
+    import omaishort.config as cfg
+    from omaishort import db, desktop
+
+    env_file = tmp_path / ".env"
+    data_dir = tmp_path / "data"
+    created = desktop.ensure_portable_env(env_file, data_dir)
+    assert created.is_file()
+    body = created.read_text(encoding="utf-8")
+    assert "AUTH_SECRET=" in body
+    assert "DATABASE_URL=sqlite:///" in body
+    assert "D1_WORKER_KEY" not in body
+
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("OMAISHORT_PORTABLE", "1")
+    monkeypatch.setattr(cfg, "DATABASE_URL", "")
+    monkeypatch.setattr(cfg, "D1_WORKER_URL", "")
+    monkeypatch.setattr(cfg, "D1_WORKER_KEY", "")
+    monkeypatch.setattr(cfg, "DATA_DIR", data_dir)
+    monkeypatch.setattr(cfg, "PORTABLE_MODE", True)
+
+    assert db.database_url().startswith("sqlite:///")
+    assert not db.is_postgres()
+    assert not db.is_d1()
 
 
 def test_d1_result_reads_rows() -> None:

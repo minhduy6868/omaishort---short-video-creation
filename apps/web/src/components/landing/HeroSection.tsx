@@ -1,6 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
+const DESKTOP_DOWNLOAD_URL =
+  (import.meta.env.VITE_DESKTOP_DOWNLOAD_URL as string | undefined) ||
+  'https://github.com/minhduy6868/omaishort---short-video-creation/releases/latest/download/omaishort-win-x64.zip';
+
 export function HeroSection() {
   const { t } = useTranslation('landing');
 
@@ -17,7 +21,10 @@ export function HeroSection() {
           <p className="hero-subtitle">{t('hero.subtitle')}</p>
 
           <div className="hero-actions">
-            <Link to="/work" className="btn btn-primary btn-lg">
+            <a href={DESKTOP_DOWNLOAD_URL} className="btn btn-primary btn-lg" rel="noopener noreferrer">
+              <span>Tải cho Windows (.zip)</span>
+            </a>
+            <Link to="/work" className="btn btn-secondary btn-lg">
               <span>{t('hero.cta_primary')}</span>
             </Link>
             <a href="#demo" className="btn btn-secondary btn-lg">

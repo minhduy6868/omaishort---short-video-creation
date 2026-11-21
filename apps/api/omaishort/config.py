@@ -5,8 +5,10 @@ import os
 
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parents[3]
-load_dotenv(ROOT / ".env")
+_raw_root = os.environ.get("OMAISHORT_ROOT", "").strip()
+ROOT = Path(_raw_root).resolve() if _raw_root else Path(__file__).resolve().parents[3]
+_raw_env = os.environ.get("OMAISHORT_ENV_FILE", "").strip()
+load_dotenv(Path(_raw_env) if _raw_env else (ROOT / ".env"))
 
 
 def _env(name: str, default: str = "") -> str:
@@ -82,6 +84,7 @@ ELEVENLABS_VOICE_ID = _env("ELEVENLABS_VOICE_ID")
 WHISPER_MODEL = _env("WHISPER_MODEL", "tiny")
 API_HOST = _env("API_HOST", "127.0.0.1")
 API_PORT = int(_env("API_PORT", "8765") or "8765")
+PORTABLE_MODE = _env_bool("OMAISHORT_PORTABLE", False)
 AUTH_SECRET = _env("AUTH_SECRET")
 AUTH_SIGNUP = _env_bool("AUTH_SIGNUP", True)
 AUTH_COOKIE_SECURE = _env_bool("AUTH_COOKIE_SECURE", False)

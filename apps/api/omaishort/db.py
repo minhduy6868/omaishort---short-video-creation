@@ -38,7 +38,16 @@ def database_url() -> str:
         return configured
     if config.D1_WORKER_URL and config.D1_WORKER_KEY:
         return "d1://worker"
-    return configured or _DEFAULT_PG
+    if configured:
+        return configured
+    if getattr(config, "PORTABLE_MODE", False) or os.environ.get("OMAISHORT_PORTABLE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return f"sqlite:///{(config.DATA_DIR / 'omaishort.db').as_posix()}"
+    return _DEFAULT_PG
 
 
 def is_d1(url: str | None = None) -> bool:

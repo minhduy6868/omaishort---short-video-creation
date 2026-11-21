@@ -545,6 +545,7 @@ Used in: `StoryInput.kind=news|knowledge` (legacy `brief`→news), `_plan_brief`
 | mushigaite/short-video-maker | check repo | No. YouTube clipper, not a story engine |
 | coracoo/Slate | check repo | `storyboard.json` as the driver — we already do this |
 | maosika-ai/reshot | Apache-2.0 | Control-video idea only. Do not vendor depth/pose models |
+| JuneYaooo/rea-video | Apache-2.0 | Shot-by-shot reverse-engineering blueprint (`VIDEO.md`, pacing, lens cues) in `engine/video_reverse.py` + optional `REA_VLM_*` in `providers/vision.py`; do not clone or copy reference footage/faces |
 
 ## J. October 2026 short-video repos
 

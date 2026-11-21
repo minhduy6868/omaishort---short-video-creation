@@ -45,6 +45,7 @@ async def _run(
     mode: str = "script",
     drama_shape: str = "infer",
     bgm: bool = True,
+    template_id: str | None = None,
 ) -> str:
     db.init_db()
     url = (source_url or "").strip() or None
@@ -81,6 +82,7 @@ async def _run(
         source_url=url,
         voice_id=voice,
         script_brief=script_brief,
+        reference_template_id=template_id,
         mix=MixSettings(logo_enabled=logo, bgm_enabled=bgm),
     )
     job_id = "dryrun-" + uuid.uuid4().hex[:8]
@@ -133,7 +135,50 @@ def main() -> None:
     parser.add_argument("--chatgpt-login", action="store_true", help="Open Chrome once to save a ChatGPT session")
     parser.add_argument("--grok-login", action="store_true", help="Open Chrome once to save a Grok hub session")
     parser.add_argument("--muse-login", action="store_true", help="Open Chrome once to save a Muse hub session")
+    parser.add_argument(
+        "--reverse",
+        default="",
+        help="Reverse-engineer a local reference video (MP4/MOV/WebM) into a reusable blueprint + VIDEO.md",
+    )
+    parser.add_argument(
+        "--template",
+        default="",
+        help="Apply a saved reference video blueprint id (tpl_...) to this job",
+    )
     args = parser.parse_args()
+    if args.reverse:
+        from omaishort.engine.video_reverse import reverse_engineer_video, template_dir
+
+        video_file = Path(args.reverse).expanduser()
+        bp = asyncio.run(
+            reverse_engineer_video(
+                video_file,
+                owner_id="cli",
+                language=args.language,
+                use_vlm=True,
+                transcribe=False,
+            )
+        )
+        tdir = template_dir("cli", bp.id)
+        print(
+            json.dumps(
+                {
+                    "id": bp.id,
+                    "name": bp.name,
+                    "duration_sec": bp.duration_sec,
+                    "pacing": bp.pacing,
+                    "shots": len(bp.shots),
+                    "avg_shot_sec": bp.avg_shot_sec,
+                    "analyzer_provider": bp.analyzer_provider,
+                    "video_md": str(tdir / "VIDEO.md"),
+                    "blueprint_json": str(tdir / "blueprint.json"),
+                    "script_brief": bp.script_brief,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        raise SystemExit(0)
     if args.chatgpt_login:
         from omaishort.providers.chatgpt_web import login
 
@@ -164,6 +209,7 @@ def main() -> None:
             mode=args.mode,
             drama_shape=args.shape,
             bgm=not args.no_bgm,
+            template_id=args.template or None,
         )
     )
 

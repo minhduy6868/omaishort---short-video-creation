@@ -1179,3 +1179,77 @@ def download_mp4(job_id: str, user: CurrentUser) -> FileResponse:
 def read_data_file(path: str, user: CurrentUser) -> FileResponse:
     dest = resolve_public_file(path, user)
     return FileResponse(dest)
+
+
+@app.post("/templates/reverse")
+async def reverse_video_template(
+    user: CurrentUser,
+    file: UploadFile = File(...),
+    name: str = Query("", max_length=80),
+    language: str = Query("vi", max_length=8),
+    use_vlm: bool = Query(True),
+    transcribe: bool = Query(False),
+) -> dict:
+    """Reverse-engineer a reference video shot by shot into a reusable VideoBlueprint."""
+    import tempfile as _tempfile
+    from omaishort.engine.video_reverse import (
+        ALLOWED_VIDEO_EXTS,
+        MAX_TEMPLATE_VIDEO_BYTES,
+        reverse_engineer_video,
+    )
+
+    filename = (file.filename or "reference.mp4").strip()
+    suffix = Path(filename).suffix.lower() or ".mp4"
+    if suffix not in ALLOWED_VIDEO_EXTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Định dạng video không hỗ trợ ({suffix}). Dùng MP4, MOV, WebM hoặc MKV.",
+        )
+    raw = await file.read(MAX_TEMPLATE_VIDEO_BYTES + 1)
+    if not raw:
+        raise HTTPException(status_code=400, detail="File video rỗng")
+    if len(raw) > MAX_TEMPLATE_VIDEO_BYTES:
+        raise HTTPException(status_code=413, detail="File video vượt quá giới hạn 120MB")
+
+    with _tempfile.TemporaryDirectory(prefix="omaishort-tpl-upload-") as tmp:
+        tmp_video = Path(tmp) / f"sample{suffix}"
+        tmp_video.write_bytes(raw)
+        try:
+            blueprint = await reverse_engineer_video(
+                tmp_video,
+                owner_id=user["id"],
+                name=name.strip() or None,
+                source_filename=filename,
+                language=language.strip() or "vi",
+                use_vlm=use_vlm,
+                transcribe=transcribe,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Không dịch ngược được video: {exc}") from exc
+    return blueprint.model_dump(mode="json")
+
+
+@app.get("/templates")
+def list_video_templates(user: CurrentUser) -> dict:
+    from omaishort.engine.video_reverse import list_blueprints
+
+    rows = list_blueprints(user["id"])
+    return {"templates": [item.model_dump(mode="json") for item in rows]}
+
+
+@app.get("/templates/{template_id}")
+def read_video_template(template_id: str, user: CurrentUser) -> dict:
+    from omaishort.engine.video_reverse import load_blueprint
+
+    bp = load_blueprint(user["id"], template_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="template not found")
+    return bp.model_dump(mode="json")
+
+
+@app.delete("/templates/{template_id}", status_code=204, response_model=None)
+def delete_video_template(template_id: str, user: CurrentUser) -> None:
+    from omaishort.engine.video_reverse import delete_blueprint
+
+    if not delete_blueprint(user["id"], template_id):
+        raise HTTPException(status_code=404, detail="template not found")

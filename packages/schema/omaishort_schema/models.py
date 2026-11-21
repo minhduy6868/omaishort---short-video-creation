@@ -151,6 +151,11 @@ class StoryInput(BaseModel):
         max_length=2000,
         description="Optional extra writing notes for ChatGPT (tone, emphasis, audience).",
     )
+    reference_template_id: str | None = Field(
+        default=None,
+        max_length=64,
+        description="Optional reverse-engineered reference video blueprint id to match pacing and style.",
+    )
     attachments: list[AttachmentLink] = Field(
         default_factory=list,
         max_length=12,
@@ -179,6 +184,8 @@ class StoryInput(BaseModel):
             self.source_url = None
         if self.voice_id is not None and not self.voice_id.strip():
             self.voice_id = None
+        if self.reference_template_id is not None and not self.reference_template_id.strip():
+            self.reference_template_id = None
         if self.kind == VideoKind.news and self.genre in {
             Genre.confession,
             Genre.cheating,
@@ -319,3 +326,48 @@ class Timeline(BaseModel):
     elements: list[TimelineElement]
     text: list[TimelineText]
     audio: list[TimelineAudio]
+
+
+class ReverseShot(BaseModel):
+    index: int
+    t_start: float
+    t_end: float
+    duration_sec: float = Field(gt=0)
+    beat: str = "hook"
+    production_type: str = "unknown"
+    camera: Camera = Camera.medium
+    motion: Motion = Motion.hold
+    brightness: float = 0.5
+    contrast: float = 0.2
+    dominant_colors: list[str] = Field(default_factory=list)
+    visual_summary: str = ""
+    prompt_hint: str = ""
+    frame_rel: str | None = None
+
+
+class VideoBlueprint(BaseModel):
+    id: str
+    name: str
+    source_filename: str
+    created_at: str = ""
+    duration_sec: float
+    width: int = 1080
+    height: int = 1920
+    fps: float = 30.0
+    aspect_ratio: str = "9:16"
+    has_audio: bool = False
+    mean_volume_db: float | None = None
+    speech_ratio: float = 0.0
+    avg_shot_sec: float = 4.0
+    pacing: Literal["fast", "medium", "slow"] = "medium"
+    production_mix: dict[str, float] = Field(default_factory=dict)
+    hook_style: str = ""
+    visual_style: str = ""
+    color_palette: list[str] = Field(default_factory=list)
+    transcript: str = ""
+    beat_durations: dict[str, float] = Field(default_factory=dict)
+    beat_lenses: dict[str, list[dict[str, str]]] = Field(default_factory=dict)
+    shots: list[ReverseShot] = Field(default_factory=list)
+    script_brief: str = ""
+    video_md: str = ""
+    analyzer_provider: str = "ffmpeg"

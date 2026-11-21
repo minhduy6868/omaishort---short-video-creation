@@ -1,4 +1,4 @@
-import type { CharacterBibleData, Job, JobStorageInfo, StoryDraft, StoryStructureData } from "./types";
+import type { CharacterBibleData, Job, JobStorageInfo, StoryDraft, StoryStructureData, VideoBlueprint } from "./types";
 
 export type VoiceOption = { id: string; language: string; label: string };
 
@@ -823,4 +823,35 @@ export async function rerenderJob(jobId: string, regenerateStills = false): Prom
   });
   if (!res.ok) throw await parseError(res, "Không chạy lại được bước render MP4");
   return (await res.json()) as Job;
+}
+
+export async function reverseEngineerVideo(
+  file: File,
+  opts?: { name?: string; language?: string; useVlm?: boolean; transcribe?: boolean },
+): Promise<VideoBlueprint> {
+  const form = new FormData();
+  form.append("file", file);
+  const params = new URLSearchParams();
+  if (opts?.name) params.set("name", opts.name);
+  if (opts?.language) params.set("language", opts.language);
+  params.set("use_vlm", String(opts?.useVlm ?? true));
+  params.set("transcribe", String(opts?.transcribe ?? false));
+  const res = await request(`/templates/reverse?${params.toString()}`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw await parseError(res, "Không dịch ngược được video mẫu");
+  return (await res.json()) as VideoBlueprint;
+}
+
+export async function listTemplates(): Promise<VideoBlueprint[]> {
+  const res = await request("/templates");
+  if (!res.ok) return [];
+  const data = (await res.json()) as { templates?: VideoBlueprint[] };
+  return Array.isArray(data.templates) ? data.templates : [];
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  const res = await request(`/templates/${encodeURIComponent(templateId)}`, { method: "DELETE" });
+  if (!res.ok) throw await parseError(res, "Không xoá được mẫu video");
 }

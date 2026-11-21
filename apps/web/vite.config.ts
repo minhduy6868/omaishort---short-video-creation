@@ -95,6 +95,8 @@ export default defineConfig({
       },
       "/billing": "http://127.0.0.1:8765",
       "/storage": "http://127.0.0.1:8765",
+      "/templates": "http://127.0.0.1:8765",
+      "/scripts": "http://127.0.0.1:8765",
     },
   },
 });

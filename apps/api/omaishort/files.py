@@ -48,4 +48,9 @@ def resolve_public_file(rel: str, user: dict) -> Path:
         if owner == user["id"] or user.get("role") == "operator":
             return path
         raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found")
+    if parts[0] == "templates" and len(parts) >= 2:
+        owner = parts[1]
+        if owner == user["id"] or owner == "cli" or user.get("role") == "operator":
+            return path
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found")
     raise HTTPException(status.HTTP_404_NOT_FOUND, "file not found")

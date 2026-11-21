@@ -144,10 +144,56 @@ export type StoryDraft = {
   voice_id?: string | null;
   source_url?: string | null;
   script_brief?: string | null;
+  reference_template_id?: string | null;
   attachments?: { id: string; bind?: string | null }[];
   mix?: {
     bgm_enabled?: boolean;
     logo_enabled?: boolean;
     pause_before_render?: boolean;
   };
+};
+
+export type ReverseShot = {
+  index: number;
+  t_start: number;
+  t_end: number;
+  duration_sec: number;
+  beat: string;
+  production_type: string;
+  camera: string;
+  motion: string;
+  brightness: number;
+  contrast: number;
+  dominant_colors: string[];
+  visual_summary: string;
+  prompt_hint: string;
+  frame_rel?: string | null;
+};
+
+export type VideoBlueprint = {
+  id: string;
+  name: string;
+  source_filename: string;
+  created_at: string;
+  duration_sec: number;
+  width: number;
+  height: number;
+  fps: number;
+  aspect_ratio: string;
+  has_audio: boolean;
+  mean_volume_db?: number | null;
+  speech_ratio: number;
+  avg_shot_sec: number;
+  pacing: "fast" | "medium" | "slow";
+  production_mix: Record<string, number>;
+  hook_style: string;
+  visual_style: string;
+  color_palette: string[];
+  transcript: string;
+  beat_durations: Record<string, number>;
+  beat_lenses: Record<string, { camera: string; motion: string }[]>;
+  shots: ReverseShot[];
+  script_brief: string;
+  video_md: string;
+  analyzer_provider: string;
 };

@@ -44,6 +44,12 @@ from omaishort.engine.image_prompts import (
 from omaishort.engine.planner import plan_scenes
 from omaishort.engine.rescale import rescale_to_audio
 from omaishort.engine.timeline import build_timeline
+from omaishort.engine.video_reverse import (
+    apply_blueprint_to_storyboard,
+    apply_blueprint_to_structure,
+    load_blueprint,
+    merge_template_brief,
+)
 from omaishort.paths import audio_dir, job_dir, location_refs_dir, prop_refs_dir, refs_dir, render_dir, stills_dir
 from omaishort.providers.image import generate_image
 from omaishort.providers.smart_image_search import resolve_scene_still
@@ -142,6 +148,21 @@ async def run_job(job_id: str) -> None:
     writes_open = True
     write_lock = asyncio.Lock()
     try:
+        reference_bp = (
+            load_blueprint(row.get("user_id"), story.reference_template_id)
+            if story.reference_template_id
+            else None
+        )
+        if reference_bp is not None:
+            merged_brief = merge_template_brief(story.script_brief, reference_bp)
+            story = story.model_copy(update={"script_brief": merged_brief})
+            bp_path = _dump(job_id, "reference_blueprint.json", reference_bp)
+            md_path = job_dir(job_id) / "reference_VIDEO.md"
+            md_path.write_text(reference_bp.video_md, encoding="utf-8")
+            artifacts["reference_template"] = reference_bp.id
+            artifacts["reference_blueprint"] = bp_path.as_posix()
+            artifacts["reference_video_md"] = md_path.as_posix()
+            providers["template"] = f"{reference_bp.name}:{reference_bp.analyzer_provider}"
         if not story.source_url and looks_like_url(story.text.strip()):
             story = story.model_copy(update={"source_url": story.text.strip()})
         if is_editorial(story.kind) and story.source_url:
@@ -286,6 +307,8 @@ async def run_job(job_id: str) -> None:
             bible, structure, src = await analyze_story(story)
         if _is_paused(job_id):
             return
+        if reference_bp is not None:
+            structure = apply_blueprint_to_structure(structure, reference_bp, float(story.target_seconds))
         providers["analyzer"] = src
         _dump(job_id, "bible.json", bible)
         _dump(job_id, "structure.json", structure)
@@ -299,10 +322,15 @@ async def run_job(job_id: str) -> None:
 
         if providers.get("script") in {"llm", "chatgpt-web"}:
             board = fallback_plan(story, bible, structure)
+            if reference_bp is not None:
+                apply_blueprint_to_storyboard(board, reference_bp)
             fill_image_prompts(board, bible)
             plan_src = "script"
         else:
             board, plan_src = await plan_scenes(story, bible, structure)
+            if reference_bp is not None:
+                apply_blueprint_to_storyboard(board, reference_bp)
+                fill_image_prompts(board, bible)
         if _is_paused(job_id):
             return
         providers["planner"] = plan_src

@@ -2,10 +2,13 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   createJob,
+  deleteTemplate,
   draftScript,
   listAttachments,
+  listTemplates,
   readProviders,
   readVoices,
+  reverseEngineerVideo,
   rewriteScript,
   uploadAttachment,
   type AttachmentRow,
@@ -14,7 +17,7 @@ import {
 } from "../api";
 import { PageHeader, StatusPill } from "../components";
 import { useNav } from "../nav";
-import type { DramaShape, StoryStructureData, VideoKind } from "../types";
+import type { DramaShape, StoryStructureData, VideoBlueprint, VideoKind } from "../types";
 
 const BEAT_META: {
   key: keyof Pick<StoryStructureData, "hook" | "conflict" | "rising_action" | "twist" | "ending">;
@@ -151,6 +154,12 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
   const [draftBusy, setDraftBusy] = useState(false);
   const [rewriteBusy, setRewriteBusy] = useState<string | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
+  const [templates, setTemplates] = useState<VideoBlueprint[]>([]);
+  const [activeTemplate, setActiveTemplate] = useState<VideoBlueprint | null>(null);
+  const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
+  const [reverseBusy, setReverseBusy] = useState(false);
+  const [reverseTranscribe, setReverseTranscribe] = useState(false);
+  const [showVideoMd, setShowVideoMd] = useState(false);
   const copy = COPY[kind];
   const attachChoices = editorial ? ["editorial", "logo", "script"] : ["face", "location", "prop", "logo", "script"];
 
@@ -168,6 +177,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
       if (rows.length) setVoices(rows);
     });
     void listAttachments().then(setLibrary);
+    void listTemplates().then(setTemplates);
     void readProviders().then(setProviders);
   }, [kind]);
 
@@ -200,6 +210,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
         voice_id: voiceId,
         source_url: editorial ? sourceUrl.trim() || null : null,
         script_brief: scriptBrief.trim() || null,
+        reference_template_id: appliedTemplateId,
         attachments: picked.map((item) => ({ id: item.id, bind: item.bind || null })),
         mix: { logo_enabled: logoEnabled, bgm_enabled: bgmEnabled, pause_before_render: pauseBeforeRender },
       });
@@ -249,6 +260,50 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
       ending: paras[4] || "",
     };
     setStructureDraft(next);
+  }
+
+  function applyBlueprintTemplate(bp: VideoBlueprint) {
+    setActiveTemplate(bp);
+    setAppliedTemplateId(bp.id);
+    if (bp.script_brief) {
+      setScriptBrief((prev) => {
+        const clean = prev.trim();
+        if (!clean) return bp.script_brief;
+        if (clean.includes(bp.script_brief.slice(0, 48))) return clean;
+        return `${clean}\n\n${bp.script_brief}`.slice(0, 2000);
+      });
+    }
+    const clampedSec = Math.max(15, Math.min(180, Math.round(bp.duration_sec)));
+    if (clampedSec >= 15) setSeconds(clampedSec);
+  }
+
+  async function handleReverseUpload(file: File) {
+    setReverseBusy(true);
+    setMessage(null);
+    try {
+      const bp = await reverseEngineerVideo(file, {
+        language,
+        useVlm: true,
+        transcribe: reverseTranscribe,
+      });
+      setTemplates((prev) => [bp, ...prev.filter((item) => item.id !== bp.id)]);
+      applyBlueprintTemplate(bp);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không dịch ngược được video mẫu");
+    } finally {
+      setReverseBusy(false);
+    }
+  }
+
+  async function handleDeleteTemplate(id: string) {
+    try {
+      await deleteTemplate(id);
+      setTemplates((prev) => prev.filter((item) => item.id !== id));
+      if (activeTemplate?.id === id) setActiveTemplate(null);
+      if (appliedTemplateId === id) setAppliedTemplateId(null);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không xoá được mẫu video");
+    }
   }
 
   async function handleDraftWithAi() {
@@ -634,6 +689,145 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
                 ))}
               </div>
             ) : null}
+
+            <div className="mix-card" style={{ marginTop: "16px", display: "grid", gap: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+                <div>
+                  <p className="kicker" style={{ margin: 0 }}>Reverse Video (rea-video)</p>
+                  <p className="card-title" style={{ margin: 0 }}>Dịch ngược video mẫu</p>
+                </div>
+                <StatusPill
+                  label={appliedTemplateId ? "Đang áp dụng mẫu" : `${templates.length} mẫu`}
+                  tone={appliedTemplateId ? "done" : "idle"}
+                />
+              </div>
+              <span className="field-hint">
+                Tải lên 1 video mẫu (MP4/MOV/WebM) để bóc từng shot, nhịp cắt, góc máy, bảng màu và tạo bản vẽ VIDEO.md (không sao chép mặt hay footage gốc).
+              </span>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={reverseTranscribe}
+                  onChange={(e) => setReverseTranscribe(e.target.checked)}
+                />
+                Tách lời thoại mẫu bằng Whisper (chậm hơn một chút)
+              </label>
+              <label className="upload-box">
+                {reverseBusy ? "Đang dịch ngược từng shot…" : "Chọn video mẫu để dịch ngược"}
+                <input
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.mkv"
+                  disabled={reverseBusy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    void handleReverseUpload(file);
+                  }}
+                />
+                <span className="field-hint">Tối đa 120MB. Tự nhận diện shot + màu bằng FFmpeg, tăng độ chi tiết nếu có VLM key.</span>
+              </label>
+
+              {templates.length > 0 ? (
+                <div className="library-picks">
+                  <p className="card-title">Mẫu đã dịch ngược</p>
+                  {templates.slice(0, 6).map((tpl) => {
+                    const isApplied = appliedTemplateId === tpl.id;
+                    return (
+                      <div key={tpl.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <button
+                          type="button"
+                          className="library-chip"
+                          style={isApplied ? { fontWeight: 700, outline: "1px solid currentColor" } : undefined}
+                          onClick={() => setActiveTemplate(tpl)}
+                        >
+                          {tpl.name} · {Math.round(tpl.duration_sec)}s · {tpl.shots.length} shot ({tpl.pacing})
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => void handleDeleteTemplate(tpl.id)}
+                        >
+                          Xoá
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {activeTemplate ? (
+                <div style={{ display: "grid", gap: "8px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <strong>{activeTemplate.name}</strong>
+                    <span className="meta">
+                      {activeTemplate.width}×{activeTemplate.height} · {activeTemplate.duration_sec}s · avg {activeTemplate.avg_shot_sec}s/shot · {activeTemplate.analyzer_provider}
+                    </span>
+                  </div>
+                  <p className="meta" style={{ margin: 0 }}>
+                    <strong>Hook:</strong> {activeTemplate.hook_style}
+                  </p>
+                  <p className="meta" style={{ margin: 0 }}>
+                    <strong>Style:</strong> {activeTemplate.visual_style}
+                  </p>
+                  {activeTemplate.color_palette.length > 0 ? (
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                      {activeTemplate.color_palette.map((hex) => (
+                        <span
+                          key={hex}
+                          title={hex}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            fontSize: "11px",
+                            padding: "2px 6px",
+                            borderRadius: "999px",
+                            border: "1px solid rgba(255,255,255,0.14)",
+                          }}
+                        >
+                          <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: hex, display: "inline-block" }} />
+                          {hex}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {activeTemplate.shots.length > 0 ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: "6px" }}>
+                      {activeTemplate.shots.slice(0, 8).map((shot) => (
+                        <div key={shot.index} style={{ fontSize: "11px", display: "grid", gap: "3px" }}>
+                          {shot.frame_rel ? (
+                            <img
+                              src={`/files/${shot.frame_rel}`}
+                              alt={`Shot ${shot.index}`}
+                              style={{ width: "100%", aspectRatio: "9 / 14", objectFit: "cover", borderRadius: "6px" }}
+                            />
+                          ) : null}
+                          <span>#{shot.index} {shot.beat} ({shot.duration_sec}s)</span>
+                          <span className="meta">{shot.camera}/{shot.motion}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="hub-actions" style={{ flexWrap: "wrap" }}>
+                    <button type="button" onClick={() => applyBlueprintTemplate(activeTemplate)}>
+                      {appliedTemplateId === activeTemplate.id ? "Đã áp dụng mẫu này" : "Áp dụng mẫu này"}
+                    </button>
+                    {appliedTemplateId === activeTemplate.id ? (
+                      <button type="button" className="ghost" onClick={() => setAppliedTemplateId(null)}>
+                        Bỏ áp dụng
+                      </button>
+                    ) : null}
+                    <button type="button" className="ghost" onClick={() => setShowVideoMd((prev) => !prev)}>
+                      {showVideoMd ? "Ẩn VIDEO.md" : "Xem VIDEO.md"}
+                    </button>
+                  </div>
+                  {showVideoMd ? (
+                    <textarea readOnly rows={10} value={activeTemplate.video_md} style={{ fontFamily: "monospace", fontSize: "11px" }} />
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </section>
         </div>
 

@@ -300,8 +300,8 @@ def test_cloud_mode_auth_billing_jobs_attachments_and_zero_sql_key(tmp_path: Pat
         assert patch_remote.status_code == 200, patch_remote.text
         assert patch_remote.json()["input"]["target_seconds"] == 45
 
-        # 8. Regression P1-3: Global provider hub controls are operator-only (creator gets 403).
+        # 8. Every signed-in user can configure local AI provider hubs on their own PC, while /admin stays operator-only.
         op_headers = {"Authorization": f"Bearer {op.json()['access_token']}"}
-        assert client.get("/providers/elevenlabs", headers=headers).status_code == 403
-        assert client.post("/providers/chatgpt-check", headers=headers).status_code == 403
+        assert client.get("/providers/elevenlabs", headers=headers).status_code == 200
         assert client.get("/providers/elevenlabs", headers=op_headers).status_code == 200
+        assert client.get("/admin/overview", headers=headers).status_code == 403

@@ -62,9 +62,27 @@ function formatDate(value: string): string {
   }).format(date);
 }
 
+function ledgerReasonLabel(reason: string): string {
+  switch (reason) {
+    case "trial_grant":
+      return "Tặng dùng thử";
+    case "job_hold":
+      return "Tạo video";
+    case "job_refund":
+      return "Hoàn credit";
+    case "plan_activate":
+      return "Kích hoạt gói";
+    case "admin_grant":
+      return "Admin cộng thêm";
+    default:
+      return reason;
+  }
+}
+
 export function AccountPage() {
   const { go } = useNav();
   const { user, setUser } = useSession();
+  const isOperator = user?.role === "operator";
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
   const [billingMe, setBillingMe] = useState<BillingMe | null>(null);
@@ -88,7 +106,6 @@ export function AccountPage() {
   const [hubMessage, setHubMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    void readProviders().then(setProviders);
     void listAttachments().then(setAttachments);
     void readBillingMe()
       .then(setBillingMe)
@@ -96,6 +113,8 @@ export function AccountPage() {
     void listBillingPlans()
       .then((data) => setPlans(data.plans.filter((p) => p.code !== "trial" || p.price_vnd === 0)))
       .catch(() => undefined);
+    if (!isOperator) return;
+    void readProviders().then(setProviders);
     void readElevenLabs()
       .then((hub) => {
         setEleven(hub);
@@ -105,9 +124,10 @@ export function AccountPage() {
         setElevenMode(hub.mode === "api" ? "api" : "anonymous");
       })
       .catch((err) => setHubMessage(err instanceof Error ? err.message : "Không đọc được ElevenLabs"));
-  }, []);
+  }, [isOperator]);
 
   useEffect(() => {
+    if (!isOperator) return;
     const refresh = () => {
       if (!document.hidden) void readProviders().then(setProviders);
     };
@@ -117,7 +137,7 @@ export function AccountPage() {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
+  }, [isOperator]);
 
   useEffect(() => {
     if (!chatgptOpening && !grokOpening && !museOpening) return;
@@ -293,7 +313,7 @@ export function AccountPage() {
                     <tbody>
                       {billingMe.ledger.slice(0, 10).map((row) => (
                         <tr key={row.id}>
-                          <td><span className="table-badge">{row.reason}</span></td>
+                          <td><span className="table-badge">{ledgerReasonLabel(row.reason)}</span></td>
                           <td>
                             <strong className={row.delta >= 0 ? "delta-pos" : "delta-neg"}>
                               {row.delta >= 0 ? `+${row.delta}` : row.delta}
@@ -312,6 +332,7 @@ export function AccountPage() {
         )}
       </section>
 
+      {isOperator ? (
       <div className="hub-grid">
         <section className="panel hub-card">
           <div className="section-head compact">
@@ -624,15 +645,21 @@ export function AccountPage() {
           {eleven?.error ? <p className="err">{eleven.error}</p> : null}
         </section>
       </div>
+      ) : null}
 
       <div className="counter-grid">
         <CounterCard label="Attachments" value={attachments.length} hint="File trong thư viện" />
         <CounterCard label="Loại file" value={attachmentCounts.length} hint="face, logo, script, editorial" />
-        <CounterCard label="Providers" value={providers ? chips(providers).filter((chip) => chip.on).length : 0} hint="Đang sẵn sàng" />
-        <CounterCard label="Motion" value={providers?.drama_motion && providers.drama_motion !== "kenburns" ? 1 : 0} hint={providers?.drama_motion || "kenburns"} />
+        {isOperator ? (
+          <>
+            <CounterCard label="Providers" value={providers ? chips(providers).filter((chip) => chip.on).length : 0} hint="Đang sẵn sàng" />
+            <CounterCard label="Motion" value={providers?.drama_motion && providers.drama_motion !== "kenburns" ? 1 : 0} hint={providers?.drama_motion || "kenburns"} />
+          </>
+        ) : null}
       </div>
 
-      <div className="account-grid">
+      <div className={isOperator ? "account-grid" : "page-stack"}>
+        {isOperator ? (
         <section className="panel">
           <div className="section-head compact">
             <div>
@@ -654,6 +681,7 @@ export function AccountPage() {
           )}
           <p className="meta">ChatGPT viết lời Knowledge. Grok hub chỉ chuyển động drama. Gemini là API key.</p>
         </section>
+        ) : null}
 
         <section className="panel">
           <div className="section-head compact">

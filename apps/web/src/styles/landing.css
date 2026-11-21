@@ -828,7 +828,7 @@
   border-radius: 9999px;
   background: rgba(17, 16, 14, 0.9);
   border: 1px solid var(--line);
-  color: #fff;
+  color: var(--on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -857,7 +857,7 @@
 .video-demo-mute-btn {
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--on-accent);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1153,6 +1153,25 @@ details[open] .faq-chevron {
 }
 
 @media (max-width: 640px) {
+  .site-header {
+    padding: 0 12px;
+  }
+  .header-inner {
+    gap: 8px;
+    min-width: 0;
+  }
+  .logo {
+    font-size: 19px;
+  }
+  .header-actions {
+    gap: 6px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+  .header-cta {
+    padding: 7px 10px;
+    font-size: 12px;
+  }
   .header-nav {
     display: none;
     position: fixed;
@@ -1173,6 +1192,7 @@ details[open] .faq-chevron {
   }
   .menu-toggle {
     display: flex;
+    flex-shrink: 0;
   }
   .hero {
     padding: 80px 16px 64px;

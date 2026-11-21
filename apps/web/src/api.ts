@@ -103,17 +103,38 @@ export function bindAuthLost(handler: (() => void) | null) {
   onAuthLost = handler;
 }
 
+const SESSION_HINT_KEY = "omaishort.had_session";
+
+function markSessionHint(active: boolean) {
+  try {
+    if (active) localStorage.setItem(SESSION_HINT_KEY, "1");
+    else localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function hasSessionHint(): boolean {
+  try {
+    return localStorage.getItem(SESSION_HINT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 async function refreshSession(): Promise<boolean> {
   if (!refreshInflight) {
     refreshInflight = (async () => {
       const refreshed = await fetch("/auth/refresh", { method: "POST", credentials: "include" });
       if (!refreshed.ok) {
         setAccessToken(null);
+        markSessionHint(false);
         onAuthLost?.();
         return false;
       }
       const payload = (await refreshed.json()) as AuthPayload;
       setAccessToken(payload.access_token);
+      markSessionHint(true);
       return true;
     })().finally(() => {
       refreshInflight = null;
@@ -156,7 +177,11 @@ async function request(path: string, init: RequestInit = {}, retry = true): Prom
 
 export function dataFileUrl(abs: string | undefined): string | null {
   if (!abs) return null;
-  const norm = abs.replace(/\\/g, "/");
+  const norm = abs.replace(/\\/g, "/").trim();
+  if (!norm) return null;
+  if (norm.startsWith("/files/")) return norm;
+  const match = norm.match(/(?:^|\/)((?:jobs|attachments|templates)\/.+)$/i);
+  if (match) return `/files/${match[1]}`;
   const idx = norm.toLowerCase().lastIndexOf("/data/");
   if (idx === -1) return null;
   return `/files/${norm.slice(idx + "/data/".length)}`;
@@ -175,6 +200,7 @@ export async function register(email: string, password: string, displayName?: st
   if (!res.ok) throw await parseError(res, "Could not register");
   const payload = (await res.json()) as AuthPayload;
   setAccessToken(payload.access_token);
+  markSessionHint(true);
   return payload.user;
 }
 
@@ -191,20 +217,32 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   if (!res.ok) throw await parseError(res, "Could not sign in");
   const payload = (await res.json()) as AuthPayload;
   setAccessToken(payload.access_token);
+  markSessionHint(true);
   return payload.user;
 }
 
 export async function logout(): Promise<void> {
   await request("/auth/logout", { method: "POST" }, false);
   setAccessToken(null);
+  markSessionHint(false);
 }
 
 export async function readMe(): Promise<AuthUser | null> {
-  // retry=true so a reload after the 15-min access cookie expires refreshes from the refresh cookie.
-  const res = await request("/auth/me");
+  // Only trigger refresh retry when a prior session existed, avoiding 401 console spam for fresh visitors.
+  const res = await request("/auth/me", {}, hasSessionHint());
   if (res.status >= 500) throw new Error(`API unavailable (${res.status})`);
   if (!res.ok) return null;
+  markSessionHint(true);
   return (await res.json()) as AuthUser;
+}
+
+export async function putSiteTheme(theme: string): Promise<void> {
+  const res = await request("/site/theme", {
+    method: "PUT",
+    headers: headers(undefined, true),
+    body: JSON.stringify({ theme }),
+  });
+  if (!res.ok) throw await parseError(res, `Không lưu được giao diện (${res.status})`);
 }
 
 export async function createJob(draft: StoryDraft): Promise<{ id: string }> {
@@ -911,6 +949,7 @@ export async function boostViralScript(body: {
   structure: StoryStructureData;
   text: string;
   provider: string;
+  note?: string;
   before: ViralScoreResult;
   after: ViralScoreResult;
 }> {
@@ -924,6 +963,7 @@ export async function boostViralScript(body: {
     structure: StoryStructureData;
     text: string;
     provider: string;
+    note?: string;
     before: ViralScoreResult;
     after: ViralScoreResult;
   };

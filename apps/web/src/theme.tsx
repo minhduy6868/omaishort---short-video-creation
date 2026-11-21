@@ -1,4 +1,5 @@
 import { useState, useSyncExternalStore } from "react";
+import { putSiteTheme } from "./api";
 
 export const THEMES = [
   {
@@ -65,16 +66,7 @@ export function initTheme(): void {
 }
 
 export async function saveSiteTheme(id: ThemeId): Promise<void> {
-  const res = await fetch("/site/theme", {
-    method: "PUT",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ theme: id }),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(body?.detail || `Không lưu được giao diện (${res.status})`);
-  }
+  await putSiteTheme(id);
   remember(id);
 }
 

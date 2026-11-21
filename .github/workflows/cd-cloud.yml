@@ -1,0 +1,37 @@
+name: cd-cloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/cloud/**"
+  workflow_dispatch:
+
+jobs:
+  deploy-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test Cloudflare Worker (/v1/* + auth + D1 shim)
+        run: node --test apps/cloud/test_worker.mjs
+
+      - name: Apply D1 schema migration
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/cloud
+          command: d1 execute omaishort-db --remote --file=schema.sql
+
+      - name: Deploy omaishort-db Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/cloud
+          command: deploy

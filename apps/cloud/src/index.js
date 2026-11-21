@@ -1,10 +1,32 @@
+import { handleV1 } from "./v1.js";
+
+const CORS_HEADERS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  "access-control-allow-headers": "authorization,content-type,x-omaishort-key",
+};
+
+function withCors(response) {
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(CORS_HEADERS)) {
+    headers.set(k, v);
+  }
+  return new Response(response.body, { status: response.status, headers });
+}
+
 export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
-    if (request.method === "GET" && pathname === "/health") {
-      return Response.json({ ok: true, service: "omaishort-db" });
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
-    if (request.headers.get("x-omaishort-key") !== env.APP_KEY) {
+    if (pathname.startsWith("/v1/")) {
+      return withCors(await handleV1(request, env));
+    }
+    if (request.method === "GET" && pathname === "/health") {
+      return Response.json({ ok: true, service: "omaishort-db", v1: true });
+    }
+    if (!env.APP_KEY || request.headers.get("x-omaishort-key") !== env.APP_KEY) {
       return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
     }
     if (request.method === "POST" && pathname === "/batch") {

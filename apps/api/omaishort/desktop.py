@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
+import secrets
 import shutil
+import socket
 import sys
 import threading
 import time
@@ -21,8 +24,10 @@ from starlette.requests import Request
 from fastapi.staticfiles import StaticFiles
 from starlette.routing import Route
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-WEB_DIST = REPO_ROOT / "apps" / "web" / "dist"
+_RAW_ROOT = os.environ.get("OMAISHORT_ROOT", "").strip()
+REPO_ROOT = Path(_RAW_ROOT).resolve() if _RAW_ROOT else Path(__file__).resolve().parents[3]
+_RAW_DIST = os.environ.get("OMAISHORT_WEB_DIST", "").strip()
+WEB_DIST = Path(_RAW_DIST).resolve() if _RAW_DIST else (REPO_ROOT / "apps" / "web" / "dist")
 
 
 _UI_PAGES = (
@@ -115,23 +120,99 @@ def _wait_until_up(url: str, timeout_sec: float = 45) -> None:
     raise TimeoutError(f"Studio did not start: {url}")
 
 
+def ensure_portable_env(env_path: Path, data_dir: Path) -> Path:
+    """Create a local-first .env on first launch of a portable desktop bundle (no secrets shipped)."""
+    data_dir.mkdir(parents=True, exist_ok=True)
+    if env_path.is_file():
+        return env_path
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    db_file = (data_dir / "omaishort.db").resolve().as_posix()
+    lines = [
+        "# Auto-generated on first launch by omaishort portable desktop.",
+        f"AUTH_SECRET={secrets.token_urlsafe(32)}",
+        f"DATABASE_URL=sqlite:///{db_file}",
+        f"DATA_DIR={data_dir.resolve().as_posix()}",
+        "POLLINATIONS_ENABLED=1",
+        "CHATGPT_WEB_ENABLED=1",
+        "MUSE_WEB_ENABLED=1",
+        "MUSE_WEB_VIDEO_ENABLED=1",
+        "GROK_WEB_ENABLED=1",
+        "GROK_WEB_VIDEO_ENABLED=1",
+        "# Optional API keys (add your own keys here if needed):",
+        "# OPENAI_API_KEY=",
+        "# GEMINI_API_KEY=",
+        "# XAI_API_KEY=",
+        "# HF_TOKEN=",
+        "# ELEVENLABS_API_KEY=",
+        "# REA_VLM_BASE_URL=",
+        "# REA_VLM_API_KEY=",
+        "# REA_VLM_MODEL=",
+        "",
+    ]
+    env_path.write_text("\n".join(lines), encoding="utf-8")
+    return env_path
+
+
+def _health_is_omaishort(host: str, port: int) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://{host}:{port}/health", timeout=1.0) as res:
+            return res.status == 200 and b'"ok"' in res.read(256)
+    except OSError:
+        return False
+
+
+def _port_is_free(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((host, port))
+            return True
+        except OSError:
+            return False
+
+
+def pick_desktop_port(host: str, preferred: int) -> tuple[int, bool]:
+    """Return (port, already_running). Reuses running omaishort; avoids collision with other apps."""
+    if _health_is_omaishort(host, preferred):
+        return preferred, True
+    if _port_is_free(host, preferred):
+        return preferred, False
+    for candidate in range(preferred + 1, preferred + 35):
+        if _port_is_free(host, candidate):
+            return candidate, False
+    return preferred, False
+
+
 def run() -> None:
+    if os.environ.get("OMAISHORT_PORTABLE", "").strip().lower() in {"1", "true", "yes", "on"}:
+        env_target = Path(os.environ.get("OMAISHORT_ENV_FILE") or (REPO_ROOT.parent / ".env"))
+        data_target = Path(os.environ.get("DATA_DIR") or (REPO_ROOT.parent / "data"))
+        ensure_portable_env(env_target, data_target)
+        os.environ.setdefault("OMAISHORT_ENV_FILE", str(env_target))
+        os.environ.setdefault("DATA_DIR", str(data_target))
+
     import uvicorn
 
     from omaishort.config import API_HOST, API_PORT
     from omaishort.main import app
 
-    attach_studio(app, WEB_DIST)
     host = API_HOST or "127.0.0.1"
-    url = f"http://{host}:{API_PORT}/work"
+    port, already_running = pick_desktop_port(host, API_PORT)
+    url = f"http://{host}:{port}/work"
+    if already_running:
+        open_studio_window(url)
+        print(f"omaishort desktop already running  {url}")
+        return
+
+    attach_studio(app, WEB_DIST)
 
     def _open_when_ready() -> None:
-        _wait_until_up(f"http://{host}:{API_PORT}/health")
+        _wait_until_up(f"http://{host}:{port}/health")
         open_studio_window(url)
         print(f"omaishort desktop  {url}")
 
     threading.Thread(target=_open_when_ready, name="omaishort-window", daemon=True).start()
-    uvicorn.run(app, host=host, port=API_PORT, log_level="info")
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

@@ -103,7 +103,11 @@ export function Shell({ children }: { children: ReactNode }) {
               {(user?.display_name || user?.email || "U").slice(0, 1).toUpperCase()}
             </span>
             <div className="user-meta">
-              <strong>{user?.display_name || "Operator"}</strong>
+              <strong>
+                {user?.display_name ||
+                  user?.email?.split("@")[0] ||
+                  (user?.role === "operator" ? "Operator" : "Creator")}
+              </strong>
               <p className="who">{user?.email}</p>
             </div>
           </div>
@@ -141,14 +145,23 @@ export function Shell({ children }: { children: ReactNode }) {
               Local Engine
             </span>
             {user?.role === "operator" ? (
-              <span className="topbar-role">operator</span>
+              <button type="button" className="topbar-role topbar-role-btn" onClick={() => go("/admin")}>
+                operator · quản trị
+              </button>
             ) : user?.billing ? (
-              <span className="topbar-role" title={`Hết hạn ${user.billing.ends_at}`}>
+              <button
+                type="button"
+                className="topbar-role topbar-role-btn"
+                title={`Hết hạn ${user.billing.ends_at} — bấm để xem gói & lịch sử credit`}
+                onClick={() => go("/account")}
+              >
                 {user.billing.status === "trial" ? "Trial" : user.billing.plan_code} · còn{" "}
                 {user.billing.credits_remaining}
-              </span>
+              </button>
             ) : user ? (
-              <span className="topbar-role">Hết lượt</span>
+              <button type="button" className="topbar-role topbar-role-btn" onClick={() => go("/account")}>
+                Hết lượt · nâng cấp
+              </button>
             ) : (
               <span className="topbar-role">user</span>
             )}

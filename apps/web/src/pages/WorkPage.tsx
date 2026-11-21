@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { deleteJob, listJobs, pauseJob } from "../api";
 import { CounterCard, PageHeader, ProgressBar, StatusPill, progressCopy, progressFromJob, stageLabel, toneForStatus } from "../components";
 import { useNav } from "../nav";
+import { useSession } from "../session";
 import type { Job, VideoKind } from "../types";
 
 type StatusFilter = "all" | "running" | "paused" | "done" | "failed";
@@ -72,8 +73,10 @@ function formatBytes(bytes?: number): string {
 
 export function WorkPage() {
   const { go } = useNav();
+  const { user } = useSession();
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [filter, setFilter] = useState<StatusFilter>("all");
+  const [query, setQuery] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -122,10 +125,24 @@ export function WorkPage() {
 
   const filteredJobs = useMemo(() => {
     const rows = jobs ?? [];
-    if (filter === "all") return rows;
-    if (filter === "running") return rows.filter(isRunning);
-    return rows.filter((job) => job.status === filter);
-  }, [filter, jobs]);
+    const byStatus =
+      filter === "all"
+        ? rows
+        : filter === "running"
+          ? rows.filter(isRunning)
+          : rows.filter((job) => job.status === filter);
+    const q = query.trim().toLowerCase();
+    if (!q) return byStatus;
+    return byStatus.filter(
+      (job) =>
+        jobTitle(job).toLowerCase().includes(q) ||
+        job.id.toLowerCase().includes(q) ||
+        jobKind(job).toLowerCase().includes(q),
+    );
+  }, [filter, jobs, query]);
+
+  const lowCredits =
+    user && user.role !== "operator" && (user.billing?.credits_remaining ?? 0) <= 1;
 
   return (
     <section className="page-stack">
@@ -157,6 +174,24 @@ export function WorkPage() {
         <CounterCard label="Cần kiểm tra" value={counts.failed} hint="Xem log tại Watch" />
       </div>
 
+      {lowCredits ? (
+        <div className="credit-banner">
+          <div>
+            <strong>
+              {(user?.billing?.credits_remaining ?? 0) === 0
+                ? "Tài khoản đã hết lượt tạo video"
+                : "Bạn chỉ còn 1 credit tạo video"}
+            </strong>
+            <p className="meta">
+              Gói hiện tại: {user?.billing?.plan_code || "chưa kích hoạt"}. Nâng cấp gói hoặc xem lịch sử credit ở trang Tài khoản.
+            </p>
+          </div>
+          <button type="button" onClick={() => go("/account")}>
+            Xem gói & Nâng cấp
+          </button>
+        </div>
+      ) : null}
+
       <div className="quick-create-grid">
         {CREATE_LINKS.map((link) => (
           <button key={link.href} type="button" className="quick-create-card" onClick={() => go(link.href)}>
@@ -182,17 +217,27 @@ export function WorkPage() {
             <h2>Danh sách công việc</h2>
             <p className="panel-subtitle">Bấm vào tên job để mở màn hình giám sát chi tiết.</p>
           </div>
-          <div className="segmented" aria-label="Lọc trạng thái">
-            {FILTERS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={filter === item.id ? "on" : ""}
-                onClick={() => setFilter(item.id)}
-              >
-                {item.label}
-              </button>
-            ))}
+          <div className="queue-tools">
+            <input
+              type="search"
+              className="queue-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Tìm theo tên job, mã hoặc loại…"
+              aria-label="Tìm kiếm job"
+            />
+            <div className="segmented" aria-label="Lọc trạng thái">
+              {FILTERS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={filter === item.id ? "on" : ""}
+                  onClick={() => setFilter(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -295,10 +340,14 @@ export function WorkPage() {
                               Tạm dừng & Sửa
                             </button>
                           ) : null}
-                          {job.status === "done" ? (
+                          {job.status === "done" && job.storage?.mp4_ready ? (
                             <a className="button ghost" href={`/jobs/${encodeURIComponent(job.id)}/download`} download>
                               Tải MP4
                             </a>
+                          ) : job.status === "done" ? (
+                            <span className="table-badge" title="File MP4 nằm trên ổ cứng máy đã render job này">
+                              MP4 ở máy gốc
+                            </span>
                           ) : null}
                           <button
                             type="button"

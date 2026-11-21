@@ -22,7 +22,7 @@
     .provider-tile, .phone-preview, .mobile-action-bar, .error-panel,
     .feature-card, .capability-card, .step-card, .use-case-card, .faq-item,
     .video-demo-card, .console-card, .hero-console-outer, .cta-outer-frame,
-    .lang-menu, .theme-picker
+    .lang-menu, .theme-picker, .viral-card, .caption-card, .credit-banner
   ) {
   border: 2px solid var(--line);
   border-radius: var(--radius);
@@ -37,7 +37,7 @@
 [data-theme="brutal"] :is(
     .feature-card-inner, .hero-console-inner, .cta-inner, .console-viewport,
     .empty-panel, .job-table-wrap, .attachment-table-wrap, .picked-card, .scene-card,
-    .upload-box, .segmented, .progress-track
+    .upload-box, .segmented, .progress-track, .shot-tile, .caption-stage, .viral-score-badge
   ) {
   border: 2px solid var(--line);
   border-radius: var(--radius-sm);
@@ -48,7 +48,7 @@
   border-style: dashed;
 }
 
-[data-theme="brutal"] :is(.status-pill, .library-chip, .console-tag, .table-badge, .chips li, .topbar-badge, .topbar-role, .topbar-job-id) {
+[data-theme="brutal"] :is(.status-pill, .library-chip, .console-tag, .table-badge, .chips li, .topbar-badge, .topbar-role, .topbar-job-id, .palette-pill) {
   border: 2px solid var(--line);
   border-radius: 0;
   color: var(--ink);
@@ -201,7 +201,7 @@
     .provider-tile, .phone-preview, .mobile-action-bar, .error-panel,
     .feature-card, .capability-card, .step-card, .use-case-card, .faq-item,
     .video-demo-card, .console-card, .hero-console-outer, .cta-outer-frame,
-    .lang-menu, .theme-picker
+    .lang-menu, .theme-picker, .viral-card, .caption-card, .credit-banner
   ) {
   border-color: transparent;
   border-radius: var(--radius);
@@ -211,7 +211,7 @@
 [data-theme="soft"] :is(
     .feature-card-inner, .hero-console-inner, .cta-inner, .console-viewport,
     .empty-panel, .job-table-wrap, .attachment-table-wrap, .picked-card, .scene-card,
-    .upload-box, .segmented, .progress-track
+    .upload-box, .segmented, .progress-track, .shot-tile, .viral-score-badge
   ) {
   border-color: transparent;
   box-shadow: var(--soft-in);
@@ -221,7 +221,7 @@
   border-radius: calc(var(--radius) - 8px);
 }
 
-[data-theme="soft"] :is(.status-pill, .library-chip, .console-tag, .table-badge, .chips li, .topbar-badge, .topbar-role, .topbar-job-id) {
+[data-theme="soft"] :is(.status-pill, .library-chip, .console-tag, .table-badge, .chips li, .topbar-badge, .topbar-role, .topbar-job-id, .palette-pill) {
   border-color: transparent;
   border-radius: 9999px;
   box-shadow: var(--soft-out-sm);

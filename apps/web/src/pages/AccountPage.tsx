@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   checkChatgptSession,
   checkoutPlan,
+  deleteAttachment,
   listAttachments,
   listBillingPlans,
   openChatgptContent,
@@ -20,6 +21,7 @@ import {
   type ProviderStatus,
 } from "../api";
 import { CounterCard, PageHeader, StatusPill } from "../components";
+import { useNav } from "../nav";
 import { useSession } from "../session";
 
 function formatVnd(amount: number): string {
@@ -61,6 +63,7 @@ function formatDate(value: string): string {
 }
 
 export function AccountPage() {
+  const { go } = useNav();
   const { user, setUser } = useSession();
   const [providers, setProviders] = useState<ProviderStatus | null>(null);
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
@@ -168,6 +171,13 @@ export function AccountPage() {
         kicker="Tài khoản"
         title={user?.display_name || user?.email || "Account"}
         lede={user ? `${user.email} · ${user.role}` : "Phiên đăng nhập hiện tại"}
+        actions={
+          user?.role === "operator" ? (
+            <button type="button" onClick={() => go("/admin")}>
+              Mở trang Quản trị
+            </button>
+          ) : undefined
+        }
       />
 
       <section className="panel">
@@ -267,6 +277,37 @@ export function AccountPage() {
               </table>
             </div>
             {billingMessage ? <p className="meta">{billingMessage}</p> : null}
+            {billingMe?.ledger && billingMe.ledger.length > 0 ? (
+              <div className="ledger-block">
+                <p className="card-title">Lịch sử biến động credit</p>
+                <div className="attachment-table-wrap">
+                  <table className="job-table attachment-table">
+                    <thead>
+                      <tr>
+                        <th>Lý do</th>
+                        <th>Thay đổi</th>
+                        <th>Ghi chú / Job</th>
+                        <th>Thời gian</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {billingMe.ledger.slice(0, 10).map((row) => (
+                        <tr key={row.id}>
+                          <td><span className="table-badge">{row.reason}</span></td>
+                          <td>
+                            <strong className={row.delta >= 0 ? "delta-pos" : "delta-neg"}>
+                              {row.delta >= 0 ? `+${row.delta}` : row.delta}
+                            </strong>
+                          </td>
+                          <td>{row.job_id || row.note || "—"}</td>
+                          <td>{formatDate(row.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </section>
@@ -637,6 +678,7 @@ export function AccountPage() {
                     <th>Kind</th>
                     <th>Size</th>
                     <th>Created</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -649,6 +691,21 @@ export function AccountPage() {
                       <td>{row.kind}</td>
                       <td>{formatBytes(row.byte_size)}</td>
                       <td>{formatDate(row.created_at)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => {
+                            void deleteAttachment(row.id)
+                              .then(() => setAttachments((prev) => prev.filter((item) => item.id !== row.id)))
+                              .catch((err) =>
+                                setBillingMessage(err instanceof Error ? err.message : "Không xóa được file"),
+                              );
+                          }}
+                        >
+                          Xóa
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

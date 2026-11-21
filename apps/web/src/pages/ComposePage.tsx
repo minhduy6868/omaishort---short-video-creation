@@ -1,15 +1,18 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
+  boostViralScript,
   createJob,
   deleteTemplate,
   draftScript,
   listAttachments,
   listTemplates,
   readProviders,
+  readScriptPresets,
   readVoices,
   reverseEngineerVideo,
   rewriteScript,
+  scoreViralScript,
   uploadAttachment,
   type AttachmentRow,
   type ProviderStatus,
@@ -17,7 +20,16 @@ import {
 } from "../api";
 import { PageHeader, StatusPill } from "../components";
 import { useNav } from "../nav";
-import type { DramaShape, StoryStructureData, VideoBlueprint, VideoKind } from "../types";
+import { useSession } from "../session";
+import type {
+  CaptionPreset,
+  DramaShape,
+  StoryStructureData,
+  VideoBlueprint,
+  VideoKind,
+  ViralPreset,
+  ViralScoreResult,
+} from "../types";
 
 const BEAT_META: {
   key: keyof Pick<StoryStructureData, "hook" | "conflict" | "rising_action" | "twist" | "ending">;
@@ -129,6 +141,7 @@ function attachmentLabel(row: AttachmentRow): string {
 
 export function ComposePage({ kind }: { kind: VideoKind }) {
   const { go } = useNav();
+  const { user } = useSession();
   const editorial = kind !== "drama";
   const [text, setText] = useState(kind === "drama" ? DRAMA_SAMPLE : kind === "news" ? NEWS_SAMPLE : KNOWLEDGE_SAMPLE);
   const [mode, setMode] = useState<"script" | "idea">("script");
@@ -160,6 +173,13 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
   const [reverseBusy, setReverseBusy] = useState(false);
   const [reverseTranscribe, setReverseTranscribe] = useState(false);
   const [showVideoMd, setShowVideoMd] = useState(false);
+  const [viralPresetsByKind, setViralPresetsByKind] = useState<Record<string, ViralPreset[]>>({});
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [captionPresets, setCaptionPresets] = useState<CaptionPreset[]>([]);
+  const [captionPresetId, setCaptionPresetId] = useState<string>("tiktok-gold");
+  const [viralScore, setViralScore] = useState<ViralScoreResult | null>(null);
+  const [viralBoostBusy, setViralBoostBusy] = useState(false);
+  const [viralDeltaNote, setViralDeltaNote] = useState<string | null>(null);
   const copy = COPY[kind];
   const attachChoices = editorial ? ["editorial", "logo", "script"] : ["face", "location", "prop", "logo", "script"];
 
@@ -172,6 +192,9 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
     setSeconds(kind === "drama" ? 60 : 90);
     setAttachKind(kind !== "drama" ? "editorial" : "face");
     setStructureDraft(null);
+    setActivePresetId(null);
+    setViralDeltaNote(null);
+    setCaptionPresetId(kind === "drama" ? "drama-amber" : kind === "news" ? "editorial-clean" : "tiktok-gold");
     setMessage(null);
     void readVoices().then((rows) => {
       if (rows.length) setVoices(rows);
@@ -179,7 +202,46 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
     void listAttachments().then(setLibrary);
     void listTemplates().then(setTemplates);
     void readProviders().then(setProviders);
+    void readScriptPresets().then((res) => {
+      setViralPresetsByKind(res.viral_presets);
+      setCaptionPresets(res.caption_presets);
+    });
   }, [kind]);
+
+  // Debounced live viral retention evaluation (deterministic, zero API cost)
+  useEffect(() => {
+    const trimmed = text.trim();
+    if (trimmed.length < 8) {
+      setViralScore(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void scoreViralScript({
+        kind,
+        text: trimmed,
+        language,
+        target_seconds: seconds,
+        structure: structureDraft,
+      })
+        .then((res) => {
+          if (!cancelled) setViralScore(res);
+        })
+        .catch(() => undefined);
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [kind, language, seconds, structureDraft, text]);
+
+  const activeViralPresets = useMemo(() => viralPresetsByKind[kind] ?? [], [kind, viralPresetsByKind]);
+  const selectedCaption = useMemo(
+    () => captionPresets.find((p) => p.id === captionPresetId) ?? captionPresets[0] ?? null,
+    [captionPresetId, captionPresets],
+  );
+  const creditsLeft = user?.role === "operator" ? null : (user?.billing?.credits_remaining ?? 0);
+  const outOfCredits = creditsLeft !== null && creditsLeft <= 0;
 
   const voiceChoices = useMemo(() => {
     const rows = voices.filter((voice) => voice.language === language);
@@ -191,7 +253,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
     return library.filter((row) => attachChoices.includes(row.kind) && !picked.some((item) => item.id === row.id)).slice(0, 8);
   }, [attachChoices, library, picked]);
 
-  const canSubmit = !busy && (text.trim().length >= 8 || (editorial && sourceUrl.trim().length >= 12));
+  const canSubmit = !busy && !outOfCredits && (text.trim().length >= 8 || (editorial && sourceUrl.trim().length >= 12));
   const sourceCount = text.trim().length;
 
   async function onSubmit(event: FormEvent) {
@@ -211,6 +273,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
         source_url: editorial ? sourceUrl.trim() || null : null,
         script_brief: scriptBrief.trim() || null,
         reference_template_id: appliedTemplateId,
+        subtitle: selectedCaption ? selectedCaption.subtitle : null,
         attachments: picked.map((item) => ({ id: item.id, bind: item.bind || null })),
         mix: { logo_enabled: logoEnabled, bgm_enabled: bgmEnabled, pause_before_render: pauseBeforeRender },
       });
@@ -303,6 +366,39 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
       if (appliedTemplateId === id) setAppliedTemplateId(null);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không xoá được mẫu video");
+    }
+  }
+
+  function applyViralPreset(preset: ViralPreset) {
+    setActivePresetId(preset.id);
+    setScriptBrief(preset.brief);
+  }
+
+  async function handleViralBoost() {
+    if (!text.trim()) return;
+    setViralBoostBusy(true);
+    setMessage(null);
+    setViralDeltaNote(null);
+    try {
+      const res = await boostViralScript({
+        kind,
+        text: text.trim(),
+        language,
+        target_seconds: seconds,
+        instruction: aiInstruction.trim() || scriptBrief.trim(),
+        structure: structureDraft,
+      });
+      setStructureDraft(res.structure);
+      if (res.text) setText(res.text);
+      setViralScore(res.after);
+      const diff = res.after.score - res.before.score;
+      setViralDeltaNote(
+        `Đã tối ưu (${res.provider}): ${res.before.score} → ${res.after.score}/100 (${diff >= 0 ? `+${diff}` : diff} điểm, hạng ${res.after.grade}).`,
+      );
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Không tối ưu viral được kịch bản");
+    } finally {
+      setViralBoostBusy(false);
     }
   }
 
@@ -437,15 +533,98 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
               </label>
             ) : null}
 
+            {activeViralPresets.length > 0 ? (
+              <div className="viral-preset-block">
+                <div className="section-head compact">
+                  <div>
+                    <p className="kicker">Viral Formula</p>
+                    <p className="card-title">Công thức giữ chân & tò mò (1 bấm)</p>
+                  </div>
+                </div>
+                <div className="preset-grid">
+                  {activeViralPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={`preset-chip${activePresetId === preset.id ? " on" : ""}`}
+                      onClick={() => applyViralPreset(preset)}
+                    >
+                      <div className="preset-chip-head">
+                        <strong>{preset.name}</strong>
+                        <span className="table-badge">{preset.tag}</span>
+                      </div>
+                      <small>{preset.summary}</small>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <label>
               Ghi chú lời
               <textarea value={scriptBrief} onChange={(e) => setScriptBrief(e.target.value)} rows={3} maxLength={2000} />
               <span className="field-hint">Dùng cho tone, ngôn ngữ, thông tin bắt buộc hoặc điều cần tránh.</span>
             </label>
 
-            <div className="hub-actions" style={{ marginTop: "8px", flexWrap: "wrap" }}>
+            {viralScore ? (
+              <div className="viral-card">
+                <div className="viral-head">
+                  <div>
+                    <p className="kicker">Retention Audit</p>
+                    <h3>Chỉ số giữ chân & khả năng viral</h3>
+                  </div>
+                  <div className="viral-score-badge">
+                    <span className="viral-grade">{viralScore.grade}</span>
+                    <div>
+                      <strong>{viralScore.score}/100</strong>
+                      <span>
+                        {viralScore.word_count} từ · ~{viralScore.estimated_seconds}s
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="viral-metrics">
+                  {Object.entries(viralScore.metrics).map(([key, m]) => {
+                    const pct = Math.round((m.score / Math.max(1, m.max)) * 100);
+                    return (
+                      <div key={key} className="viral-metric-row">
+                        <div className="viral-metric-label">
+                          <span>{m.label}</span>
+                          <strong>
+                            {m.score}/{m.max}
+                          </strong>
+                        </div>
+                        <div className="progress-track">
+                          <div className="progress-fill" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {viralScore.tips.length > 0 ? (
+                  <ul className="viral-tips">
+                    {viralScore.tips.map((tip) => (
+                      <li key={tip}>{tip}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="meta">Kịch bản đã đạt cấu trúc mở đầu tò mò, có điểm bẻ lái và nhịp đọc tốt.</p>
+                )}
+                {viralDeltaNote ? <p className="meta viral-delta">{viralDeltaNote}</p> : null}
+              </div>
+            ) : null}
+
+            <div className="hub-actions compose-ai-actions">
               <button
                 type="button"
+                disabled={viralBoostBusy || text.trim().length < 8}
+                onClick={() => void handleViralBoost()}
+              >
+                {viralBoostBusy ? "Đang tối ưu Viral…" : "Tối ưu Viral (AI)"}
+              </button>
+              <button
+                type="button"
+                className="ghost"
                 disabled={draftBusy || (!text.trim() && !sourceUrl.trim())}
                 onClick={() => void handleDraftWithAi()}
               >
@@ -592,6 +771,49 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
               </label>
             </div>
 
+            {captionPresets.length > 0 ? (
+              <div className="caption-card">
+                <div className="section-head compact">
+                  <div>
+                    <p className="kicker">Karaoke Captions</p>
+                    <p className="card-title">Phong cách phụ đề giữ mắt</p>
+                  </div>
+                  {selectedCaption ? <StatusPill label={selectedCaption.tag} tone="accent" /> : null}
+                </div>
+                <div className="caption-preset-grid">
+                  {captionPresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={`caption-preset-btn${captionPresetId === preset.id ? " on" : ""}`}
+                      onClick={() => setCaptionPresetId(preset.id)}
+                    >
+                      <strong>{preset.name}</strong>
+                      <small>{preset.description}</small>
+                    </button>
+                  ))}
+                </div>
+                {selectedCaption ? (
+                  <div className="caption-stage" aria-label="Xem trước phụ đề">
+                    <span className="caption-stage-tag">9:16 Preview</span>
+                    <p
+                      className="caption-stage-line"
+                      style={{
+                        color: selectedCaption.subtitle.primary_hex || "#FFFFFF",
+                        textShadow: `0 2px 0 ${selectedCaption.subtitle.outline_hex || "#101010"}, 0 -2px 0 ${selectedCaption.subtitle.outline_hex || "#101010"}, 2px 0 0 ${selectedCaption.subtitle.outline_hex || "#101010"}, -2px 0 0 ${selectedCaption.subtitle.outline_hex || "#101010"}`,
+                      }}
+                    >
+                      SỰ THẬT{" "}
+                      <span style={{ color: selectedCaption.subtitle.highlight_hex || "#FFE000" }}>
+                        ÍT AI BIẾT
+                      </span>{" "}
+                      ĐẰNG SAU
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="provider-card">
               <p className="card-title">Provider readiness</p>
               <div className="provider-row">
@@ -690,11 +912,11 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
               </div>
             ) : null}
 
-            <div className="mix-card" style={{ marginTop: "16px", display: "grid", gap: "10px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+            <div className="mix-card reverse-box">
+              <div className="section-head compact">
                 <div>
-                  <p className="kicker" style={{ margin: 0 }}>Reverse Video (rea-video)</p>
-                  <p className="card-title" style={{ margin: 0 }}>Dịch ngược video mẫu</p>
+                  <p className="kicker">Reverse Video</p>
+                  <p className="card-title">Dịch ngược video mẫu</p>
                 </div>
                 <StatusPill
                   label={appliedTemplateId ? "Đang áp dụng mẫu" : `${templates.length} mẫu`}
@@ -734,11 +956,10 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
                   {templates.slice(0, 6).map((tpl) => {
                     const isApplied = appliedTemplateId === tpl.id;
                     return (
-                      <div key={tpl.id} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <div key={tpl.id} className="tpl-row">
                         <button
                           type="button"
-                          className="library-chip"
-                          style={isApplied ? { fontWeight: 700, outline: "1px solid currentColor" } : undefined}
+                          className={`library-chip${isApplied ? " on" : ""}`}
                           onClick={() => setActiveTemplate(tpl)}
                         >
                           {tpl.name} · {Math.round(tpl.duration_sec)}s · {tpl.shots.length} shot ({tpl.pacing})
@@ -757,59 +978,47 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
               ) : null}
 
               {activeTemplate ? (
-                <div style={{ display: "grid", gap: "8px", paddingTop: "8px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <div className="reverse-detail">
+                  <div className="reverse-detail-head">
                     <strong>{activeTemplate.name}</strong>
                     <span className="meta">
                       {activeTemplate.width}×{activeTemplate.height} · {activeTemplate.duration_sec}s · avg {activeTemplate.avg_shot_sec}s/shot · {activeTemplate.analyzer_provider}
                     </span>
                   </div>
-                  <p className="meta" style={{ margin: 0 }}>
+                  <p className="meta">
                     <strong>Hook:</strong> {activeTemplate.hook_style}
                   </p>
-                  <p className="meta" style={{ margin: 0 }}>
+                  <p className="meta">
                     <strong>Style:</strong> {activeTemplate.visual_style}
                   </p>
                   {activeTemplate.color_palette.length > 0 ? (
-                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                    <div className="palette-swatches">
                       {activeTemplate.color_palette.map((hex) => (
-                        <span
-                          key={hex}
-                          title={hex}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
-                            fontSize: "11px",
-                            padding: "2px 6px",
-                            borderRadius: "999px",
-                            border: "1px solid rgba(255,255,255,0.14)",
-                          }}
-                        >
-                          <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: hex, display: "inline-block" }} />
+                        <span key={hex} title={hex} className="palette-pill">
+                          <span className="palette-dot" style={{ background: hex }} />
                           {hex}
                         </span>
                       ))}
                     </div>
                   ) : null}
                   {activeTemplate.shots.length > 0 ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(92px, 1fr))", gap: "6px" }}>
+                    <div className="shot-strip">
                       {activeTemplate.shots.slice(0, 8).map((shot) => (
-                        <div key={shot.index} style={{ fontSize: "11px", display: "grid", gap: "3px" }}>
+                        <div key={shot.index} className="shot-tile">
                           {shot.frame_rel ? (
-                            <img
-                              src={`/files/${shot.frame_rel}`}
-                              alt={`Shot ${shot.index}`}
-                              style={{ width: "100%", aspectRatio: "9 / 14", objectFit: "cover", borderRadius: "6px" }}
-                            />
+                            <img src={`/files/${shot.frame_rel}`} alt={`Shot ${shot.index}`} />
                           ) : null}
-                          <span>#{shot.index} {shot.beat} ({shot.duration_sec}s)</span>
-                          <span className="meta">{shot.camera}/{shot.motion}</span>
+                          <span>
+                            #{shot.index} {shot.beat} ({shot.duration_sec}s)
+                          </span>
+                          <span className="meta">
+                            {shot.camera}/{shot.motion}
+                          </span>
                         </div>
                       ))}
                     </div>
                   ) : null}
-                  <div className="hub-actions" style={{ flexWrap: "wrap" }}>
+                  <div className="hub-actions">
                     <button type="button" onClick={() => applyBlueprintTemplate(activeTemplate)}>
                       {appliedTemplateId === activeTemplate.id ? "Đã áp dụng mẫu này" : "Áp dụng mẫu này"}
                     </button>
@@ -823,7 +1032,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
                     </button>
                   </div>
                   {showVideoMd ? (
-                    <textarea readOnly rows={10} value={activeTemplate.video_md} style={{ fontFamily: "monospace", fontSize: "11px" }} />
+                    <textarea readOnly rows={10} value={activeTemplate.video_md} className="video-md-view" />
                   ) : null}
                 </div>
               ) : null}
@@ -834,12 +1043,29 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
         {message ? <p className="err">{message}</p> : null}
         <div className="mobile-action-bar">
           <div>
-            <strong>{copy.title}</strong>
-            <span>{canSubmit ? "Sẵn sàng tạo job" : "Cần nội dung hoặc URL hợp lệ"}</span>
+            <strong>
+              {copy.title}
+              {viralScore ? ` · Viral ${viralScore.score}/100 (${viralScore.grade})` : ""}
+            </strong>
+            <span>
+              {outOfCredits
+                ? "Hết credit tạo video — nâng cấp gói ở Tài khoản để tiếp tục"
+                : creditsLeft !== null
+                  ? `Còn ${creditsLeft} credit · Tạo video tốn 1 credit`
+                  : "Operator · Không giới hạn lượt tạo"}
+            </span>
           </div>
-          <button type="submit" disabled={!canSubmit}>
-            {busy ? "Đang tạo…" : copy.submit}
-          </button>
+          <div className="hub-actions">
+            {outOfCredits ? (
+              <button type="button" onClick={() => go("/account")}>
+                Nâng cấp gói
+              </button>
+            ) : (
+              <button type="submit" disabled={!canSubmit}>
+                {busy ? "Đang tạo…" : copy.submit}
+              </button>
+            )}
+          </div>
         </div>
       </form>
     </section>

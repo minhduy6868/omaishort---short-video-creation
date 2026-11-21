@@ -125,11 +125,15 @@ async def _call_gemini(
         return parse_llm_json(text)
 
 
+def _cfg(name: str, default: str = "") -> str:
+    return str(getattr(config, name, default) or default).strip()
+
+
 def vision_configured() -> bool:
     return bool(
-        (config.REA_VLM_BASE_URL and config.REA_VLM_API_KEY)
-        or config.GEMINI_API_KEY
-        or config.OPENAI_API_KEY
+        (_cfg("REA_VLM_BASE_URL") and _cfg("REA_VLM_API_KEY"))
+        or _cfg("GEMINI_API_KEY")
+        or _cfg("OPENAI_API_KEY")
     )
 
 
@@ -153,32 +157,32 @@ async def analyze_keyframes_vlm(
 
     user_text = _build_user_text(shot_table, transcript, language)
 
-    if config.REA_VLM_BASE_URL and config.REA_VLM_API_KEY:
+    rea_url = _cfg("REA_VLM_BASE_URL")
+    rea_key = _cfg("REA_VLM_API_KEY")
+    if rea_url and rea_key:
         try:
-            model = config.REA_VLM_MODEL or "gpt-4o-mini"
-            parsed = await _call_openai_compat(
-                config.REA_VLM_BASE_URL, config.REA_VLM_API_KEY, model, user_text, sampled
-            )
+            model = _cfg("REA_VLM_MODEL", "gpt-4o-mini")
+            parsed = await _call_openai_compat(rea_url, rea_key, model, user_text, sampled)
             if parsed:
                 return parsed, "rea-vlm"
         except Exception:
             pass
 
-    if config.GEMINI_API_KEY:
+    gemini_key = _cfg("GEMINI_API_KEY")
+    if gemini_key:
         try:
-            parsed = await _call_gemini(
-                config.GEMINI_API_KEY, config.GEMINI_VISION_MODEL, user_text, sampled
-            )
+            gemini_model = _cfg("GEMINI_VISION_MODEL", "gemini-2.0-flash")
+            parsed = await _call_gemini(gemini_key, gemini_model, user_text, sampled)
             if parsed:
                 return parsed, "gemini-vlm"
         except Exception:
             pass
 
-    if config.OPENAI_API_KEY:
+    openai_key = _cfg("OPENAI_API_KEY")
+    if openai_key:
         try:
-            parsed = await _call_openai_compat(
-                config.OPENAI_BASE_URL, config.OPENAI_API_KEY, llm_model(config.OPENAI_BASE_URL), user_text, sampled
-            )
+            openai_url = _cfg("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            parsed = await _call_openai_compat(openai_url, openai_key, llm_model(openai_url), user_text, sampled)
             if parsed:
                 return parsed, "openai-vlm"
         except Exception:

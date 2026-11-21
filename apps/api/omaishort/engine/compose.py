@@ -130,7 +130,7 @@ async def compose_short(
     dest.parent.mkdir(parents=True, exist_ok=True)
     work_dir = work_dir.resolve()
     dest = dest.resolve()
-    apply_beat_lenses(board)
+    apply_beat_lenses(board, preserve_existing=True)
     clips_dir = work_dir / "clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
     clip_paths: list[Path] = []

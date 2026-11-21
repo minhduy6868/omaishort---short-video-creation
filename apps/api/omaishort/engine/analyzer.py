@@ -299,15 +299,57 @@ async def rewrite_content_beats(
         if changed:
             return updated, src or "llm"
 
-    # Smart local polish when LLM/ChatGPT is offline
+    # Smart local polish when LLM/ChatGPT is offline:
+    # NEVER inject meta-instructions/hints verbatim into spoken dialogue.
+    # Instead, clean cliché intros/fillers, split long run-on sentences for crisp karaoke captions,
+    # and enforce spoken stops.
+    _weak_intro_re = re.compile(
+        r"^(?:xin chào(?: mọi người| các bạn)?|chào mừng(?: các bạn)?|hôm nay chúng ta(?: sẽ| cùng)?|"
+        r"trong video này(?: chúng ta sẽ| mình sẽ| tôi sẽ)?|bài viết này|thuyết minh về|"
+        r"hello everyone|welcome back|in this video|today we (?:are going to|will)|let'?s talk about)"
+        r"[\s,:–—-]+",
+        re.I,
+    )
+    _filler_tail_re = re.compile(
+        r"(?:\s*(?:đó là nội dung chính|như vậy chúng ta đã thấy|tổng kết lại là|in conclusion|that is the main content)[.!?…]*)+$",
+        re.I,
+    )
+
+    def _polish_spoken(text: str, *, is_hook: bool) -> str:
+        clean = re.sub(r"https?://\S+", "", text)
+        clean = re.sub(r"^\s*[-*#•]+\s*", "", clean, flags=re.M)
+        clean = re.sub(r"\s+", " ", clean).strip()
+        if is_hook:
+            stripped = _weak_intro_re.sub("", clean).strip()
+            if len(stripped.split()) >= 4:
+                clean = stripped[0].upper() + stripped[1:]
+        clean = _filler_tail_re.sub("", clean).strip() or clean
+        # Split run-on sentences (>24 words) at natural comma/semicolon pauses for punchier rhythm.
+        out_sents: list[str] = []
+        for sent in re.split(r"(?<=[.!?…])\s+", clean):
+            s = sent.strip()
+            if not s:
+                continue
+            words = s.split()
+            if len(words) > 24 and "," in s:
+                mid = len(s) // 2
+                comma_positions = [m.start() for m in re.finditer(r",\s+", s)]
+                if comma_positions:
+                    best = min(comma_positions, key=lambda pos: abs(pos - mid))
+                    left = s[:best].strip().rstrip(",")
+                    right = s[best + 1 :].strip()
+                    if len(left.split()) >= 6 and len(right.split()) >= 6:
+                        right = right[0].upper() + right[1:] if right else right
+                        out_sents.append(f"{left}.")
+                        out_sents.append(right)
+                        continue
+            out_sents.append(s)
+        return ensure_spoken_stops(" ".join(out_sents))
+
     keys_to_update = _SCRIPT_KEYS if beat == "all" else tuple(k for k in _SCRIPT_KEYS if k == beat)
-    hint = re.sub(r"\s+", " ", instruction.strip())
     for k in keys_to_update:
         orig = re.sub(r"\s+", " ", str(updated.get(k) or "")).strip()
         if not orig:
             continue
-        if hint and hint.lower() not in orig.lower():
-            updated[k] = ensure_spoken_stops(f"{orig.rstrip('.!?')}. {hint}")
-        else:
-            updated[k] = ensure_spoken_stops(orig)
+        updated[k] = _polish_spoken(orig, is_hook=(k == "hook"))
     return updated, "local-polish"

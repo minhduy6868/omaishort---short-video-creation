@@ -360,7 +360,9 @@ def test_full_flow_login_to_rendered_mp4_and_local_storage_management(
         headers=headers,
     )
     assert ai_rw_res.status_code == 200
-    assert "thẻ đen" in ai_rw_res.json()["structure"]["hook"].lower()
+    assert ai_rw_res.json()["rewrite_provider"] == "local-polish"
+    assert "mở màn gây sốc" in ai_rw_res.json()["structure"]["hook"].lower()
+    assert "thêm chi tiết" not in ai_rw_res.json()["structure"]["hook"].lower()
 
     patch_scene_res = client.patch(
         f"/jobs/{job_id}/scenes/2",

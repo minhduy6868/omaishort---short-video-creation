@@ -141,7 +141,7 @@ function attachmentLabel(row: AttachmentRow): string {
 
 export function ComposePage({ kind }: { kind: VideoKind }) {
   const { go } = useNav();
-  const { user } = useSession();
+  const { user, refreshMe } = useSession();
   const editorial = kind !== "drama";
   const [text, setText] = useState(kind === "drama" ? DRAMA_SAMPLE : kind === "news" ? NEWS_SAMPLE : KNOWLEDGE_SAMPLE);
   const [mode, setMode] = useState<"script" | "idea">("script");
@@ -277,6 +277,7 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
         attachments: picked.map((item) => ({ id: item.id, bind: item.bind || null })),
         mix: { logo_enabled: logoEnabled, bgm_enabled: bgmEnabled, pause_before_render: pauseBeforeRender },
       });
+      void refreshMe();
       go(`/watch/${data.id}`);
     } catch (err) {
       setBusy(false);
@@ -341,6 +342,10 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
   }
 
   async function handleReverseUpload(file: File) {
+    if (file.size > 120 * 1024 * 1024) {
+      setMessage("Video mẫu vượt quá giới hạn 120MB. Hãy chọn file nhỏ hơn.");
+      return;
+    }
     setReverseBusy(true);
     setMessage(null);
     try {
@@ -392,9 +397,8 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
       if (res.text) setText(res.text);
       setViralScore(res.after);
       const diff = res.after.score - res.before.score;
-      setViralDeltaNote(
-        `Đã tối ưu (${res.provider}): ${res.before.score} → ${res.after.score}/100 (${diff >= 0 ? `+${diff}` : diff} điểm, hạng ${res.after.grade}).`,
-      );
+      const summary = `Đã tối ưu (${res.provider}): ${res.before.score} → ${res.after.score}/100 (${diff >= 0 ? `+${diff}` : diff} điểm, hạng ${res.after.grade}).`;
+      setViralDeltaNote(res.note ? `${summary} ${res.note}` : summary);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Không tối ưu viral được kịch bản");
     } finally {
@@ -517,7 +521,14 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
 
             <label>
               {copy.sourceLabel}
-              <textarea value={text} onChange={(e) => setText(e.target.value)} rows={14} />
+              <textarea
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value);
+                  if (structureDraft) setStructureDraft(null);
+                }}
+                rows={14}
+              />
               <span className="field-hint">{copy.sourceHelp}</span>
             </label>
 
@@ -822,10 +833,18 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
                 ))}
               </div>
               {kind === "drama" ? (
-                <p className="meta">Motion theo provider (kenburns / i2v / mixed). Đăng nhập Muse/Grok ở Account nếu cần hub.</p>
+                <p className="meta">
+                  {user?.role === "operator"
+                    ? "Motion theo provider (kenburns / i2v / mixed). Đăng nhập Muse/Grok ở Account nếu cần hub."
+                    : "Motion tự động theo cấu hình studio (Ken Burns hoặc I2V)."}
+                </p>
               ) : null}
               {kind === "knowledge" && providers && !providers.chatgpt_web_authed ? (
-                <p className="meta">ChatGPT chưa sẵn sàng — đăng nhập ở Account để viết lời knowledge.</p>
+                <p className="meta">
+                  {user?.role === "operator"
+                    ? "ChatGPT chưa sẵn sàng — đăng nhập ở Account để viết lời knowledge."
+                    : "Hệ thống đang dùng bộ soạn kịch bản chuẩn (operator có thể bật thêm ChatGPT Hub)."}
+                </p>
               ) : null}
             </div>
           </section>
@@ -991,9 +1010,9 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
                   <p className="meta">
                     <strong>Style:</strong> {activeTemplate.visual_style}
                   </p>
-                  {activeTemplate.color_palette.length > 0 ? (
+                  {(activeTemplate.color_palette ?? []).length > 0 ? (
                     <div className="palette-swatches">
-                      {activeTemplate.color_palette.map((hex) => (
+                      {(activeTemplate.color_palette ?? []).map((hex) => (
                         <span key={hex} title={hex} className="palette-pill">
                           <span className="palette-dot" style={{ background: hex }} />
                           {hex}
@@ -1001,12 +1020,18 @@ export function ComposePage({ kind }: { kind: VideoKind }) {
                       ))}
                     </div>
                   ) : null}
-                  {activeTemplate.shots.length > 0 ? (
+                  {(activeTemplate.shots ?? []).length > 0 ? (
                     <div className="shot-strip">
-                      {activeTemplate.shots.slice(0, 8).map((shot) => (
+                      {(activeTemplate.shots ?? []).slice(0, 8).map((shot) => (
                         <div key={shot.index} className="shot-tile">
                           {shot.frame_rel ? (
-                            <img src={`/files/${shot.frame_rel}`} alt={`Shot ${shot.index}`} />
+                            <img
+                              src={`/files/${shot.frame_rel}`}
+                              alt={`Shot ${shot.index}`}
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
                           ) : null}
                           <span>
                             #{shot.index} {shot.beat} ({shot.duration_sec}s)

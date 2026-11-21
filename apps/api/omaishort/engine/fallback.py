@@ -46,13 +46,17 @@ _BEAT_LENSES_EDITORIAL: dict[str, tuple[tuple[Camera, Motion], tuple[Camera, Mot
 }
 
 LOCATION_CATALOG: list[tuple[str, str, str, tuple[str, ...]]] = [
-    ("kitchen", "kitchen at night", "galley kitchen, white cabinets, under-cabinet lights, dark window, tile floor", ("kitchen", "counter")),
-    ("hallway", "dim apartment hallway", "narrow apartment hall, warm wall sconce, scuffed wood floor, beige walls", ("hallway", "corridor")),
-    ("bedroom", "bedroom doorway", "small bedroom, rumpled white sheets, doorway frame, night lamp", ("bedroom", "bed")),
-    ("bathroom", "bathroom mirror", "bathroom vanity, round mirror, warm bulb, tiled wall", ("bathroom", "mirror")),
-    ("living_room", "living room couch", "living room, grey sofa, table lamp, dark tv", ("living room", "couch", "sofa")),
-    ("street", "rain-wet street", "wet asphalt street at night, sodium streetlights, parked cars", ("street", "outside")),
-    ("door", "front door", "apartment front door, peephole, deadbolt, dim porch light", ("front door", "changed the locks", "deadbolt")),
+    ("office", "modern corporate office lobby", "sleek glass-and-marble corporate lobby, warm architectural lighting, reception desk, polished stone floor", ("office", "lobby", "reception", "boardroom", "company", "sảnh", "công ty", "văn phòng", "phòng họp", "thang máy", "bảo vệ")),
+    ("hotel", "luxury hotel lobby", "upscale hotel front desk, chandelier light, marble counter, luggage cart", ("hotel", "front desk", "khách sạn", "lễ tân")),
+    ("restaurant", "upscale restaurant dining room", "dimly lit restaurant interior, linen tables, warm pendant lights, glassware", ("restaurant", "cafe", "coffee", "nhà hàng", "quán cà phê", "tiệc")),
+    ("hospital", "hospital corridor", "clean hospital hallway, fluorescent light, waiting chairs, glass doors", ("hospital", "clinic", "bệnh viện", "phòng cấp cứu")),
+    ("kitchen", "kitchen at night", "galley kitchen, white cabinets, under-cabinet lights, dark window, tile floor", ("kitchen", "counter", "nhà bếp", "bếp")),
+    ("hallway", "dim apartment hallway", "narrow apartment hall, warm wall sconce, scuffed wood floor, beige walls", ("hallway", "corridor", "hành lang")),
+    ("bedroom", "bedroom doorway", "small bedroom, rumpled white sheets, doorway frame, night lamp", ("bedroom", "bed", "phòng ngủ")),
+    ("bathroom", "bathroom mirror", "bathroom vanity, round mirror, warm bulb, tiled wall", ("bathroom", "mirror", "phòng tắm", "gương")),
+    ("living_room", "living room couch", "living room, grey sofa, table lamp, dark tv", ("living room", "couch", "sofa", "phòng khách")),
+    ("street", "rain-wet street", "wet asphalt street at night, sodium streetlights, parked cars", ("street", "outside", "đường phố", "ngoài đường", "mưa")),
+    ("door", "front door", "apartment front door, peephole, deadbolt, dim porch light", ("front door", "changed the locks", "deadbolt", "cửa nhà", "cổng")),
 ]
 
 BRIEF_LOCATION_CATALOG: list[tuple[str, str, str, tuple[str, ...]]] = [
@@ -600,17 +604,38 @@ def _guess_characters(text: str, kind: VideoKind = VideoKind.drama) -> Character
     lowered = text.lower()
     first_person = bool(re.search(r"\bi\b", lowered))
     husband_cues = ("husband", "he left", "his phone", "he said", "he typed", "he kissed", "he called", "his mother")
-    protagonist = "wife" if first_person and any(w in lowered for w in husband_cues) else "narrator"
-    chars: list[Character] = [
-        Character(
-            id=protagonist,
-            age=29,
-            gender="female",
-            appearance="late-twenties woman, dark brown hair in a low knot, tired eyes, small gold stud earrings",
-            clothing="black silk robe over a white tank, no jewelry except a thin wedding band",
-            personality="married to husband; controlled, then cracking",
+    is_affair_en = first_person and any(w in lowered for w in husband_cues)
+    protagonist = "wife" if is_affair_en else "narrator"
+    if is_affair_en:
+        chars: list[Character] = [
+            Character(
+                id=protagonist,
+                age=29,
+                gender="female",
+                appearance="late-twenties woman, dark brown hair in a low knot, tired eyes, small gold stud earrings",
+                clothing="black silk robe over a white tank, no jewelry except a thin wedding band",
+                personality="married to husband; controlled, then cracking",
+            )
+        ]
+    else:
+        is_corporate = any(
+            w in lowered
+            for w in ("công ty", "sảnh", "văn phòng", "chủ tịch", "giám đốc", "quản lý", "office", "lobby", "ceo", "boss", "manager")
         )
-    ]
+        chars = [
+            Character(
+                id=protagonist,
+                age=28,
+                gender="female" if any(w in lowered for w in ("cô", "chị", "nàng", "she", "her")) else "male",
+                appearance="late-twenties East Asian lead, calm expressive eyes, natural hair, sharp cinematic presence",
+                clothing=(
+                    "understated smart-casual blazer over plain shirt, modest watch"
+                    if is_corporate
+                    else "clean everyday modern jacket over plain crew-neck shirt"
+                ),
+                personality="composed under pressure, observant, quietly determined",
+            )
+        ]
     if any(w in lowered for w in husband_cues):
         chars.append(
             Character(
@@ -638,16 +663,35 @@ def _guess_characters(text: str, kind: VideoKind = VideoKind.drama) -> Character
 
 def _guess_structure(text: str, target: int) -> StoryStructure:
     sentences = _sentences(text)
-    n = max(5, len(sentences))
-    def at(frac: float) -> str:
-        idx = min(len(sentences) - 1, int(frac * n))
-        return sentences[idx]
+    if len(sentences) < 5:
+        # Split short 1-4 sentence stories into natural clauses so the 5 beats don't duplicate one sentence.
+        clauses: list[str] = []
+        for sent in sentences:
+            parts = [p.strip() for p in re.split(r"(?<=[,;–—:])\s+", sent) if p.strip()]
+            if len(parts) > 1:
+                clauses.extend(parts)
+            else:
+                clauses.append(sent)
+        if len(clauses) >= len(sentences):
+            sentences = clauses
+    n = len(sentences)
+    if n >= 5:
+        chunks = [""] * 5
+        for idx, sent in enumerate(sentences):
+            slot = min(4, int(idx / n * 5))
+            chunks[slot] = f"{chunks[slot]} {sent}".strip()
+        hook, conflict, rising_action, twist, ending = chunks
+    else:
+        padded = list(sentences)
+        while len(padded) < 5:
+            padded.append(padded[-1])
+        hook, conflict, rising_action, twist, ending = padded[:5]
     return StoryStructure(
-        hook=at(0.02),
-        conflict=at(0.22),
-        rising_action=at(0.5),
-        twist=at(0.78),
-        ending=at(0.96),
+        hook=hook,
+        conflict=conflict,
+        rising_action=rising_action,
+        twist=twist,
+        ending=ending,
         hook_sec=round(target * 0.10, 2),
         conflict_sec=round(target * 0.20, 2),
         rising_sec=round(target * 0.33, 2),
@@ -703,10 +747,17 @@ def beat_shots(still_id: str, duration: float, beat: str, *, editorial: bool = F
     ]
 
 
-def apply_beat_lenses(board: Storyboard) -> Storyboard:
+def apply_beat_lenses(board: Storyboard, *, preserve_existing: bool = False) -> Storyboard:
     total = max(1, len(board.scenes))
     editorial = is_editorial(board.kind)
     for i, scene in enumerate(board.scenes):
+        if preserve_existing and scene.shots:
+            if editorial:
+                for shot in scene.shots:
+                    if shot.camera == Camera.close_up:
+                        shot.camera = Camera.medium
+            repair_scene_shots(scene)
+            continue
         beat = infer_beat(scene, i, total)
         scene.shots = beat_shots(scene.still_id, scene.duration_sec, beat, editorial=editorial)
         repair_scene_shots(scene)

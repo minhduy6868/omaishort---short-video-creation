@@ -272,6 +272,10 @@ def rotate_refresh(raw: str, user_agent: str | None) -> tuple[dict[str, Any], st
     user = db.get_user_by_id(row["user_id"])
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
+    locked = _parse_iso(user.get("locked_until"))
+    if locked and locked > datetime.now(timezone.utc):
+        db.revoke_refresh(row["id"])
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "not authenticated")
     db.revoke_refresh(row["id"])
     return user, issue_refresh(user["id"], user_agent)
 
@@ -398,7 +402,14 @@ def can_read_job(row: dict[str, Any], user: dict[str, Any]) -> bool:
 
 
 def require_job(job_id: str, user: dict[str, Any]) -> dict[str, Any]:
+    from omaishort import cloud_client
+
     row = db.get_job(job_id)
+    if not row and cloud_client.cloud_mode_enabled():
+        remote = cloud_client.jobs_get(job_id)
+        if remote:
+            cloud_client.bind_job_token(job_id)
+            row = db.upsert_job_from_cloud(remote)
     if not row or not can_read_job(row, user):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "job not found")
     return row

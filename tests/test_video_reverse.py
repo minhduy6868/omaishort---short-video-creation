@@ -208,3 +208,80 @@ def test_templates_api_reverse_list_read_delete(tmp_path: Path, monkeypatch) -> 
 
         missing = client.get(f"/templates/{tid}", headers=headers)
         assert missing.status_code == 404
+
+
+def test_reverse_vlm_enabled_without_keys_and_audio_only_rejection(tmp_path: Path, monkeypatch) -> None:
+    import pytest
+    from omaishort.engine.fallback import apply_beat_lenses
+    from omaishort.engine.video_reverse import _safe_template_id
+    from omaishort_schema.models import Motion, Shot
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(config, "REA_VLM_BASE_URL", "")
+    monkeypatch.setattr(config, "REA_VLM_API_KEY", "")
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(config, "OPENAI_API_KEY", "")
+
+    sample = _make_sample_video(tmp_path / "vlm_sample.mp4")
+    # Regression P0-1: use_vlm=True must not raise AttributeError when keys are unset.
+    bp = asyncio.run(
+        reverse_engineer_video(
+            sample,
+            owner_id="user_vlm",
+            name="VLM Offline Fallback",
+            language="vi",
+            use_vlm=True,
+            transcribe=False,
+        )
+    )
+    assert bp.analyzer_provider == "ffmpeg"
+    assert len(bp.shots) >= 3
+
+    # Regression P1-6: path traversal in template_id must be rejected.
+    with pytest.raises(ValueError):
+        _safe_template_id("tpl_..escape")
+
+    # Regression P1-6: audio-only MP4 must be rejected cleanly.
+    audio_only = tmp_path / "audio_only.mp4"
+    res = subprocess.run(
+        [
+            ffmpeg_path(),
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=2",
+            "-c:a",
+            "aac",
+            str(audio_only),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0
+    with pytest.raises(ValueError, match="video stream"):
+        asyncio.run(reverse_engineer_video(audio_only, owner_id="user_vlm", use_vlm=False))
+
+    # Regression P0-7: preserve_existing=True must NOT wipe custom/blueprint shots.
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.drama,
+        genre=Genre.drama,
+        text="Cảnh mở đầu tại sảnh công ty.\n\nAnh ấy quay lại nhìn đồng hồ.\n\nSự thật khiến cả phòng im lặng.",
+        target_seconds=30,
+        language="vi",
+    )
+    bible, structure = fallback_analyze(story)
+    board = fallback_plan(story, bible, structure)
+    s0 = board.scenes[0]
+    s0.shots = [
+        Shot(camera=Camera.wide, motion=Motion.pan_left, t_start=0.0, t_end=s0.duration_sec, still_id=s0.still_id)
+    ]
+    apply_beat_lenses(board, preserve_existing=True)
+    assert len(board.scenes[0].shots) == 1
+    assert board.scenes[0].shots[0].camera == Camera.wide
+    assert board.scenes[0].shots[0].motion == Motion.pan_left

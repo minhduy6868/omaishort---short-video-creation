@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import re
 import traceback
 from pathlib import Path
 
@@ -604,11 +605,16 @@ async def run_job(job_id: str) -> None:
             speak_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await speak_task
+        import sys
+
+        print(f"[omaishort] job {job_id} failed: {exc}\n{traceback.format_exc()}", file=sys.stderr, flush=True)
+        clean_err = re.sub(r"\s+", " ", str(exc) or type(exc).__name__).strip()
+        clean_err = re.sub(r"[A-Za-z]:\\[^\s'\"]+", "<local-path>", clean_err)
         db.update_job(
             job_id,
             status=JobStatus.failed.value,
             progress="failed",
-            error=f"{exc}\n{traceback.format_exc()[-2000:]}",
+            error=clean_err[:300],
         )
         _refund_failed_job(job_id)
         raise
@@ -948,10 +954,15 @@ async def rerender_job(job_id: str, *, regenerate_stills: bool = False) -> None:
             error=None,
         )
     except Exception as exc:
+        import sys
+
+        print(f"[omaishort] job {job_id} failed: {exc}\n{traceback.format_exc()}", file=sys.stderr, flush=True)
+        clean_err = re.sub(r"\s+", " ", str(exc) or type(exc).__name__).strip()
+        clean_err = re.sub(r"[A-Za-z]:\\[^\s'\"]+", "<local-path>", clean_err)
         db.update_job(
             job_id,
             status=JobStatus.failed.value,
             progress="failed",
-            error=f"{exc}\n{traceback.format_exc()[-2000:]}",
+            error=clean_err[:300],
         )
         raise

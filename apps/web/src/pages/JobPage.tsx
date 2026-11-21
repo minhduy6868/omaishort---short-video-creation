@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   aiRewriteJobStructure,
   dataFileUrl,
@@ -29,6 +29,7 @@ import {
   toneForStatus,
   type SceneWithSrc,
 } from "../components";
+import { useSession } from "../session";
 import type { CharacterBibleData, Job, ScenePreview, StoryStructureData } from "../types";
 
 const BEATS = ["hook", "conflict", "rising_action", "twist", "ending"] as const;
@@ -66,6 +67,8 @@ function terminal(status?: string): boolean {
 }
 
 export function JobPage({ id }: { id: string }) {
+  const { refreshMe } = useSession();
+  const prevStatusRef = useRef<string | undefined>(undefined);
   const [job, setJob] = useState<Job | null>(null);
   const [missing, setMissing] = useState(false);
   const [lastPoll, setLastPoll] = useState<Date | null>(null);
@@ -130,6 +133,14 @@ export function JobPage({ id }: { id: string }) {
         if (data.status === "done") {
           setStillVersion(Date.now());
         }
+        if (
+          prevStatusRef.current &&
+          prevStatusRef.current !== data.status &&
+          (data.status === "failed" || data.status === "done")
+        ) {
+          void refreshMe();
+        }
+        prevStatusRef.current = data.status;
         if (terminal(data.status) && timer) {
           window.clearInterval(timer);
           timer = 0;
@@ -174,7 +185,8 @@ export function JobPage({ id }: { id: string }) {
     }
     if (!editingMeta) {
       setMetaTitle(job.storyboard?.title || "");
-      setMetaVoice(typeof job.input?.voice_id === "string" ? job.input.voice_id : "vi-female");
+      const defaultVoiceForLang = job.input?.language === "en" ? "en-female-us" : "vi-female";
+      setMetaVoice(typeof job.input?.voice_id === "string" && job.input.voice_id ? job.input.voice_id : defaultVoiceForLang);
       setMetaSeconds(typeof job.input?.target_seconds === "number" ? job.input.target_seconds : 90);
       const mix = job.input?.mix as { bgm_enabled?: boolean; logo_enabled?: boolean } | undefined;
       setMetaBgm(mix?.bgm_enabled ?? true);
@@ -419,10 +431,11 @@ export function JobPage({ id }: { id: string }) {
     }
   }
 
-  const videoSrc =
-    job?.status === "done"
-      ? `${dataFileUrl(job.artifacts?.mp4) ?? `/jobs/${id}/download`}?v=${stillVersion}`
-      : null;
+  const mp4Ready = job?.status === "done" && (job.storage ? Boolean(job.storage.mp4_ready) : true);
+  const remoteOnlyMp4 = job?.status === "done" && job.storage !== undefined && !job.storage.mp4_ready;
+  const videoSrc = mp4Ready
+    ? `${dataFileUrl(job?.artifacts?.mp4) ?? `/jobs/${id}/download`}?v=${stillVersion}`
+    : null;
   const poster = stills.find((scene) => scene.src)?.src ?? undefined;
   const rawKind = job?.storyboard?.kind || (typeof job?.input?.kind === "string" ? job.input.kind : "drama");
   const kind = rawKind === "brief" ? "news" : rawKind;
@@ -445,7 +458,7 @@ export function JobPage({ id }: { id: string }) {
                 disabled={rerenderBusy}
                 onClick={() => void handlePause()}
               >
-                ⏸ Tạm dừng để chỉnh sửa (Lời / Ảnh / Cảnh)
+                Tạm dừng để chỉnh sửa (Lời / Ảnh / Cảnh)
               </button>
             ) : (
               <>
@@ -456,7 +469,7 @@ export function JobPage({ id }: { id: string }) {
                   onClick={() => void handleRerender(false)}
                 >
                   {job?.status === "paused"
-                    ? "▶ Tiếp tục xuất MP4"
+                    ? "Tiếp tục xuất MP4"
                     : "Render lại MP4 (Giữ ảnh)"}
                 </button>
                 <button
@@ -586,6 +599,10 @@ export function JobPage({ id }: { id: string }) {
               </a>
               <span className="meta">Motion mode: {motion}</span>
             </div>
+          ) : remoteOnlyMp4 ? (
+            <p className="meta">
+              MP4 được lưu trên máy đã render video này. Bấm &quot;Render lại MP4&quot; nếu bạn muốn xuất lại bản mới ngay trên máy này.
+            </p>
           ) : (
             <p className="meta">Preview sẽ chuyển từ still sang MP4 khi render hoàn tất.</p>
           )}

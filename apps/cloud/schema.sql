@@ -123,6 +123,6 @@ CREATE INDEX IF NOT EXISTS idx_templates_user ON templates(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, created_at);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_ledger_user ON credit_ledger(user_id, created_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_job_hold ON credit_ledger(job_id) WHERE job_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_job_reason ON credit_ledger(job_id, reason) WHERE job_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_orders_user ON payment_orders(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON payment_orders(status, created_at);

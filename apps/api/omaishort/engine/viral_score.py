@@ -330,7 +330,7 @@ def evaluate_viral_script(
     ending_words = len(re.findall(r"\S+", beats["ending"]))
     value_score = 0
     value_score += min(8, value_hits * 2)
-    value_score += min(6, filled_beats + 1)
+    value_score += min(6, filled_beats + 1) if filled_beats > 0 else 0
     if ending_words >= 8:
         value_score += 6
     else:
@@ -415,10 +415,17 @@ async def boost_viral_script(
         language=language,
         target_seconds=target_seconds,
     )
+    note = ""
+    if provider == "local-polish":
+        note = (
+            "Đã chuẩn hóa nhịp câu và lược mở đầu rườm rà ở chế độ offline (không chèn thêm hướng dẫn). "
+            "Cấu hình OpenAI/Gemini API key hoặc đăng nhập ChatGPT để AI viết lại đột phá hơn."
+        )
     return {
         "structure": updated,
         "text": joined,
         "provider": provider,
+        "note": note,
         "before": before,
         "after": after,
     }

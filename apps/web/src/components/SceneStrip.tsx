@@ -18,7 +18,7 @@ export function SceneStrip({ scenes }: SceneStripProps) {
           {scene.src ? <img src={scene.src} alt="" /> : <span className="ph" />}
           <div>
             <p className="scene-title">
-              Scene {scene.index + 1} · {scene.duration_sec}s
+              Cảnh #{scene.index} · {scene.duration_sec}s
             </p>
             <p className="scene-meta">
               {scene.emotion || "neutral"} · {scene.location || "no location"}

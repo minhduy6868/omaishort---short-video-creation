@@ -75,7 +75,7 @@ def _safe_owner(owner_id: str | None) -> str:
 
 def _safe_template_id(template_id: str) -> str:
     cleaned = _SAFE_SLUG.sub("", (template_id or "").strip())
-    if not cleaned or len(cleaned) < 4 or len(cleaned) > 64:
+    if not cleaned or ".." in cleaned or len(cleaned) < 4 or len(cleaned) > 64:
         raise ValueError("invalid template id")
     return cleaned
 
@@ -536,6 +536,8 @@ async def reverse_engineer_video(
     duration = float(meta["duration_sec"])
     if duration <= 0.1:
         raise ValueError("Could not read valid video duration from file")
+    if await asyncio.to_thread(probe_video_size, video_path) is None:
+        raise ValueError("File does not contain a valid video stream")
 
     template_id = f"tpl_{secrets.token_hex(5)}"
     owner = _safe_owner(owner_id)
@@ -607,6 +609,9 @@ async def reverse_engineer_video(
         return extracted, frame_pairs
 
     shots, frame_pairs = await asyncio.to_thread(_extract_all)
+    if not frame_pairs:
+        shutil.rmtree(tdir, ignore_errors=True)
+        raise ValueError("Could not extract any valid video frames from file")
     transcript = await asyncio.to_thread(_transcribe_reference, video_path, bool(meta["has_audio"]), transcribe)
 
     vlm_payload: dict[str, Any] | None = None

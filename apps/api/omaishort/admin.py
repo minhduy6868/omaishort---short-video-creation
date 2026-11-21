@@ -171,7 +171,8 @@ def admin_list_jobs(
             params["user_id"] = user_id
         data = cloud_client.admin_jobs_list(params)
         for item in data.get("jobs") or []:
-            item["storage"] = storage.inspect_job_storage(str(item["id"]))
+            remote_st = item.get("storage")
+            item["storage"] = storage.merge_remote_storage(storage.inspect_job_storage(str(item["id"])), remote_st)
         return data
     rows = db.list_all_jobs(limit=limit, status=job_status, user_id=user_id)
     users_map = {str(u["id"]): u for u in db.list_users()}
@@ -192,9 +193,7 @@ async def admin_retry_job(
     background: BackgroundTasks,
     _admin: OperatorUser,
 ) -> dict[str, str]:
-    row = db.get_job(job_id)
-    if not row:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "job not found")
+    require_job(job_id, _admin)
     db.update_job(job_id, status="queued", stage="queued", progress="queued", error=None)
     background.add_task(run_job, job_id)
     return {"id": job_id, "status": "queued"}
@@ -206,9 +205,11 @@ def admin_delete_job(
     _admin: OperatorUser,
     keep_db: bool = Query(False),
 ) -> dict[str, Any]:
-    row = db.get_job(job_id)
-    if not row:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "job not found")
+    from omaishort import cloud_client
+
+    require_job(job_id, _admin)
+    if cloud_client.cloud_mode_enabled() and not keep_db:
+        cloud_client.sync_job_delete(job_id)
     return storage.delete_job_storage(job_id, delete_db_row=not keep_db)
 
 

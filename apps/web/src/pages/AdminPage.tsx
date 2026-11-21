@@ -55,6 +55,7 @@ const TABS: { id: AdminTab; label: string }[] = [
 const JOB_FILTERS: { id: string; label: string }[] = [
   { id: "all", label: "Tất cả" },
   { id: "running", label: "Đang chạy" },
+  { id: "paused", label: "Tạm dừng" },
   { id: "done", label: "Đã xong" },
   { id: "failed", label: "Lỗi" },
 ];
@@ -101,6 +102,12 @@ export function AdminPage() {
   const [billingOrders, setBillingOrders] = useState<PaymentOrder[]>([]);
   const [grantUserId, setGrantUserId] = useState("");
   const [grantCredits, setGrantCredits] = useState(3);
+  const [editingPlanCode, setEditingPlanCode] = useState<string | null>(null);
+  const [planForm, setPlanForm] = useState<{ credits: number; period_days: number; price_vnd: number }>({
+    credits: 20,
+    period_days: 30,
+    price_vnd: 199000,
+  });
   const [chatgptOpening, setChatgptOpening] = useState(false);
   const [grokOpening, setGrokOpening] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -174,6 +181,11 @@ export function AdminPage() {
         />
         <section className="panel">
           <p className="err">Tài khoản hiện tại ({user?.email}) có quyền creator, không có quyền truy cập Admin Console.</p>
+          <div className="hub-actions" style={{ marginTop: "12px" }}>
+            <button type="button" onClick={() => go("/work")}>
+              Quay về Việc của tôi
+            </button>
+          </div>
         </section>
       </section>
     );
@@ -183,7 +195,7 @@ export function AdminPage() {
   const storageSummary = storageData?.summary ?? overview?.storage;
   const filteredJobs = jobs.filter((job) => {
     if (jobFilter === "all") return true;
-    if (jobFilter === "running") return job.status !== "done" && job.status !== "failed";
+    if (jobFilter === "running") return job.status === "running" || job.status === "queued";
     return job.status === jobFilter;
   });
 
@@ -440,23 +452,42 @@ export function AdminPage() {
                             {row.role === "operator" ? "Hạ xuống Creator" : "Nâng lên Admin"}
                           </button>
                           {!isSelf ? (
-                            <button
-                              type="button"
-                              className="ghost"
-                              disabled={busy}
-                              onClick={() => {
-                                setBusy(true);
-                                void patchAdminUser(row.id, { locked: !row.locked })
-                                  .then(() => {
-                                    setMessage(row.locked ? `Đã mở khóa ${row.email}.` : `Đã khóa ${row.email}.`);
-                                    return refreshAll();
-                                  })
-                                  .catch((err) => setError(err instanceof Error ? err.message : "Lỗi khóa/mở khóa"))
-                                  .finally(() => setBusy(false));
-                              }}
-                            >
-                              {row.locked ? "Mở khóa" : "Khóa"}
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={busy}
+                                onClick={() => {
+                                  setBusy(true);
+                                  void patchAdminUser(row.id, { locked: !row.locked })
+                                    .then(() => {
+                                      setMessage(row.locked ? `Đã mở khóa ${row.email}.` : `Đã khóa ${row.email}.`);
+                                      return refreshAll();
+                                    })
+                                    .catch((err) => setError(err instanceof Error ? err.message : "Lỗi khóa/mở khóa"))
+                                    .finally(() => setBusy(false));
+                                }}
+                              >
+                                {row.locked ? "Mở khóa" : "Khóa"}
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={busy}
+                                onClick={() => {
+                                  setBusy(true);
+                                  void patchAdminUser(row.id, { revoke_sessions: true })
+                                    .then(() => {
+                                      setMessage(`Đã thu hồi toàn bộ phiên đăng nhập của ${row.email}.`);
+                                      return refreshAll();
+                                    })
+                                    .catch((err) => setError(err instanceof Error ? err.message : "Lỗi thu hồi phiên"))
+                                    .finally(() => setBusy(false));
+                                }}
+                              >
+                                Thu hồi phiên
+                              </button>
+                            </>
                           ) : null}
                         </div>
                       </td>
@@ -547,38 +578,128 @@ export function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {(billingOverview?.plans || []).map((plan) => (
-                  <tr key={plan.code}>
-                    <td>
-                      <code>{plan.code}</code>
-                    </td>
-                    <td>{plan.name}</td>
-                    <td>{plan.credits}</td>
-                    <td>{plan.period_days}</td>
-                    <td>{plan.price_vnd}</td>
-                    <td>
-                      <StatusPill label={plan.active ? "on" : "off"} tone={plan.active ? "done" : "idle"} />
-                    </td>
-                    <td>
-                      {plan.code !== "trial" ? (
-                        <button
-                          type="button"
-                          className="ghost"
-                          disabled={busy}
-                          onClick={() => {
-                            setBusy(true);
-                            void patchAdminBillingPlan(plan.code, { active: !plan.active })
-                              .then(() => refreshAll())
-                              .catch((err) => setError(err instanceof Error ? err.message : "Lỗi plan"))
-                              .finally(() => setBusy(false));
-                          }}
-                        >
-                          {plan.active ? "Tắt" : "Bật"}
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
+                {(billingOverview?.plans || []).map((plan) => {
+                  const isEditing = editingPlanCode === plan.code;
+                  return (
+                    <tr key={plan.code}>
+                      <td>
+                        <code>{plan.code}</code>
+                      </td>
+                      <td>{plan.name}</td>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={1}
+                            max={100000}
+                            value={planForm.credits}
+                            onChange={(e) => setPlanForm((prev) => ({ ...prev, credits: Number(e.target.value) || 1 }))}
+                            style={{ width: "5.5rem" }}
+                          />
+                        ) : (
+                          plan.credits
+                        )}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={1}
+                            max={3650}
+                            value={planForm.period_days}
+                            onChange={(e) => setPlanForm((prev) => ({ ...prev, period_days: Number(e.target.value) || 1 }))}
+                            style={{ width: "5rem" }}
+                          />
+                        ) : (
+                          plan.period_days
+                        )}
+                      </td>
+                      <td>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={0}
+                            max={1000000000}
+                            step={1000}
+                            value={planForm.price_vnd}
+                            onChange={(e) => setPlanForm((prev) => ({ ...prev, price_vnd: Math.max(0, Number(e.target.value) || 0) }))}
+                            style={{ width: "7.5rem" }}
+                          />
+                        ) : (
+                          plan.price_vnd
+                        )}
+                      </td>
+                      <td>
+                        <StatusPill label={plan.active ? "on" : "off"} tone={plan.active ? "done" : "idle"} />
+                      </td>
+                      <td>
+                        <div className="hub-actions">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => {
+                                  setBusy(true);
+                                  void patchAdminBillingPlan(plan.code, planForm)
+                                    .then(() => {
+                                      setEditingPlanCode(null);
+                                      setMessage(`Đã cập nhật gói ${plan.code}.`);
+                                      return refreshAll();
+                                    })
+                                    .catch((err) => setError(err instanceof Error ? err.message : "Lỗi lưu gói"))
+                                    .finally(() => setBusy(false));
+                                }}
+                              >
+                                Lưu
+                              </button>
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={busy}
+                                onClick={() => setEditingPlanCode(null)}
+                              >
+                                Hủy
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="ghost"
+                              disabled={busy}
+                              onClick={() => {
+                                setEditingPlanCode(plan.code);
+                                setPlanForm({
+                                  credits: plan.credits,
+                                  period_days: plan.period_days,
+                                  price_vnd: plan.price_vnd,
+                                });
+                              }}
+                            >
+                              Sửa
+                            </button>
+                          )}
+                          {plan.code !== "trial" ? (
+                            <button
+                              type="button"
+                              className="ghost"
+                              disabled={busy}
+                              onClick={() => {
+                                setBusy(true);
+                                void patchAdminBillingPlan(plan.code, { active: !plan.active })
+                                  .then(() => refreshAll())
+                                  .catch((err) => setError(err instanceof Error ? err.message : "Lỗi plan"))
+                                  .finally(() => setBusy(false));
+                              }}
+                            >
+                              {plan.active ? "Tắt" : "Bật"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

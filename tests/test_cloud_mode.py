@@ -275,3 +275,33 @@ def test_cloud_mode_auth_billing_jobs_attachments_and_zero_sql_key(tmp_path: Pat
 
         # 6. Verify ZERO raw SQL admin key was ever transmitted
         assert fake.seen_raw_keys == []
+
+        # 7. Regression P0-4: Cloud-only job (not in local SQLite) is materialized on require_job (PATCH /jobs/{id}).
+        fake.jobs["remote_job_99"] = {
+            "id": "remote_job_99",
+            "user_id": c1_data["user"]["id"],
+            "status": "done",
+            "stage": "done",
+            "input": {
+                "mode": "script",
+                "kind": "drama",
+                "text": "Kịch bản đồng bộ từ máy khác về.",
+                "target_seconds": 30,
+                "language": "vi",
+            },
+            "artifacts": {},
+            "storage": {"duration_sec": 28.5, "width": 1080, "height": 1920},
+        }
+        patch_remote = client.patch(
+            "/jobs/remote_job_99",
+            json={"target_seconds": 45},
+            headers=headers,
+        )
+        assert patch_remote.status_code == 200, patch_remote.text
+        assert patch_remote.json()["input"]["target_seconds"] == 45
+
+        # 8. Regression P1-3: Global provider hub controls are operator-only (creator gets 403).
+        op_headers = {"Authorization": f"Bearer {op.json()['access_token']}"}
+        assert client.get("/providers/elevenlabs", headers=headers).status_code == 403
+        assert client.post("/providers/chatgpt-check", headers=headers).status_code == 403
+        assert client.get("/providers/elevenlabs", headers=op_headers).status_code == 200

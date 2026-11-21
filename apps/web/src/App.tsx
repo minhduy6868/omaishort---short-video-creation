@@ -20,7 +20,11 @@ function Redirect({ to }: { to: string }) {
 
 export default function App() {
   const { route } = useNav();
-  const { user, ready, offline } = useSession();
+  const { user, ready, offline, ensureSessionLoaded } = useSession();
+
+  useEffect(() => {
+    ensureSessionLoaded();
+  }, [ensureSessionLoaded]);
 
   if (!ready) {
     return (

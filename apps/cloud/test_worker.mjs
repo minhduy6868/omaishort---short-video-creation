@@ -186,4 +186,57 @@ test("full multi-user lifecycle: auth, trial credits, jobs isolation, templates,
   assert.equal(opApprove.status, 200);
   assert.equal(opApprove.data.billing.plan_code, "starter");
   assert.equal(opApprove.data.billing.credits_remaining, 20);
+
+  // 8. Regression P0-5: Bob cannot hijack Alice's job_id or template_id via POST
+  const hijackJob = await req(env, "POST", "/v1/jobs", {
+    token: c2Token,
+    body: { id: "job_a1", input_json: { kind: "drama", text: "Hijack attempt" } },
+  });
+  assert.equal(hijackJob.status, 409);
+
+  const hijackTpl = await req(env, "POST", "/v1/templates", {
+    token: c2Token,
+    body: { id: "tpl_demo1", name: "Stolen", source_filename: "x.mp4" },
+  });
+  assert.equal(hijackTpl.status, 409);
+
+  // 9. Regression P0-6: Idempotent hold & refund never double-charge or double-credit
+  const h1 = await req(env, "POST", "/v1/billing/hold", { token: c1Token, body: { job_id: "job_idem_1" } });
+  assert.equal(h1.status, 200);
+  assert.equal(h1.data.billing.credits_remaining, 19);
+  const h2 = await req(env, "POST", "/v1/billing/hold", { token: c1Token, body: { job_id: "job_idem_1" } });
+  assert.equal(h2.status, 200);
+  assert.equal(h2.data.billing.credits_remaining, 19);
+
+  const r1 = await req(env, "POST", "/v1/billing/refund", { token: c1Token, body: { job_id: "job_idem_1" } });
+  assert.equal(r1.status, 200);
+  const r2 = await req(env, "POST", "/v1/billing/refund", { token: c1Token, body: { job_id: "job_idem_1" } });
+  assert.equal(r2.status, 200);
+  const afterRefund = await req(env, "GET", "/v1/billing/me", { token: c1Token });
+  assert.equal(afterRefund.data.billing.credits_remaining, 20);
+
+  // 10. Regression P1-1 & P1-2: Double order approval rejected, grant validates integer, admin overview schema parity
+  const dupApprove = await req(env, "PATCH", `/v1/admin/billing/orders/${orderId}`, {
+    token: opToken,
+    body: { status: "paid" },
+  });
+  assert.equal(dupApprove.status, 400);
+
+  const badGrant = await req(env, "POST", `/v1/admin/billing/users/${c1Reg.data.user.id}/grant`, {
+    token: opToken,
+    body: { credits: 2.5 },
+  });
+  assert.equal(badGrant.status, 422);
+
+  const adminOv = await req(env, "GET", "/v1/admin/overview", { token: opToken });
+  assert.equal(adminOv.status, 200);
+  assert.equal(adminOv.data.stats.db_backend, "cloudflare-d1");
+  assert.equal(typeof adminOv.data.stats.jobs_by_status.done, "number");
+
+  const billOv = await req(env, "GET", "/v1/admin/billing/overview", { token: opToken });
+  assert.equal(billOv.status, 200);
+  assert.equal(typeof billOv.data.stats.trials_active, "number");
+  assert.equal(typeof billOv.data.stats.subscriptions_active, "number");
+  assert.equal(typeof billOv.data.stats.orders_pending, "number");
+  assert.equal(typeof billOv.data.stats.credits_used_today, "number");
 });

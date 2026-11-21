@@ -90,3 +90,59 @@ def test_viral_score_and_presets_api(tmp_path: Path, monkeypatch) -> None:
         sdata = scored.json()
         assert 0 <= sdata["score"] <= 100
         assert sdata["word_count"] > 10
+
+
+def test_offline_viral_boost_never_injects_directive_and_empty_is_zero(monkeypatch) -> None:
+    import asyncio
+    from omaishort.engine.fallback import fallback_analyze
+    from omaishort.engine.viral_score import boost_viral_script
+    from omaishort_schema.models import Genre, StoryInput, StoryMode, VideoKind
+
+    # Empty script must score 0 (not 1).
+    assert evaluate_viral_script("")["score"] == 0
+
+    # Force offline fallback in complete_json_result.
+    async def _offline(*args, **kwargs):
+        return None, None, "offline"
+
+    monkeypatch.setattr("omaishort.engine.analyzer.complete_json_result", _offline)
+
+    raw = (
+        "Xin chào các bạn, hôm nay chúng ta sẽ xem chuyện ở sảnh công ty. "
+        "Người bảo vệ cũ bị sỉ nhục trước đám đông. Nhưng 5 phút sau chủ tịch bước xuống cúi chào. Đó là nội dung chính."
+    )
+    res = asyncio.run(
+        boost_viral_script(
+            text=raw,
+            kind="drama",
+            language="vi",
+            target_seconds=30,
+            instruction="Tối ưu kịch bản theo chuẩn viral short-video",
+        )
+    )
+    assert res["provider"] == "local-polish"
+    assert res["note"]
+    assert "Tối ưu kịch bản" not in res["text"]
+    assert "Khắc phục các điểm yếu" not in res["text"]
+    assert "Xin chào các bạn" not in res["text"]
+    assert len(res["text"]) <= len(raw) + 40
+
+    # Regression P0-8: Vietnamese corporate story must not get English cheating-wife silk robe or kitchen.
+    story = StoryInput(
+        mode=StoryMode.script,
+        kind=VideoKind.drama,
+        genre=Genre.drama,
+        text=(
+            "Tại sảnh công ty lúc 8 giờ sáng, nhân viên mới bị quản lý đuổi ra ngoài vì mặc áo cũ. "
+            "Cả sảnh cười ồ lên, nhưng đúng lúc đó thang máy mở ra và chủ tịch tập đoàn bước tới cúi đầu chào."
+        ),
+        target_seconds=30,
+        language="vi",
+    )
+    bible, structure = fallback_analyze(story)
+    assert "silk robe" not in bible.characters[0].clothing.lower()
+    assert "wedding band" not in bible.characters[0].clothing.lower()
+    assert any(loc.id == "office" for loc in bible.locations)
+    # Short 2-sentence story should split clauses across beats instead of duplicating 1 sentence 4 times.
+    unique_beats = {structure.hook, structure.conflict, structure.rising_action, structure.twist, structure.ending}
+    assert len(unique_beats) >= 3

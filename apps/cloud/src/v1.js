@@ -31,6 +31,12 @@ const DEFAULT_PLANS = [
 ];
 
 const _bootstrapped = new WeakSet();
+let _dummyHash = null;
+
+function dummyPasswordHash() {
+  if (!_dummyHash) _dummyHash = hashPassword("omaishort-timing-pad-not-a-real-password");
+  return _dummyHash;
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -90,6 +96,11 @@ async function ensureBootstrap(env) {
     )`
   ).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_templates_user ON templates(user_id, created_at)").run();
+  // Upgrade legacy idx_ledger_job_hold (job_id only) -> composite (job_id, reason) so hold & refund are both idempotent.
+  await env.DB.prepare("DROP INDEX IF EXISTS idx_ledger_job_hold").run();
+  await env.DB.prepare(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_job_reason ON credit_ledger(job_id, reason) WHERE job_id IS NOT NULL"
+  ).run();
 
   for (const [code, name, credits, days, price, active, features] of DEFAULT_PLANS) {
     await env.DB.prepare(
@@ -408,7 +419,10 @@ export async function handleV1(request, env) {
     const email = normalizeEmail(body.email);
     const password = String(body.password || "");
     const user = validEmail(email) ? await findAccount(env, email) : null;
-    if (!user) return errRes(401, "invalid email or password");
+    if (!user) {
+      verifyPassword(password, dummyPasswordHash());
+      return errRes(401, "invalid email or password");
+    }
     if (isLocked(user)) return errRes(429, "account locked");
     if (verifyPassword(password, user.password_hash)) {
       await env.DB.prepare("UPDATE users SET failed_logins = 0, locked_until = NULL, updated_at = ? WHERE id = ?")
@@ -533,28 +547,29 @@ export async function handleV1(request, env) {
         billing: entitlementSnapshot(hist[0] || null),
       });
     }
-    if (Number(sub.credits_remaining || 0) <= 0) {
-      return errRes(402, "credits exhausted", { billing: entitlementSnapshot(sub) });
-    }
     const ts = nowIso();
+    const ledgerId = randomHex(8);
+    // Reserve the unique (job_id, 'job_hold') ledger entry FIRST so concurrent retries never double-decrement.
+    try {
+      await env.DB.prepare(
+        `INSERT INTO credit_ledger (id, user_id, job_id, delta, reason, note, created_at)
+         VALUES (?, ?, ?, -1, 'job_hold', NULL, ?)`
+      )
+        .bind(ledgerId, uid, jobId, ts)
+        .run();
+    } catch {
+      const fresh = await currentSubscription(env, uid);
+      return jsonRes({ ok: true, billing: entitlementSnapshot(fresh) });
+    }
     const upd = await env.DB.prepare(
       "UPDATE subscriptions SET credits_remaining = credits_remaining - 1, updated_at = ? WHERE id = ? AND credits_remaining > 0"
     )
       .bind(ts, sub.id)
       .run();
     if (!upd.meta || Number(upd.meta.changes || 0) === 0) {
+      await env.DB.prepare("DELETE FROM credit_ledger WHERE id = ?").bind(ledgerId).run();
       const fresh = await currentSubscription(env, uid);
       return errRes(402, "credits exhausted", { billing: entitlementSnapshot(fresh) });
-    }
-    try {
-      await env.DB.prepare(
-        `INSERT INTO credit_ledger (id, user_id, job_id, delta, reason, note, created_at)
-         VALUES (?, ?, ?, -1, 'job_hold', NULL, ?)`
-      )
-        .bind(randomHex(8), uid, jobId, ts)
-        .run();
-    } catch {
-      // Idempotent if job_id already held.
     }
     const fresh = await currentSubscription(env, uid);
     return jsonRes({ ok: true, billing: entitlementSnapshot(fresh) });
@@ -569,25 +584,25 @@ export async function handleV1(request, env) {
     )
       .bind(uid, jobId)
       .first();
-    const already = await env.DB.prepare(
-      "SELECT 1 AS ok FROM credit_ledger WHERE user_id = ? AND note = ? AND reason = 'job_refund' LIMIT 1"
-    )
-      .bind(uid, `refund:${jobId}`)
-      .first();
-    if (!held || already) return jsonRes({ ok: true });
-    const sub = await currentSubscription(env, uid);
+    if (!held) return jsonRes({ ok: true });
     const ts = nowIso();
+    // Claim the unique (job_id, 'job_refund') row FIRST so concurrent refunds never double-credit.
+    try {
+      await env.DB.prepare(
+        `INSERT INTO credit_ledger (id, user_id, job_id, delta, reason, note, created_at)
+         VALUES (?, ?, ?, 1, 'job_refund', ?, ?)`
+      )
+        .bind(randomHex(8), uid, jobId, `refund:${jobId}`, ts)
+        .run();
+    } catch {
+      return jsonRes({ ok: true });
+    }
+    const sub = await currentSubscription(env, uid);
     if (sub) {
       await env.DB.prepare("UPDATE subscriptions SET credits_remaining = credits_remaining + 1, updated_at = ? WHERE id = ?")
         .bind(ts, sub.id)
         .run();
     }
-    await env.DB.prepare(
-      `INSERT INTO credit_ledger (id, user_id, job_id, delta, reason, note, created_at)
-       VALUES (?, ?, NULL, 1, 'job_refund', ?, ?)`
-    )
-      .bind(randomHex(8), uid, `refund:${jobId}`, ts)
-      .run();
     return jsonRes({ ok: true });
   }
 
@@ -603,23 +618,28 @@ export async function handleV1(request, env) {
   if (method === "POST" && path === "/v1/jobs") {
     const body = await readJson(request);
     if (!body || !body.id || !body.input_json) return errRes(422, "id and input_json required");
+    const jobId = String(body.id);
+    const existing = await env.DB.prepare("SELECT user_id FROM jobs WHERE id = ?").bind(jobId).first();
+    if (existing && !isOp && String(existing.user_id || "") !== uid) {
+      return errRes(409, "job id already exists");
+    }
     const ts = nowIso();
-    await env.DB.prepare(
-      `INSERT OR REPLACE INTO jobs (id, status, stage, error, created_at, updated_at, input_json, progress, user_id)
-       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        String(body.id),
-        String(body.status || "queued"),
-        String(body.stage || "queued"),
-        ts,
-        ts,
-        typeof body.input_json === "string" ? body.input_json : JSON.stringify(body.input_json),
-        String(body.progress || "queued"),
-        uid
+    const inputStr = typeof body.input_json === "string" ? body.input_json : JSON.stringify(body.input_json);
+    if (existing) {
+      await env.DB.prepare(
+        `UPDATE jobs SET status = ?, stage = ?, updated_at = ?, input_json = ?, progress = ? WHERE id = ?`
       )
-      .run();
-    const row = await env.DB.prepare("SELECT * FROM jobs WHERE id = ?").bind(String(body.id)).first();
+        .bind(String(body.status || "queued"), String(body.stage || "queued"), ts, inputStr, String(body.progress || "queued"), jobId)
+        .run();
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO jobs (id, status, stage, error, created_at, updated_at, input_json, progress, user_id)
+         VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)`
+      )
+        .bind(jobId, String(body.status || "queued"), String(body.stage || "queued"), ts, ts, inputStr, String(body.progress || "queued"), uid)
+        .run();
+    }
+    const row = await env.DB.prepare("SELECT * FROM jobs WHERE id = ?").bind(jobId).first();
     return jsonRes({ job: publicJob(row) }, 201);
   }
 
@@ -736,24 +756,46 @@ export async function handleV1(request, env) {
   if (method === "POST" && path === "/v1/templates") {
     const body = await readJson(request);
     if (!body || !body.id || !body.name) return errRes(422, "invalid template blueprint");
+    const tplId = String(body.id);
+    const existing = await env.DB.prepare("SELECT user_id FROM templates WHERE id = ?").bind(tplId).first();
+    if (existing && !isOp && String(existing.user_id || "") !== uid) {
+      return errRes(409, "template id already exists");
+    }
     const ts = nowIso();
-    await env.DB.prepare(
-      `INSERT OR REPLACE INTO templates (id, user_id, name, source_filename, duration_sec, pacing, blueprint_json, video_md, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        String(body.id),
-        uid,
-        String(body.name),
-        String(body.source_filename || "reference.mp4"),
-        Number(body.duration_sec || 0),
-        String(body.pacing || "medium"),
-        JSON.stringify(body),
-        String(body.video_md || ""),
-        String(body.created_at || ts),
-        ts
+    if (existing) {
+      await env.DB.prepare(
+        `UPDATE templates SET name = ?, source_filename = ?, duration_sec = ?, pacing = ?, blueprint_json = ?, video_md = ?, updated_at = ? WHERE id = ?`
       )
-      .run();
+        .bind(
+          String(body.name),
+          String(body.source_filename || "reference.mp4"),
+          Number(body.duration_sec || 0),
+          String(body.pacing || "medium"),
+          JSON.stringify(body),
+          String(body.video_md || ""),
+          ts,
+          tplId
+        )
+        .run();
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO templates (id, user_id, name, source_filename, duration_sec, pacing, blueprint_json, video_md, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+        .bind(
+          tplId,
+          uid,
+          String(body.name),
+          String(body.source_filename || "reference.mp4"),
+          Number(body.duration_sec || 0),
+          String(body.pacing || "medium"),
+          JSON.stringify(body),
+          String(body.video_md || ""),
+          String(body.created_at || ts),
+          ts
+        )
+        .run();
+    }
     return jsonRes({ template: body }, 201);
   }
 
@@ -777,20 +819,29 @@ export async function handleV1(request, env) {
       const usersTotal = Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM users").first())?.n || 0);
       const opsTotal = Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'operator'").first())?.n || 0);
       const jobsTotal = Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM jobs").first())?.n || 0);
+      const jobsQueued = Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM jobs WHERE status = 'queued'").first())?.n || 0);
+      const jobsActive = Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM jobs WHERE status = 'running'").first())?.n || 0);
+      const jobsPaused = Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM jobs WHERE status = 'paused'").first())?.n || 0);
       const jobsDone = Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM jobs WHERE status = 'done'").first())?.n || 0);
       const jobsFailed = Number((await env.DB.prepare("SELECT COUNT(*) AS n FROM jobs WHERE status = 'failed'").first())?.n || 0);
-      const jobsRunning = Number(
-        (await env.DB.prepare("SELECT COUNT(*) AS n FROM jobs WHERE status IN ('queued','running')").first())?.n || 0
-      );
+      const jobsRunning = jobsQueued + jobsActive;
       const attRow = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(byte_size), 0) AS b FROM attachments").first();
       return jsonRes({
         stats: {
+          db_backend: "cloudflare-d1",
           users_total: usersTotal,
           operators_total: opsTotal,
           jobs_total: jobsTotal,
           jobs_done: jobsDone,
           jobs_failed: jobsFailed,
           jobs_running: jobsRunning,
+          jobs_by_status: {
+            queued: jobsQueued,
+            running: jobsActive,
+            paused: jobsPaused,
+            done: jobsDone,
+            failed: jobsFailed,
+          },
           attachments_total: Number(attRow?.n || 0),
           attachments_bytes: Number(attRow?.b || 0),
         },
@@ -944,6 +995,7 @@ export async function handleV1(request, env) {
 
     if (method === "GET" && path === "/v1/admin/billing/overview") {
       const ts = nowIso();
+      const todayPrefix = ts.slice(0, 10);
       const activeSubs = Number(
         (await env.DB.prepare("SELECT COUNT(*) AS n FROM subscriptions WHERE status = 'active' AND ends_at > ?").bind(ts).first())?.n || 0
       );
@@ -956,9 +1008,22 @@ export async function handleV1(request, env) {
       const paidRev = Number(
         (await env.DB.prepare("SELECT COALESCE(SUM(amount_vnd), 0) AS s FROM payment_orders WHERE status = 'paid'").first())?.s || 0
       );
+      const creditsUsedToday = Number(
+        (
+          await env.DB.prepare(
+            "SELECT COALESCE(SUM(-delta), 0) AS s FROM credit_ledger WHERE reason = 'job_hold' AND created_at >= ?"
+          )
+            .bind(todayPrefix)
+            .first()
+        )?.s || 0
+      );
       const plansRes = await env.DB.prepare("SELECT * FROM plans ORDER BY price_vnd ASC").all();
       return jsonRes({
         stats: {
+          trials_active: trialSubs,
+          subscriptions_active: activeSubs,
+          orders_pending: pendingOrders,
+          credits_used_today: creditsUsedToday,
           active_subscriptions: activeSubs,
           trial_subscriptions: trialSubs,
           pending_orders: pendingOrders,
@@ -996,18 +1061,27 @@ export async function handleV1(request, env) {
       const nextStatus = String(body?.status || "").trim().toLowerCase();
       if (!["paid", "rejected"].includes(nextStatus)) return errRes(422, "status must be paid or rejected");
       const ts = nowIso();
+      // Atomically claim the pending order FIRST so concurrent admin approvals cannot double-activate.
+      const claim = await env.DB.prepare(
+        "UPDATE payment_orders SET status = ?, admin_note = ?, paid_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'"
+      )
+        .bind(nextStatus, body?.admin_note || null, nextStatus === "paid" ? ts : null, ts, orderId)
+        .run();
+      if (!claim.meta || Number(claim.meta.changes || 0) !== 1) {
+        return errRes(400, "order is not pending");
+      }
       if (nextStatus === "paid") {
         try {
           await activatePlan(env, String(order.user_id), String(order.plan_code), `order ${orderId}`);
         } catch (err) {
+          await env.DB.prepare(
+            "UPDATE payment_orders SET status = 'pending', paid_at = NULL, updated_at = ? WHERE id = ?"
+          )
+            .bind(nowIso(), orderId)
+            .run();
           return errRes(400, err instanceof Error ? err.message : "activate failed");
         }
       }
-      await env.DB.prepare(
-        "UPDATE payment_orders SET status = ?, admin_note = ?, paid_at = ?, updated_at = ? WHERE id = ?"
-      )
-        .bind(nextStatus, body?.admin_note || null, nextStatus === "paid" ? ts : null, ts, orderId)
-        .run();
       const updated = await env.DB.prepare("SELECT * FROM payment_orders WHERE id = ?").bind(orderId).first();
       const sub = await currentSubscription(env, String(order.user_id));
       return jsonRes({ order: updated, billing: entitlementSnapshot(sub) });
@@ -1019,8 +1093,10 @@ export async function handleV1(request, env) {
       const target = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(targetId).first();
       if (!target) return errRes(404, "user not found");
       const body = await readJson(request);
-      const credits = Number(body?.credits || 0);
-      if (credits < 1 || credits > 1000) return errRes(422, "credits must be 1..1000");
+      const credits = Number(body?.credits);
+      if (!Number.isInteger(credits) || credits < 1 || credits > 1000) {
+        return errRes(422, "credits must be an integer 1..1000");
+      }
       let subs = await listUserSubscriptions(env, targetId);
       if (!subs.length) {
         await ensureTrial(env, targetId);
@@ -1028,7 +1104,19 @@ export async function handleV1(request, env) {
       }
       const sub = subs[0];
       const ts = nowIso();
-      const newEnds = body?.extend_days ? addDaysIso(Number(body.extend_days)) : sub.ends_at;
+      const currentEndsMs = new Date(sub.ends_at).getTime() || 0;
+      const nowMs = Date.now();
+      const extendDays = body?.extend_days !== undefined && body?.extend_days !== null ? Number(body.extend_days) : 0;
+      if (extendDays && (!Number.isFinite(extendDays) || extendDays < 0 || extendDays > 3650)) {
+        return errRes(422, "extend_days must be 0..3650");
+      }
+      let newEnds = sub.ends_at;
+      if (extendDays > 0) {
+        newEnds = new Date(Math.max(nowMs, currentEndsMs) + extendDays * 86400 * 1000).toISOString();
+      } else if (currentEndsMs <= nowMs) {
+        // Ensure granted credits on an expired subscription are immediately usable.
+        newEnds = addDaysIso(14);
+      }
       const newStatus = sub.status === "expired" ? "active" : sub.status;
       await env.DB.prepare(
         `UPDATE subscriptions
@@ -1057,20 +1145,26 @@ export async function handleV1(request, env) {
       const sets = ["updated_at = ?"];
       const params = [nowIso()];
       if (body?.credits !== undefined && body.credits !== null) {
+        const val = Number(body.credits);
+        if (!Number.isInteger(val) || val < 1 || val > 100000) return errRes(422, "credits must be integer 1..100000");
         sets.push("credits = ?");
-        params.push(Number(body.credits));
+        params.push(val);
       }
       if (body?.price_vnd !== undefined && body.price_vnd !== null) {
+        const val = Number(body.price_vnd);
+        if (!Number.isInteger(val) || val < 0 || val > 1000000000) return errRes(422, "price_vnd must be integer >= 0");
         sets.push("price_vnd = ?");
-        params.push(Number(body.price_vnd));
+        params.push(val);
       }
       if (body?.active !== undefined && body.active !== null) {
         sets.push("active = ?");
         params.push(body.active ? 1 : 0);
       }
       if (body?.period_days !== undefined && body.period_days !== null) {
+        const val = Number(body.period_days);
+        if (!Number.isInteger(val) || val < 1 || val > 3650) return errRes(422, "period_days must be integer 1..3650");
         sets.push("period_days = ?");
-        params.push(Number(body.period_days));
+        params.push(val);
       }
       if (body?.name !== undefined && body.name !== null) {
         sets.push("name = ?");
